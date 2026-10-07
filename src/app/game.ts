@@ -2,7 +2,6 @@ import type { Sim } from '../game/sim.ts';
 import type { BoostId, SimEvent, UpgradeId } from '../game/types.ts';
 import { MISC } from '../game/config.ts';
 import type { GameRenderer } from '../render/Renderer.ts';
-import type { Loop } from './loop.ts';
 import type { PauseController } from './pause.ts';
 import type { ThrottleInput } from './input.ts';
 import { Offers } from './offers.ts';
@@ -24,7 +23,6 @@ import { sampleAt } from '../game/path.ts';
 export interface GameDeps {
   sim: Sim;
   renderer: GameRenderer;
-  loop: Loop;
   pause: PauseController;
   input: ThrottleInput;
   ads: AdManager;

@@ -1,8 +1,7 @@
 import type { Sim } from '../game/sim.ts';
 import type { UpgradeId } from '../game/types.ts';
-import type { GameRenderer } from '../render/Renderer.ts';
-import type { Loop } from './loop.ts';
-import type { ThrottleInput } from './input.ts';
+import type { App } from './boot.ts';
+import { clock } from '../platform/clock.ts';
 
 export interface DebugApi {
   ready: boolean;
@@ -22,7 +21,8 @@ export interface DebugApi {
 }
 
 /** window.__game hooks for e2e tests and manual debugging (enabled by VITE_DEBUG_HOOKS or ?debug=1). */
-export function installDebug(sim: Sim, renderer: GameRenderer, loop: Loop, input: ThrottleInput): DebugApi {
+export function installDebug(app: App): DebugApi {
+  const { sim, renderer, loop, input } = app;
   let fps = 0;
   let lastFrames = loop.frames;
   let lastT = performance.now();
@@ -73,6 +73,18 @@ export function installDebug(sim: Sim, renderer: GameRenderer, loop: Loop, input
       return { uniqueColors: colors.size, nonSkyFrac: nonSky / (px.length / (4 * 7)) };
     },
   };
+  Object.assign(api, {
+    app,
+    advanceWall: (sec: number) => clock.advance(sec),
+    simulateOffline: (sec: number) => app.checkOffline(sec),
+    saveNow: () => app.saves.saveNow(),
+    resetSave: () => app.saves.wipe(),
+    setPlaytime: (sec: number) => {
+      app.ads.policy.playtimeSec = sec;
+    },
+    meta: () => app.meta,
+    lastSaved: () => app.saves.lastSavedAt,
+  });
   (window as unknown as { __game: DebugApi }).__game = api;
   return api;
 }
