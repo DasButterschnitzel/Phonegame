@@ -1,0 +1,26 @@
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+blob-report/
+*.log
+.DS_Store
+.env.local
+.env.*.local
+*.keystore
+*.jks
+/out/
+/store-build/
+/portals/
+# Android
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+android/.idea/
+# iOS
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
