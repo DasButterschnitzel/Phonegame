@@ -45,7 +45,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       if (!busy || final) r.fx.spray(c.x, c.y, c.z, dx, dz, color, busy ? 1 : final ? 3 : 2, 1.9, 0.085, 0.38, 2.2, 9, 0.3);
       r.stacks.chunk(c.x, c.y, c.z, color, e.body, now, final);
       r.cat.gulp(e.body, now);
-      audio.chomp(e.golden);
+      audio.chomp(e.golden, e.tier, final);
       break;
     }
     case 'kill': {

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { ready, g } from './helpers.ts';
 
 /**
@@ -187,5 +187,35 @@ test('bite lineup: every crop at stages 0–3', async ({ page }) => {
     execFileSync('montage', [...shots, '-tile', '4x', '-geometry', '+2+2', 'capture/lineup-sheet.png']);
   } catch {
     /* ImageMagick missing */
+  }
+});
+
+test('audio: listening clips and spectrograms', async ({ page }) => {
+  await ready(page);
+  const clips = await g<Record<string, number[]>>(page, 'g.audioClips()');
+  mkdirSync('capture/audio', { recursive: true });
+  for (const [name, pcm] of Object.entries(clips)) {
+    // 16-bit mono WAV.
+    const data = Buffer.alloc(pcm.length * 2);
+    pcm.forEach((v, i) => data.writeInt16LE(Math.max(-32768, Math.min(32767, v)), i * 2));
+    const h = Buffer.alloc(44);
+    h.write('RIFF', 0);
+    h.writeUInt32LE(36 + data.length, 4);
+    h.write('WAVEfmt ', 8);
+    h.writeUInt32LE(16, 16);
+    h.writeUInt16LE(1, 20);
+    h.writeUInt16LE(1, 22);
+    h.writeUInt32LE(44100, 24);
+    h.writeUInt32LE(88200, 28);
+    h.writeUInt16LE(2, 32);
+    h.writeUInt16LE(16, 34);
+    h.write('data', 36);
+    h.writeUInt32LE(data.length, 40);
+    writeFileSync(`capture/audio/${name}.wav`, Buffer.concat([h, data]));
+    try {
+      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', `capture/audio/${name}.wav`, '-lavfi', 'showspectrumpic=s=640x320:legend=1:scale=log:fscale=lin:stop=6000', `capture/audio/${name}-spectrum.png`]);
+    } catch {
+      /* ffmpeg missing */
+    }
   }
 });

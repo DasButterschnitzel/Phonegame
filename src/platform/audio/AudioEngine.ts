@@ -5,6 +5,15 @@ type Ctx = BaseAudioContext;
 
 const PENTA = [0, 2, 4, 7, 9, 12, 14, 16];
 const midi = (n: number) => 440 * 2 ** ((n - 69) / 12);
+/** Crunch recipes for bites: bright crunch band, its Q, a body band, a pitched snap (Hz), extra length (s). */
+const BITES = [
+  { bright: 2300, q: 1.7, body: 700, snap: 460, len: 0 },
+  { bright: 1950, q: 1.4, body: 620, snap: 420, len: 0.012 },
+  { bright: 2600, q: 1.9, body: 760, snap: 500, len: -0.008 },
+  { bright: 2050, q: 1.3, body: 660, snap: 440, len: 0.018 },
+];
+/** Bigger crops (higher tiers) sound lower and hollower. */
+const TIER_PITCH = [1, 0.86, 0.74, 0.62];
 
 export class AudioEngine {
   private ctx: Ctx | null = null;
@@ -12,12 +21,17 @@ export class AudioEngine {
   private sfx!: GainNode;
   private musicBus!: GainNode;
   private noise!: AudioBuffer;
-  /** Motor = a quiet servo whine (two oscillators) + a breath of filtered air, under a ducking gain. */
-  private servoA: OscillatorNode | null = null;
-  private servoB: OscillatorNode | null = null;
-  private motorGain!: GainNode;
-  private motorFilter!: BiquadFilterNode;
-  private whirrGain!: GainNode;
+  /**
+   * Motor = a soft band-passed noise "movement texture" plus a faint electric sine whine (and its octave) with a
+   * slow vibrato — a tiny, slightly futuristic servo. Nothing in it sits below ~400 Hz (phone speakers don't play
+   * that, and low buzz is what makes a motor sound like a moped). Leg ticks add the mechanical rhythm. All of it goes
+   * through a ducking gain so big moments push it down.
+   */
+  private whine: OscillatorNode | null = null;
+  private whine2: OscillatorNode | null = null;
+  private whineGain!: GainNode;
+  private texFilter!: BiquadFilterNode;
+  private texGain!: GainNode;
   private duckGain!: GainNode;
   private lastStep = -1;
   private wasHeld = false;
@@ -34,6 +48,7 @@ export class AudioEngine {
   /** Back-to-back chomps climb in pitch a little (resets after a short pause). */
   private combo = 0;
   private lastChompAt = 0;
+  private lastBite = 0;
 
   /** Rendering into an OfflineAudioContext (audio QA): automation is allowed while not "running". */
   private offline = false;
@@ -64,38 +79,46 @@ export class AudioEngine {
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       // Motor bus (ducked under big moments).
-      this.duckGain = this.ctx.createGain();
+      const ac = this.ctx;
+      this.duckGain = ac.createGain();
       this.duckGain.connect(this.sfx);
-      this.motorFilter = this.ctx.createBiquadFilter();
-      this.motorFilter.type = 'bandpass';
-      this.motorFilter.Q.value = 1.1;
-      this.motorFilter.frequency.value = 600;
-      this.motorGain = this.ctx.createGain();
-      this.motorGain.gain.value = 0;
-      this.motorFilter.connect(this.motorGain).connect(this.duckGain);
-      this.servoA = this.ctx.createOscillator();
-      this.servoA.type = 'triangle';
-      this.servoA.frequency.value = 180;
-      this.servoB = this.ctx.createOscillator();
-      this.servoB.type = 'sine';
-      this.servoB.frequency.value = 362;
-      const bGain = this.ctx.createGain();
-      bGain.gain.value = 0.45;
-      this.servoA.connect(this.motorFilter);
-      this.servoB.connect(bGain).connect(this.motorFilter);
-      this.servoA.start();
-      this.servoB.start();
-      const air = this.ctx.createBufferSource();
-      air.buffer = this.noise;
-      air.loop = true;
-      const airF = this.ctx.createBiquadFilter();
-      airF.type = 'bandpass';
-      airF.frequency.value = 2600;
-      airF.Q.value = 0.7;
-      this.whirrGain = this.ctx.createGain();
-      this.whirrGain.gain.value = 0;
-      air.connect(airF).connect(this.whirrGain).connect(this.duckGain);
-      air.start();
+      // Electric whine: a pure sine and its octave, wobbling ±4 Hz.
+      this.whine = ac.createOscillator();
+      this.whine.type = 'sine';
+      this.whine.frequency.value = 640;
+      this.whine2 = ac.createOscillator();
+      this.whine2.type = 'sine';
+      this.whine2.frequency.value = 1280;
+      const vib = ac.createOscillator();
+      vib.frequency.value = 5.3;
+      const vibDepth = ac.createGain();
+      vibDepth.gain.value = 4;
+      vib.connect(vibDepth);
+      vibDepth.connect(this.whine.frequency);
+      vibDepth.connect(this.whine2.frequency);
+      const oct = ac.createGain();
+      oct.gain.value = 0.22;
+      this.whineGain = ac.createGain();
+      this.whineGain.gain.value = 0;
+      this.whine.connect(this.whineGain);
+      this.whine2.connect(oct).connect(this.whineGain);
+      this.whineGain.connect(this.duckGain);
+      // Movement texture: soft band-passed noise, high-passed so no rumble gets through.
+      const tex = ac.createBufferSource();
+      tex.buffer = this.noise;
+      tex.loop = true;
+      this.texFilter = ac.createBiquadFilter();
+      this.texFilter.type = 'bandpass';
+      this.texFilter.frequency.value = 1000;
+      this.texFilter.Q.value = 1.4;
+      const hp = ac.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 450;
+      this.texGain = ac.createGain();
+      this.texGain.gain.value = 0;
+      tex.connect(this.texFilter).connect(hp).connect(this.texGain).connect(this.duckGain);
+      for (const o of [this.whine, this.whine2, vib]) o.start();
+      tex.start();
       this.applyGain();
     }
     this.syncRunning();
@@ -142,34 +165,34 @@ export class AudioEngine {
     this.musicBus.gain.value = this.musicOn ? 0.14 : 0;
   }
 
-  /** 0..1 speed fraction; drives the servo whirr and music tempo. */
+  /** 0..1 speed fraction; drives the motor (pitch and level) and the music tempo. */
   setSpeed(frac: number): void {
     this.speed = frac;
-    if (!this.ctx || !this.servoA || (this.ctx.state !== 'running' && !this.offline)) return;
+    if (!this.ctx || !this.whine || (this.ctx.state !== 'running' && !this.offline)) return;
     // Automation events cross to the audio thread: send only real changes, at most ~15 Hz.
     const now = performance.now();
     if (Math.abs(frac - this.sentSpeed) < 0.02 || now - this.sentAt < 66) return;
     this.sentSpeed = frac;
     this.sentAt = now;
     const t = this.ctx.currentTime;
-    // A light electric whine that rises with speed — kept among the quietest sounds in the mix.
-    const f = 165 + 230 * frac;
-    this.servoA.frequency.setTargetAtTime(f, t, 0.12);
-    this.servoB!.frequency.setTargetAtTime(f * 2.01, t, 0.12);
-    this.motorFilter.frequency.setTargetAtTime(f * 2.4, t, 0.12);
-    this.motorGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.0018 + 0.0052 * frac, t, 0.18);
-    this.whirrGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.0008 + 0.0028 * frac, t, 0.18);
+    // Rises gently with speed; kept among the quietest sounds in the mix.
+    const f = 640 + 360 * frac;
+    this.whine.frequency.setTargetAtTime(f, t, 0.15);
+    this.whine2!.frequency.setTargetAtTime(f * 2, t, 0.15);
+    this.whineGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.0008 + 0.0018 * frac, t, 0.2);
+    this.texFilter.frequency.setTargetAtTime(950 + 850 * frac, t, 0.15);
+    this.texGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.0035 + 0.006 * frac, t, 0.2);
   }
 
   /**
-   * Per frame: leg ticks at the stepping cadence (odometer based) and servo chirps when the throttle engages or
-   * releases.
+   * Per frame: a servo tick per foot plant (left/right alternate, distance based — slow crawling ticks slowly, never
+   * faster than ~9 per second so it can't fuse into a buzz) and chirps when the throttle engages or releases.
    */
   motion(odometer: number, held: boolean): void {
     if (!this.ctx || (this.ctx.state !== 'running' && !this.offline)) return;
-    const step = Math.floor(odometer / 0.55);
+    const step = Math.floor(odometer / 0.35);
     if (step !== this.lastStep) {
-      if (this.lastStep >= 0 && this.speed > 0.05 && this.can('leg', 45)) this.legTick(step % 2 === 0);
+      if (this.lastStep >= 0 && this.speed > 0.05 && this.can('leg', 110)) this.legTick(step % 2 === 0);
       this.lastStep = step;
     }
     if (held !== this.wasHeld) {
@@ -178,16 +201,16 @@ export class AudioEngine {
     }
   }
 
-  private legTick(left: boolean): void {
+  private legTick(left: boolean, when = 0): void {
     const ctx = this.ctx!;
-    const t = ctx.currentTime;
+    const t = ctx.currentTime + when;
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
     const f = ctx.createBiquadFilter();
     f.type = 'highpass';
-    f.frequency.value = left ? 3200 : 2700;
+    f.frequency.value = left ? 3200 : 2600;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0.006 + 0.009 * this.speed, t);
+    g.gain.setValueAtTime(0.005 + 0.006 * this.speed, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.012);
     src.connect(f).connect(g).connect(this.duckGain);
     src.start(t, Math.random() * 0.3);
@@ -243,16 +266,48 @@ export class AudioEngine {
     src.stop(t + dur + 0.02);
   }
 
-  chomp(golden = false): void {
-    if (!this.ctx || !this.can('chomp', 70)) return;
+  /**
+   * A chunk bitten off. One of four crunch recipes (never the same twice in a row), pitched by crop tier — big crops
+   * lower and hollower — with small random pitch, filter, attack and timing changes, so a row of bites never sounds
+   * like one sample on repeat. Back-to-back bites climb a touch.
+   */
+  /** Band-passed noise whose centre glides from f0 to f1 (whooshes). */
+  private sweep(dur: number, f0: number, f1: number, q: number, vol: number, when = 0): void {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime + when;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t);
+    f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.3);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(this.sfx);
+    src.start(t, Math.random() * 0.2);
+    src.stop(t + dur + 0.02);
+  }
+
+  chomp(golden = false, tier = 0, final = false): void {
+    if (!this.ctx || !this.can('chomp', 60)) return;
     const now = performance.now();
     this.combo = now - this.lastChompAt < 450 ? Math.min(10, this.combo + 1) : 0;
     this.lastChompAt = now;
-    const p = (0.9 + 0.35 * this.speed + Math.random() * 0.15) * (1 + this.combo * 0.025);
-    // Crunch: a bright bite plus a short low body.
-    this.noiseHit(0.07, 1800 * p, 1.6, 0.55);
-    this.noiseHit(0.05, 420 * p, 1.2, 0.3);
-    this.tone(220 * p, 0.06, 'square', 0.07, 0, 140 * p);
+    let v = Math.floor(Math.random() * (BITES.length - 1));
+    if (v >= this.lastBite) v++;
+    this.lastBite = v;
+    const r = BITES[v];
+    const p = TIER_PITCH[Math.min(3, tier)] * (0.94 + Math.random() * 0.12) * (1 + this.combo * 0.02) * (0.96 + 0.08 * this.speed);
+    const when = Math.random() * 0.008;
+    const amp = (1.05 + Math.random() * 0.3) * (final ? 1.15 : 1);
+    this.noiseHit(0.06 + r.len, r.bright * p, r.q, 0.5 * amp, when);
+    this.noiseHit(0.045, r.body * p, 1.3, 0.28 * amp, when);
+    // The pitched snap follows the tier only half way: it stays where phone speakers can play it.
+    const snap = r.snap * (0.5 + 0.5 * p);
+    this.tone(snap, 0.05, 'triangle', 0.07 * amp, when, snap * 0.75);
     if (golden) this.tone(1568, 0.25, 'sine', 0.12, 0.02);
   }
 
@@ -264,12 +319,31 @@ export class AudioEngine {
     this.noiseHit(0.012, 3800, 1.2, 0.035);
   }
 
-  /** A crop collapses: leafy crunch + a small pop (heavier crops sound lower). */
+  /**
+   * The last bite: the crop gives way. A leafy rustle sweeping down, a soft hollow thunk and a little pop, pitched by
+   * tier. Its own family — a bite and a collapse never sound alike — and a notch above the chomp.
+   */
   pop(tier = 0): void {
-    if (!this.ctx || !this.can('pop', 60)) return;
-    const k = 1 - tier * 0.12;
-    this.noiseHit(0.09, 2400 * k, 1.4, 0.16);
-    this.tone((480 + Math.random() * 160) * k, 0.08, 'sine', 0.12, 0.01, 820 * k);
+    if (!this.ctx || !this.can('pop', 50)) return;
+    const k = TIER_PITCH[Math.min(3, tier)] * (0.95 + Math.random() * 0.1);
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 1.6;
+    f.frequency.setValueAtTime(3400 * k, t);
+    f.frequency.exponentialRampToValueAtTime(1300 * k, t + 0.14);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.2, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    src.connect(f).connect(g).connect(this.sfx);
+    src.start(t, Math.random() * 0.3);
+    src.stop(t + 0.18);
+    this.tone(430 * k, 0.09, 'triangle', 0.12, 0.01, 250 * k);
+    this.tone((560 + Math.random() * 120) * k, 0.07, 'sine', 0.09, 0.03, 900 * k);
   }
 
   coin(): void {
@@ -288,12 +362,13 @@ export class AudioEngine {
     if (n > 40) this.tone(midi(88), 0.3, 'triangle', 0.08, 0.16);
   }
 
-  /** Hopper flap + conveyor kick in as the first segment reaches the chute. */
+  /** The hopper opens as the wave starts: a wooden clack, a flap of air and a little electric rise. */
   unloadStart(): void {
     if (!this.ctx || !this.can('unloadStart', 400)) return;
     this.duck(0.45, 0.4);
-    this.tone(120, 0.12, 'triangle', 0.2, 0, 80);
-    this.noiseHit(0.12, 700, 1.5, 0.22, 0.02);
+    this.tone(330, 0.08, 'triangle', 0.16, 0, 210);
+    this.noiseHit(0.12, 900, 1.5, 0.2, 0.02);
+    this.tone(520, 0.14, 'sine', 0.05, 0.03, 940);
   }
 
   /** One segment tipping its stack: a cargo thump and a coin plink that climbs with each segment. */
@@ -382,11 +457,14 @@ export class AudioEngine {
     [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => this.tone(midi(67 + s), 0.25, 'square', 0.07, i * 0.08));
   }
 
-  /** Purchase confirmation; speed revs the motor, capacity clunks like a bigger basket. */
+  /** Purchase confirmation; speed whooshes and revs up, capacity clunks like a bigger basket. */
   upgrade(kind: 'add' | 'speed' | 'capacity' = 'add'): void {
     if (!this.ctx || !this.can('upgrade', 50)) return;
     this.tone(660, 0.08, 'triangle', 0.12, 0, 990);
-    if (kind === 'speed') this.tone(110, 0.32, 'sawtooth', 0.05, 0.03, 440);
+    if (kind === 'speed') {
+      this.sweep(0.3, 600, 3200, 3, 0.12, 0.02);
+      this.tone(330, 0.3, 'sine', 0.06, 0.03, 1320);
+    }
     if (kind === 'capacity') {
       this.tone(196, 0.1, 'triangle', 0.13, 0.05);
       this.tone(294, 0.14, 'triangle', 0.12, 0.13);
@@ -399,10 +477,12 @@ export class AudioEngine {
     this.tone(880, 0.04, 'sine', 0.08);
   }
 
+  /** Basket full: the blades grind on a crop that won't fit, then a soft descending "bonk-bonk". */
   full(): void {
     if (!this.ctx || !this.can('full', 1500)) return;
-    this.tone(220, 0.12, 'square', 0.06);
-    this.tone(175, 0.18, 'square', 0.06, 0.12);
+    this.noiseHit(0.18, 1100, 5, 0.12);
+    this.tone(523, 0.11, 'triangle', 0.1, 0.02, 440);
+    this.tone(415, 0.16, 'triangle', 0.1, 0.14, 330);
   }
 
   tornado(): void {
@@ -431,7 +511,7 @@ export class AudioEngine {
   expand(): void {
     if (!this.ctx) return;
     this.duck(0.2, 1.2);
-    this.noiseHit(0.6, 200, 0.8, 0.4);
+    this.noiseHit(0.6, 380, 0.8, 0.4);
     this.noiseHit(0.25, 1400, 3, 0.15, 0.05);
     [0, 7, 12, 19].forEach((s, i) => this.tone(midi(55 + s), 0.3, 'triangle', 0.12, 0.1 + i * 0.09));
   }
@@ -456,7 +536,8 @@ export class AudioEngine {
         const step = [0, 2, 4, 2, 5, 4, 2, 1][Math.floor(b / 2) % 8];
         this.musicNote(midi(roots[bar] + PENTA[step]), 0.22, t, 'triangle', 0.5);
       }
-      if (b % 4 === 0) this.musicNote(midi(roots[bar] - 24), 0.35, t, 'sine', 0.9);
+      // Bass an octave up from where it was: phone speakers don't play 65 Hz.
+      if (b % 4 === 0) this.musicNote(midi(roots[bar] - 12), 0.35, t, 'triangle', 0.5);
       if (b % 8 === 4) this.musicNote(midi(roots[bar] + 12), 0.1, t, 'square', 0.12);
       this.nextBeat += spb;
     }

@@ -107,13 +107,68 @@ export function installDebug(app: App): DebugApi {
       return ok;
     },
     /**
-     * Audio QA: renders each sound into an OfflineAudioContext and reports its loudness (RMS over the loud part and
-     * peak, in dBFS). The motor is measured in its steady state at idle and full speed.
+     * Audio QA: renders each sound into an OfflineAudioContext and reports its loudness (loudest 50 ms RMS and peak,
+     * dBFS), how long it rings (ms above peak − 20 dB), its spectral centroid (Hz) and the share of its energy below
+     * 150 / 300 Hz (what phone speakers can't play). The motor is measured in its steady state at idle and full speed.
+     * `variety`: centroid spread over six renders of the same bite (repeats must not be identical).
      */
     audioQA: async () => {
       const db = (x: number) => (x > 0 ? Math.round(20 * Math.log10(x) * 10) / 10 : -120);
+      const SR = 44100;
+      const fft = (re: Float64Array, im: Float64Array) => {
+        const n = re.length;
+        for (let i = 1, j = 0; i < n; i++) {
+          let bit = n >> 1;
+          for (; j & bit; bit >>= 1) j ^= bit;
+          j ^= bit;
+          if (i < j) {
+            [re[i], re[j]] = [re[j], re[i]];
+            [im[i], im[j]] = [im[j], im[i]];
+          }
+        }
+        for (let len = 2; len <= n; len <<= 1) {
+          const a = (-2 * Math.PI) / len;
+          for (let i = 0; i < n; i += len)
+            for (let k = 0; k < len / 2; k++) {
+              const wr = Math.cos(a * k);
+              const wi = Math.sin(a * k);
+              const xr = re[i + k + len / 2] * wr - im[i + k + len / 2] * wi;
+              const xi = re[i + k + len / 2] * wi + im[i + k + len / 2] * wr;
+              re[i + k + len / 2] = re[i + k] - xr;
+              im[i + k + len / 2] = im[i + k] - xi;
+              re[i + k] += xr;
+              im[i + k] += xi;
+            }
+        }
+      };
+      const spectrum = (d: Float32Array, from: number) => {
+        const N = 4096;
+        const re = new Float64Array(N);
+        const im = new Float64Array(N);
+        const pow = new Float64Array(N / 2);
+        for (let st = Math.floor(from * SR); st < d.length; st += N / 2) {
+          for (let i = 0; i < N; i++) {
+            re[i] = (d[st + i] ?? 0) * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1)));
+            im[i] = 0;
+          }
+          fft(re, im);
+          for (let k = 0; k < N / 2; k++) pow[k] += re[k] * re[k] + im[k] * im[k];
+        }
+        let tot = 0;
+        let lo150 = 0;
+        let lo300 = 0;
+        let cen = 0;
+        for (let k = 1; k < N / 2; k++) {
+          const f = (k * SR) / N;
+          tot += pow[k];
+          cen += f * pow[k];
+          if (f < 150) lo150 += pow[k];
+          if (f < 300) lo300 += pow[k];
+        }
+        return { centroid: Math.round(tot > 0 ? cen / tot : 0), low150: tot > 0 ? +(lo150 / tot).toFixed(4) : 0, low300: tot > 0 ? +(lo300 / tot).toFixed(4) : 0 };
+      };
       const render = async (play: (a: AudioEngine) => void, dur = 1.2, from = 0) => {
-        const ctx = new OfflineAudioContext(1, Math.ceil(44100 * dur), 44100);
+        const ctx = new OfflineAudioContext(1, Math.ceil(SR * dur), SR);
         const a = new AudioEngine();
         a.unlock(ctx);
         a.setEnabled(true, false);
@@ -125,7 +180,7 @@ export function installDebug(app: App): DebugApi {
         // RMS over 50 ms windows; report the loudest window (what the ear notices).
         const win = 2205;
         let best = 0;
-        for (let i = Math.floor(from * 44100); i < d.length; i++) {
+        for (let i = Math.floor(from * SR); i < d.length; i++) {
           const v = Math.abs(d[i]);
           if (v > peak) peak = v;
           sum += v * v;
@@ -135,14 +190,23 @@ export function installDebug(app: App): DebugApi {
             n = 0;
           }
         }
-        return { rms: db(best), peak: db(peak) };
+        let first = -1;
+        let last = -1;
+        for (let i = Math.floor(from * SR); i < d.length; i++) {
+          if (Math.abs(d[i]) < peak * 0.1) continue;
+          if (first < 0) first = i;
+          last = i;
+        }
+        return { rms: db(best), peak: db(peak), ms: first < 0 ? 0 : Math.round(((last - first) / SR) * 1000), ...spectrum(d, from) };
       };
-      const out: Record<string, { rms: number; peak: number }> = {};
+      type R = Awaited<ReturnType<typeof render>>;
+      const out: Record<string, R | { spread: number }> = {};
       out.motorIdle = await render((a) => a.setSpeed(0.2), 1.5, 0.8);
       out.motorFull = await render((a) => a.setSpeed(1), 1.5, 0.8);
-      out.legTick = await render((a) => (a.setSpeed(0.6), a.motion(0, false), a.motion(0.6, false)), 0.3);
+      out.legTick = await render((a) => (a.setSpeed(0.6), a.motion(0, false), a.motion(0.4, false)), 0.3);
       out.throttleChirp = await render((a) => (a.motion(0, false), a.motion(0, true)), 0.3);
-      out.chomp = await render((a) => a.chomp(), 0.3);
+      out.chompBig = await render((a) => a.chomp(false, 3), 0.3);
+      out.land = await render((a) => a.land(4), 0.2);
       out.collapse = await render((a) => a.pop(0), 0.3);
       out.plotReady = await render((a) => a.plotReady(), 0.5);
       out.routeGrow = await render((a) => a.routeGrow(1), 0.8);
@@ -151,9 +215,75 @@ export function installDebug(app: App): DebugApi {
       out.unloadSeg = await render((a) => a.unloadSeg(3, false), 0.3);
       out.unloadDone = await render((a) => a.unload(60), 0.6);
       out.merge = await render((a) => a.merge(3), 0.8);
+      out.upgrade = await render((a) => a.upgrade('add'), 0.4);
+      out.upgradeSpeed = await render((a) => a.upgrade('speed'), 0.5);
       out.full = await render((a) => a.full(), 0.5);
       out.coin = await render((a) => a.coin(), 0.4);
+      // Bites vary on purpose: measure six, report the median one and the spread of their spectral centroids.
+      const bites: R[] = [];
+      for (let k = 0; k < 6; k++) bites.push(await render((a) => a.chomp(false, 0), 0.3));
+      bites.sort((x, y) => x.rms - y.rms);
+      out.chomp = bites[3];
+      const cents = bites.map((b) => b.centroid);
+      out.variety = { spread: +((Math.max(...cents) - Math.min(...cents)) / (cents.reduce((p, c) => p + c, 0) / cents.length)).toFixed(3) };
       return out;
+    },
+    /**
+     * Listening clips (mono, 44.1 kHz) for a human to audition on a phone: the motor at crawl and full speed with its
+     * leg ticks, a row of bites ending in a collapse, and a full unload wave. Returns raw samples per clip.
+     */
+    audioClips: async () => {
+      const SR = 44100;
+      const clip = async (dur: number, play: (a: AudioEngine) => void) => {
+        const ctx = new OfflineAudioContext(1, Math.ceil(SR * dur), SR);
+        const a = new AudioEngine();
+        a.unlock(ctx);
+        a.setEnabled(true, false);
+        play(a);
+        return Array.from((await ctx.startRendering()).getChannelData(0), (v) => Math.round(v * 32767));
+      };
+      type Priv = { legTick: (left: boolean, when: number) => void; speed: number; lastPlay: Map<string, number> };
+      const motor = (speed: number, v: number) => (a: AudioEngine) => {
+        a.setSpeed(speed);
+        const p = a as unknown as Priv;
+        // One tick per 0.35 world units travelled at v units/s (at most ~9/s), alternating feet.
+        const gap = Math.max(0.11, 0.35 / v);
+        for (let t = 0.3, k = 0; t < 3.8; t += gap, k++) p.legTick(k % 2 === 0, t);
+      };
+      const bites = (a: AudioEngine) => {
+        const p = a as unknown as Priv;
+        const tiers = [0, 0, 1, 0, 2, 0, 1, 3];
+        // Each bite is scheduled by temporarily shifting the engine's clock reference (play at t = k * 0.16 s).
+        tiers.forEach((tier, k) => {
+          p.lastPlay.clear();
+          const ctx = (a as unknown as { ctx: BaseAudioContext }).ctx;
+          const base = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, 'currentTime')!;
+          Object.defineProperty(ctx, 'currentTime', { configurable: true, get: () => k * 0.16 });
+          a.chomp(false, tier, false);
+          if (k === tiers.length - 1) a.pop(tier);
+          Object.defineProperty(ctx, 'currentTime', base);
+        });
+      };
+      const wave = (a: AudioEngine) => {
+        const p = a as unknown as Priv;
+        const ctx = (a as unknown as { ctx: BaseAudioContext }).ctx;
+        const base = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, 'currentTime')!;
+        const at = (t: number, f: () => void) => {
+          p.lastPlay.clear();
+          Object.defineProperty(ctx, 'currentTime', { configurable: true, get: () => t });
+          f();
+          Object.defineProperty(ctx, 'currentTime', base);
+        };
+        at(0.1, () => a.unloadStart());
+        for (let k = 0; k < 8; k++) at(0.1 + 0.36 + k * 0.053, () => a.unloadSeg(k, k === 7));
+        at(0.1 + 0.36 + 7 * 0.053 + 0.02, () => a.unload(80));
+      };
+      return {
+        'motor-crawl': await clip(4, motor(0.2, 0.6)),
+        'motor-full': await clip(4, motor(1, 3)),
+        bites: await clip(1.8, bites),
+        'unload-wave': await clip(2, wave),
+      };
     },
     /** Grow the territory to at least `plots` claimed plots (clears frontier plots and lets the route catch up). */
     growTerritory: (plots: number) => {
