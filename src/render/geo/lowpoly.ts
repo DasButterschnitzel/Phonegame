@@ -12,6 +12,10 @@ export interface Part {
   scale?: [number, number, number] | number;
   /** Per-vertex colour jitter amount (0..1) for a hand-made look. */
   jitter?: number;
+  /** Bitten crops: thin bits (leaves, berries, ears) are bitten off whole instead of showing a cut. */
+  leaf?: boolean;
+  /** Bitten crops: colour of the cut surface of a solid part (default: a pale version of `color`). */
+  flesh?: number;
 }
 
 const m = new THREE.Matrix4();
@@ -27,10 +31,12 @@ const rnd = (): number => {
   return (seed - 1) / 2147483646;
 };
 
-export function build(parts: Part[], aoFloor = 0.0, aoHeight = 1.0): THREE.BufferGeometry {
+/** `triPart` (optional) receives the index of the part each output triangle came from. */
+export function build(parts: Part[], aoFloor = 0.0, aoHeight = 1.0, triPart?: number[]): THREE.BufferGeometry {
   const positions: number[] = [];
   const colors: number[] = [];
-  for (const p of parts) {
+  for (let pi = 0; pi < parts.length; pi++) {
+    const p = parts[pi];
     let g = p.geo.index ? p.geo.toNonIndexed() : p.geo.clone();
     const sc = p.scale ?? 1;
     s.set(...(typeof sc === 'number' ? ([sc, sc, sc] as [number, number, number]) : sc));
@@ -43,6 +49,7 @@ export function build(parts: Part[], aoFloor = 0.0, aoHeight = 1.0): THREE.Buffe
     c.setHex(p.color);
     // One colour per triangle (with optional jitter) keeps the faceted look.
     for (let i = 0; i < pos.count; i += 3) {
+      triPart?.push(pi);
       const j = p.jitter ? 1 + (rnd() - 0.5) * p.jitter : 1;
       for (let k = 0; k < 3; k++) {
         const y = pos.getY(i + k);

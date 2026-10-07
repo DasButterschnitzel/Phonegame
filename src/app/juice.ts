@@ -10,6 +10,19 @@ import type { Haptics } from '../platform/haptics.ts';
 
 const LEAF = 0x6cc24a;
 const DUST = 0xc9a27a;
+const PUFF = 0xe6d2ae;
+const cp = { x: 0, y: 0, z: 0 };
+
+/** Unit vector from body (bx, bz) towards point (x, z), blended with the body's travel direction. */
+const sprayDir = (x: number, z: number, b: { x: number; z: number; tx: number; tz: number }, along: number): [number, number] => {
+  let ax = x - b.x;
+  let az = z - b.z;
+  const l = Math.hypot(ax, az) || 1;
+  ax = ax / l + b.tx * along;
+  az = az / l + b.tz * along;
+  const m = Math.hypot(ax, az) || 1;
+  return [ax / m, az / m];
+};
 
 /** Particles, sound and haptics for simulation events. */
 export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine, haptics: Haptics): void {
@@ -18,10 +31,16 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
   const now = performance.now() / 1000;
   switch (e.t) {
     case 'chunk': {
+      // The bite comes from a specific body: the crop recoils away from it, bits fly off the bitten side (in the
+      // blade's direction of travel) and the chunk arcs from there into that body's stack.
       const color = e.golden ? 0xffd700 : colors[e.tier];
-      r.fx.burst(f.x[e.crop], 0.4, f.z[e.crop], color, 2, 2, 0.1, 0.45, 2.5);
-      // The bite arcs into the stack of the body that took it.
-      r.stacks.chunk(f.x[e.crop], f.z[e.crop], color, e.body, now);
+      const body = r.cat.poses[e.body];
+      r.field.strike(e.crop, body.x, body.z);
+      const c = r.field.contact(e.crop, cp);
+      const final = f.dead[e.crop] === 1;
+      const [dx, dz] = sprayDir(c.x, c.z, body, 0.9);
+      r.fx.spray(c.x, c.y, c.z, dx, dz, color, final ? 3 : 2, 1.9, 0.085, 0.38, 2.2, 9, 0.3);
+      r.stacks.chunk(c.x, c.y, c.z, color, e.body, now, final);
       r.cat.gulp(e.body, now);
       audio.chomp(e.golden);
       break;
@@ -31,8 +50,14 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
         r.fx.burst(f.x[e.crop], 0.2, f.z[e.crop], DUST, 2, 1.2, 0.14, 0.5, 1.5);
         break;
       }
-      r.fx.burst(f.x[e.crop], 0.35, f.z[e.crop], LEAF, 6, 2.6, 0.12, 0.6, 3);
-      r.fx.burst(f.x[e.crop], 0.15, f.z[e.crop], DUST, 3, 1.4, 0.16, 0.5, 1.2);
+      // Final bite: leaves burst off the bitten side, dirt kicks up at the base, a small puff where it stood.
+      const body = r.cat.poses[e.body];
+      const c = r.field.contact(e.crop, cp);
+      const [dx, dz] = sprayDir(f.x[e.crop], f.z[e.crop], body, 0.4);
+      r.fx.spray(c.x, c.y + 0.08, c.z, dx, dz, LEAF, 5, 2.4, 0.11, 0.55, 3, 9, 0.45);
+      r.fx.spray(c.x, c.y, c.z, dx, dz, colors[f.tier[e.crop]], 2, 2, 0.1, 0.5, 2.6, 9, 0.45);
+      r.fx.spray(f.x[e.crop], 0.1, f.z[e.crop], dx, dz, DUST, 3, 1.3, 0.12, 0.45, 1.5, 9, 0.7);
+      r.fx.puff(f.x[e.crop], f.z[e.crop], PUFF, 7, 0.38);
       if (e.golden) {
         r.fx.ring(f.x[e.crop], 0.4, f.z[e.crop], 0xffd700, 16, 0.5);
         haptics.fire('light');

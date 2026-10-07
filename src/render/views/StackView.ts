@@ -54,6 +54,8 @@ interface Flier {
   spin: number;
   /** Body pose index to home in on (chunks flying into a stack), −1 = fixed end point. */
   track: number;
+  /** Block scale in flight (the last chunk of a crop is the big one). */
+  size: number;
   /** Counts towards the landing callback (unloads only). */
   land: boolean;
   arc: number;
@@ -132,18 +134,19 @@ export class StackView {
         color: this.tierColors[st.basket.mass > 0 ? tiers[b] : 0] ?? 0xffffff,
         spin: (Math.random() - 0.5) * 12,
         track: -1,
+        size: 1,
         land: true,
         arc: 1.1,
       });
     }
   }
 
-  /** A chunk bitten off crop (x, z) flies into body b's stack (the head feeds the first segment). */
-  chunk(x: number, z: number, color: number, body: number, now: number): void {
+  /** A chunk bitten off at (x, y, z) flies into body b's stack (the head feeds the first segment). */
+  chunk(x: number, y: number, z: number, color: number, body: number, now: number, big = false): void {
     if (this.flying.length >= FLIERS) return;
     const nSegs = this.sim.state.progress.segments.length;
     const track = Math.max(1, Math.min(nSegs, body));
-    this.flying.push({ sx: x, sy: 0.45, sz: z, ex: 0, ey: 0, ez: 0, t0: now, dur: 0.3, color, spin: (Math.random() - 0.5) * 16, track, land: false, arc: 0.9 });
+    this.flying.push({ sx: x, sy: y, sz: z, ex: 0, ey: 0, ez: 0, t0: now, dur: 0.3, color, spin: (Math.random() - 0.5) * 16, track, size: big ? 1.05 : 0.7, land: false, arc: 0.9 });
   }
 
   /** Cargo carried by segment i (index in the chain), honouring a rolling unload in progress. */
@@ -310,7 +313,7 @@ export class StackView {
       V.set(x, y, z);
       E.set(f.spin * u, f.spin * u * 0.7, 0);
       Q.setFromEuler(E);
-      S.setScalar((f.track >= 0 ? 0.7 : 1) * (u > 0.85 ? (1 - u) / 0.15 : u < 0 ? 0 : 1));
+      S.setScalar(f.size * (u > 0.85 ? (1 - u) / 0.15 : u < 0 ? 0 : 1));
       M4.compose(V, Q, S);
       this.fliers.setMatrixAt(idx, M4);
       this.fliers.setColorAt(idx, C.setHex(f.color));

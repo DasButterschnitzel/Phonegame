@@ -4,6 +4,7 @@ import type { App } from './boot.ts';
 import { clock } from '../platform/clock.ts';
 import { BIOMES } from '../render/palette.ts';
 import { DebugView } from '../render/views/DebugView.ts';
+import { markDirty } from '../game/field.ts';
 import { AudioEngine } from '../platform/audio/AudioEngine.ts';
 
 export interface DebugApi {
@@ -161,6 +162,47 @@ export function installDebug(app: App): DebugApi {
         loop.fastForward(1.2);
       }
       return sim.terr.claimedCount;
+    },
+    /**
+     * Visual check of the bite stages: picks an untouched plot of `tier` (nearest the start), bites its nine crops to
+     * stages 0,1,2,3,0,1,2,3,3 facing the camera, and frames it. Returns the plot centre.
+     */
+    biteLineup: (tier: number) => {
+      const f = sim.field;
+      const l = sim.farm.layout;
+      let best = -1;
+      let bestD = Infinity;
+      for (let p = 0; p < l.cols * l.rows; p++) {
+        const a = f.plotStart[p];
+        const b = f.plotStart[p + 1];
+        if (b - a < 9 || f.tier[a] !== tier) continue;
+        let ok = true;
+        for (let i = a; i < b; i++) if (f.dead[i] || f.hp[i] < f.maxHp[i]) ok = false;
+        const c = f.x[a + 4] ** 2 + f.z[a + 4] ** 2;
+        if (ok && c < bestD) {
+          bestD = c;
+          best = p;
+        }
+      }
+      if (best < 0) return null;
+      const a = f.plotStart[best];
+      const yaw = renderer.rig.yaw;
+      for (let k = 0; k < 9; k++) {
+        const i = a + k;
+        const stage = k === 8 ? 3 : k % 4;
+        const frac = [1, 0.95, 0.6, 0.25][stage];
+        f.hp[i] = f.maxHp[i] * frac;
+        renderer.field.strike(i, f.x[i] + Math.sin(yaw) * 3, f.z[i] + Math.cos(yaw) * 3);
+        markDirty(f, i);
+      }
+      renderer.focus = { x: f.x[a + 4], z: f.z[a + 4] };
+      return renderer.focus;
+    },
+    /** Frame timing over the last `n` frames (ms): wall interval between frames and main-thread work per frame. */
+    frameStats: (n?: number) => ({ interval: loop.interval.summary(n), work: loop.work.summary(n), dpr: renderer.renderer.getPixelRatio(), ...renderer.info }),
+    resetFrameStats: () => {
+      loop.interval.clear();
+      loop.work.clear();
     },
     territory: () => ({ claimed: sim.terr.claimedCount, ready: Array.from(sim.terr.readySince).filter((t) => t >= 0).length, cleared: sim.cleared, routeLength: sim.path.length }),
     advanceWall: (sec: number) => clock.advance(sec),

@@ -21,6 +21,8 @@ export class Particles {
   private life = new Float32Array(MAX);
   private age = new Float32Array(MAX);
   private grav = new Float32Array(MAX);
+  /** Horizontal drag (1/s): puffs slow down and hang instead of flying off. */
+  private drag = new Float32Array(MAX);
   private next = 0;
   private active = 0;
   budget = 1;
@@ -36,13 +38,23 @@ export class Particles {
     for (let i = 0; i < MAX; i++) this.mesh.setMatrixAt(i, M4.makeScale(0, 0, 0));
   }
 
-  /** Spawn `n` particles at (x, y, z). */
+  /** Spawn `n` particles at (x, y, z), flying out in every direction. */
   burst(x: number, y: number, z: number, color: number, n: number, speed = 2.5, size = 0.12, life = 0.7, up = 3, gravity = 9): void {
+    this.spray(x, y, z, 0, 0, color, n, speed, size, life, up, gravity, 1);
+  }
+
+  /**
+   * Directional spray: horizontal velocity along (dx, dz) (unit or zero), fanned out by `spread` (0 = a tight jet,
+   * 1 = all around), plus `up`. Debris from a bite flies off the way the blade was moving, not out of the crop's middle.
+   */
+  spray(x: number, y: number, z: number, dx: number, dz: number, color: number, n: number, speed = 2.5, size = 0.12, life = 0.7, up = 3, gravity = 9, spread = 0.5, drag = 0): void {
     const count = Math.max(1, Math.round(n * this.budget));
+    const base = Math.atan2(dz, dx);
+    const free = dx === 0 && dz === 0 ? 1 : spread;
     for (let k = 0; k < count; k++) {
       const i = this.next;
       this.next = (this.next + 1) % MAX;
-      const a = Math.random() * Math.PI * 2;
+      const a = base + (Math.random() - 0.5) * Math.PI * 2 * free;
       const sp = speed * (0.4 + Math.random() * 0.6);
       this.px[i] = x;
       this.py[i] = y;
@@ -56,6 +68,7 @@ export class Particles {
       this.life[i] = life * (0.7 + Math.random() * 0.6);
       this.age[i] = 0;
       this.grav[i] = gravity;
+      this.drag[i] = drag;
       C.setHex(color);
       const j = 0.85 + Math.random() * 0.3;
       C.r *= j;
@@ -66,6 +79,15 @@ export class Particles {
     this.active = MAX;
     this.mesh.count = MAX;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+  }
+
+  /** A low ring of dust hugging the ground (a crop's base giving way). */
+  puff(x: number, z: number, color: number, n = 7, radius = 0.35, size = 0.14, life = 0.45): void {
+    const count = Math.max(2, Math.round(n * this.budget));
+    for (let k = 0; k < count; k++) {
+      const a = (k / count) * Math.PI * 2 + Math.random() * 0.5;
+      this.spray(x + Math.cos(a) * radius * 0.4, 0.06, z + Math.sin(a) * radius * 0.4, Math.cos(a), Math.sin(a), color, 1, radius * 5, size, life, 0.5, 1.5, 0.05, 7);
+    }
   }
 
   /** Ring of sparkles rising (merges, golden crops). */
@@ -89,6 +111,11 @@ export class Particles {
       }
       alive++;
       this.vy[i] -= this.grav[i] * dt;
+      if (this.drag[i] > 0) {
+        const k = Math.exp(-this.drag[i] * dt);
+        this.vx[i] *= k;
+        this.vz[i] *= k;
+      }
       this.px[i] += this.vx[i] * dt;
       this.py[i] += this.vy[i] * dt;
       this.pz[i] += this.vz[i] * dt;

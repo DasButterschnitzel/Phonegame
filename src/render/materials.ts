@@ -33,22 +33,15 @@ export interface ToonOpts {
   wind?: number;
   side?: THREE.Side;
   transparent?: boolean;
+  /**
+   * Bitten crops (geometry from `bittenGeometry`): per-instance `aBite` = (stage 0..3, bite angle 1, 2, 3) in crop-local
+   * space; `uBite` = (reach, height, bulk height). Bites push solid surfaces back onto a sphere (a scooped notch), the
+   * stump stage cuts the top flat; carved faces show the flesh colour, leaves inside a bite disappear.
+   */
+  bite?: { value: THREE.Vector4 };
 }
 
-/** Vertex-coloured toon material with a soft rim light and optional wind sway. */
-export function toon(opts: ToonOpts = {}): THREE.MeshToonMaterial {
-  const rim = opts.rim ?? 0.22;
-  // Wind is compiled out entirely on the low tier (not just zeroed) to save vertex work.
-  const wind = materialFlags.wind ? (opts.wind ?? 0) : 0;
-  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), side: opts.side ?? THREE.FrontSide });
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = shared.uTime;
-    sh.uniforms.uWind = shared.uWind;
-    sh.uniforms.uRim = { value: rim };
-    if (wind > 0) {
-      sh.vertexShader = `uniform float uTime;\nuniform float uWind;\n${sh.vertexShader}`.replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
+const WIND_GLSL = (wind: number) => `
         #ifdef USE_INSTANCING
           vec3 ip = instanceMatrix[3].xyz;
         #else
@@ -56,9 +49,101 @@ export function toon(opts: ToonOpts = {}): THREE.MeshToonMaterial {
         #endif
         float hgt = max(position.y, 0.0);
         float sw = sin(uTime * 1.7 + ip.x * 0.31 + ip.z * 0.23) * 0.65 + sin(uTime * 3.3 + ip.x * 0.9 - ip.z * 0.4) * 0.25;
-        transformed.xz += vec2(sw, sw * 0.45) * hgt * hgt * ${wind.toFixed(3)} * uWind;`,
+        transformed.xz += vec2(sw, sw * 0.45) * hgt * hgt * ${wind.toFixed(3)} * uWind;`;
+
+const BITE_PARS = `
+attribute vec4 aBite;
+attribute vec3 aCen;
+attribute float aKind;
+attribute vec3 aFlesh;
+uniform vec4 uBite;
+varying float vFlesh;
+varying vec3 vFleshCol;`;
+
+// Runs after beginnormal_vertex: carves bitePos and bends objectNormal so carved faces light as a hollow / flat top.
+// uBite = (reach, height, bulk height, equator). Bites land on the upper flank (what the camera sees); the stump is
+// cut at the equator and pulled in a little, so it reads as the bottom half of the crop with a bitten flat top.
+const BITE_VERTEX = `
+  vec3 bitePos = position;
+  float fleshF = 0.0;
+  float stage = aBite.x;
+  if (stage > 0.001) {
+    bool gone = false;
+    float biteY = max(uBite.z, uBite.w);
+    float cut = clamp(stage - 2.0, 0.0, 1.0);
+    float hc = mix(uBite.y * 1.02, uBite.w, cut);
+    if (cut > 0.0) {
+      if (aKind > 0.5) {
+        if (aCen.y > hc) gone = true;
+      } else {
+        if (bitePos.y > hc) {
+          // Everything above the cut folds down onto it, drawn in towards the middle: a flat, slightly smaller top.
+          float over = (bitePos.y - hc) / max(uBite.y - hc, 0.05);
+          bitePos.xz *= mix(1.0, 0.82 - 0.25 * over, cut);
+          bitePos.y = hc;
+          objectNormal = vec3(0.0, 1.0, 0.0);
+        }
+        if (aCen.y > hc) fleshF = 1.0;
+      }
+    }
+    for (int k = 0; k < 3; k++) {
+      float amt = clamp(stage - float(k), 0.0, 1.0);
+      if (amt <= 0.0) break;
+      float ang = k == 0 ? aBite.y : (k == 1 ? aBite.z : aBite.w);
+      float dist = k == 0 ? 1.0 : (k == 1 ? 0.92 : 0.8);
+      float hh = k == 0 ? biteY * 1.05 : (k == 1 ? mix(biteY * 1.1, uBite.y * 0.85, 0.5) : hc);
+      float rr = (k == 0 ? 0.5 : (k == 1 ? 0.78 : 0.62)) * uBite.x * (0.35 + 0.65 * amt);
+      vec3 c = vec3(cos(ang) * uBite.x * dist, hh, sin(ang) * uBite.x * dist);
+      if (aKind > 0.5) {
+        // Leaves, ears, berries and flower heads within reach of a bite are taken whole.
+        if (distance(aCen, c) < rr * 1.25 + 0.06) gone = true;
+        continue;
+      }
+      vec3 d = bitePos - c;
+      float l = max(length(d), 1e-4);
+      if (l < rr) {
+        bitePos = c + d * (rr / l);
+        objectNormal = -d / l;
+      }
+      if (distance(aCen, c) < rr) fleshF = 1.0;
+    }
+    if (gone) bitePos = aCen;
+  }
+  vFlesh = fleshF;
+  #ifdef USE_INSTANCING_COLOR
+    vFleshCol = aFlesh * mix(vec3(1.0), instanceColor.rgb, 0.45);
+  #else
+    vFleshCol = aFlesh;
+  #endif`;
+
+/** Vertex-coloured toon material with a soft rim light and optional wind sway. */
+export function toon(opts: ToonOpts = {}): THREE.MeshToonMaterial {
+  const rim = opts.rim ?? 0.22;
+  // Wind is compiled out entirely on the low tier (not just zeroed) to save vertex work.
+  const wind = materialFlags.wind ? (opts.wind ?? 0) : 0;
+  const bite = opts.bite;
+  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), side: opts.side ?? THREE.FrontSide });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = shared.uTime;
+    sh.uniforms.uWind = shared.uWind;
+    sh.uniforms.uRim = { value: rim };
+    let pars = '';
+    let afterBegin = '';
+    if (bite) {
+      sh.uniforms.uBite = bite;
+      pars += BITE_PARS;
+      sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>\n${BITE_VERTEX}`);
+      afterBegin += '\n  transformed = bitePos;';
+      sh.fragmentShader = `varying float vFlesh;\nvarying vec3 vFleshCol;\n${sh.fragmentShader}`.replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\n  diffuseColor.rgb = mix(diffuseColor.rgb, vFleshCol, vFlesh);',
       );
     }
+    if (wind > 0) {
+      pars += '\nuniform float uTime;\nuniform float uWind;';
+      afterBegin += WIND_GLSL(wind);
+    }
+    sh.vertexShader = `${pars}\n${sh.vertexShader}`.replace('#include <begin_vertex>', `#include <begin_vertex>${afterBegin}`);
     sh.fragmentShader = `uniform float uRim;\n${sh.fragmentShader}`.replace(
       '#include <opaque_fragment>',
       `float rimF = 1.0 - saturate(dot(normal, normalize(vViewPosition)));
@@ -66,7 +151,7 @@ export function toon(opts: ToonOpts = {}): THREE.MeshToonMaterial {
       #include <opaque_fragment>`,
     );
   };
-  m.customProgramCacheKey = () => `toon-r${rim}-w${wind}`;
+  m.customProgramCacheKey = () => `toon-r${rim}-w${wind}${bite ? '-bite' : ''}`;
   return m;
 }
 
