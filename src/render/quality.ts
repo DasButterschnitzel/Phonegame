@@ -61,7 +61,8 @@ export function settingsFor(tier: QualityTier): QualitySettings {
     case 'low':
       return { tier, dprCap: 1, antialias: false, particleScale: 0.5, cloudShadows: false, stackOutlines: false, wind: false };
     case 'high':
-      return { tier, dprCap: 2, antialias: true, particleScale: 1, cloudShadows: true, stackOutlines: true, wind: true };
+      // 1.75 rather than 2: on a phone the difference is barely visible, the fill cost is ~23 % lower (heat, battery).
+      return { tier, dprCap: 1.75, antialias: true, particleScale: 1, cloudShadows: true, stackOutlines: true, wind: true };
     case 'med':
     default:
       return { tier: 'med', dprCap: 1.5, antialias: true, particleScale: 1, cloudShadows: false, stackOutlines: true, wind: true };

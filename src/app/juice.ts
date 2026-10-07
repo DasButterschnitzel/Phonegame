@@ -207,11 +207,12 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
 /** Approach cue levels already played on this lap (0 = none, 1 = 50 %, 2 = 25 %, 3 = almost there). */
 let approachLevel = 0;
 
-export function juiceFrame(sim: Sim, audio: AudioEngine, held: boolean, r: GameRenderer): void {
+export function juiceFrame(sim: Sim, audio: AudioEngine, held: boolean, r: GameRenderer, paused = false): void {
   bitesThisFrame = 0;
   const st = sim.state;
-  audio.setSpeed(Math.min(1, st.v / vMax(st.progress.speedLevel)));
-  audio.motion(st.odometer, held);
+  // Under a dialog the world stands still: so does the motor.
+  audio.setSpeed(paused ? 0 : Math.min(1, st.v / vMax(st.progress.speedLevel)));
+  if (!paused) audio.motion(st.odometer, held);
   // Depot approach feedback with a meaningful load: soft blips at half a lap, a quarter lap and just before the chute.
   const L = sim.path.length;
   const ahead = (((sim.path.barnS - st.headS) % L) + L) % L;

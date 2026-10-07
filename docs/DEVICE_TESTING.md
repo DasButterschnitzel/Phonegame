@@ -73,6 +73,8 @@ travelling to another farm (the farm swap happens behind the cloud curtain; the 
 
 **Thermals / battery** (15 minutes of normal play)
 - Note battery % before and after, whether the phone gets warm, and whether `fps` or `@` drift down over time.
+- Leave it idle (not touching) for a minute: after ~30 s without input (and no autopilot boost) the game drops to
+  30 fps to save power — the overlay's `cap` shows it. Any touch brings 60 back on the next frame.
 
 ## 4. Deeper: Chrome DevTools on the phone (debug APK only)
 

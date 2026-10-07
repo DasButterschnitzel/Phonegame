@@ -204,6 +204,15 @@ export class CaterpillarView {
     if (b <= MAX) this.lands[b] = now;
   }
 
+  /**
+   * Throttle pressed / released: kick the head and antennae springs at once, so the press shows on the very next
+   * frame (the speed itself follows from the simulation a step later).
+   */
+  throttle(held: boolean): void {
+    this.pitchV += held ? -2.4 : 1.4;
+    for (const s of this.antSpring) s.v += held ? 7 : -5;
+  }
+
   /** Body b heaves its cargo up and out (depot unload). */
   tip(b: number, now: number): void {
     if (b <= MAX) this.tips[b] = now;

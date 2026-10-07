@@ -146,6 +146,17 @@ export async function boot(): Promise<App | null> {
   const haptics = new Haptics();
   const unlockAudio = () => audio.unlock();
   root.addEventListener('pointerdown', unlockAudio, { capture: true });
+  // Any touch counts as activity (power saver) and is answered on the very next frame: the head leans into a press
+  // before the simulation's speed has had a step to change.
+  let lastInputAt = performance.now();
+  let wasHeld = false;
+  root.addEventListener('pointerdown', () => (lastInputAt = performance.now()), { capture: true });
+  window.addEventListener('keydown', () => (lastInputAt = performance.now()));
+  input.onChange((held) => {
+    lastInputAt = performance.now();
+    if (held !== wasHeld) renderer.cat.throttle(held);
+    wasHeld = held;
+  });
   window.addEventListener('keydown', unlockAudio);
   root.addEventListener('click', (e) => {
     if (e.target instanceof Element && e.target.closest('button')) {
@@ -238,7 +249,11 @@ export async function boot(): Promise<App | null> {
         for (const e of sim.drainEvents()) onEvent(e);
         renderer.frame(alpha, dt, now, budgetMs);
         game.frame(dt);
-        juiceFrame(sim, audio, input.effective || sim.state.boosts.autopilot > 0, renderer);
+        juiceFrame(sim, audio, input.effective || sim.state.boosts.autopilot > 0, renderer, loop.simPaused);
+        // Battery: a dialog, or half a minute without a touch (and no autopilot), only needs 30 fps.
+        const idle = sim.state.boosts.autopilot <= 0 && !input.effective && performance.now() - lastInputAt > 30_000;
+        const cap = pause.has('modal') || idle ? 30 : 60;
+        if (loop.maxFps !== cap) loop.maxFps = cap;
         metaFlows.frame();
         if (perf) {
           perfAcc += dt;
@@ -285,6 +300,7 @@ export async function boot(): Promise<App | null> {
     loop.simPaused = paused;
     // Under a modal the scene only needs a gentle idle animation: halve the frame rate to save battery.
     loop.maxFps = reasons.has('modal') ? 30 : 60;
+    if (!reasons.has('modal')) lastInputAt = performance.now();
     portal.gameplay(!paused);
     audio.setMuted(portalMuted || reasons.has('ad') || reasons.has('background') || reasons.has('yt'));
     if (reasons.has('background')) loop.stop();
