@@ -81,7 +81,10 @@ export function pathRibbon(p: PathTable, width: number, center: number, edge: nu
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setAttribute('aArc', new THREE.Float32BufferAttribute(arc, 1));
-  g.computeVertexNormals();
+  // Flat ribbon: every normal points up (cheaper than computeVertexNormals on every route growth).
+  const nrm = new Float32Array(pos.length);
+  for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
   return g;
 }
 

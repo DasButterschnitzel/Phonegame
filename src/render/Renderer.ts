@@ -128,8 +128,7 @@ export class GameRenderer {
     this.world.setRoute(prev);
     this.territory.onClaimed(plots, now);
     this.field.onPlotsClaimed(plots);
-    this.depot.rebuild();
-    this.stacks.target.copy(this.depot.hopperTop);
+    // The depot never moves (its side of the farm is always route), so nothing to rebuild there.
     this.rig.zoomPulse(0.16 + Math.min(0.2, plots.length * 0.05), 0.55);
   }
 
