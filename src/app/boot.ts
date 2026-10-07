@@ -26,6 +26,11 @@ import { clock } from '../platform/clock.ts';
 import { exitApp, installLifecycle } from '../platform/lifecycle.ts';
 import { openOffline } from '../ui/modals/Offline.ts';
 import { button, h } from '../ui/dom.ts';
+import { openCollection, openNewLevel } from '../ui/modals/NewLevel.ts';
+import { AudioEngine } from '../platform/audio/AudioEngine.ts';
+import { Haptics } from '../platform/haptics.ts';
+import { Tutorial } from './tutorial.ts';
+import { juice, juiceFrame } from './juice.ts';
 
 export interface App {
   sim: Sim;
@@ -111,6 +116,37 @@ export async function boot(): Promise<App | null> {
   });
   if (saves.readOnly) game.toasts.show(t('toast.readOnly'), 5000);
 
+  // Sound, haptics, tutorial and juice.
+  const audio = new AudioEngine();
+  const haptics = new Haptics();
+  const unlockAudio = () => audio.unlock();
+  root.addEventListener('pointerdown', unlockAudio, { capture: true });
+  window.addEventListener('keydown', unlockAudio);
+  root.addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.closest('button')) {
+      audio.tap();
+      haptics.fire('selection');
+    }
+  });
+  const applyAudio = (s: Settings) => {
+    audio.setEnabled(s.sound, s.music);
+    haptics.enabled = s.haptics;
+  };
+  game.settingsListeners.push(applyAudio);
+  applyAudio(settings);
+  const tutorial = new Tutorial(sim, game.toasts, meta.tutorial, () => saves.saveSoon());
+  game.tutorialActive = () => tutorial.active;
+  game.openCollection = () => openCollection(game.modals, sim.state.maxLevelReached);
+  game.listeners.push((e) => {
+    juice(e, sim, renderer, audio, haptics);
+    tutorial.onEvent(e);
+    if (e.t === 'merged' && e.firstTime) {
+      audio.levelUp();
+      openNewLevel(game.modals, e.level);
+    }
+  });
+  let tutAcc = 0;
+
   const onEvent = (e: SimEvent) => {
     if (e.t === 'stageChanged') renderer.onStageChanged();
     if (e.t === 'traveled') renderer.onFarmChanged();
@@ -133,10 +169,17 @@ export async function boot(): Promise<App | null> {
       for (const e of sim.drainEvents()) onEvent(e);
       renderer.frame(alpha, dt, now, frameMs);
       game.frame(dt);
+      juiceFrame(sim, audio);
+      tutAcc += dt;
+      if (tutAcc > 0.5) {
+        tutAcc = 0;
+        if (!game.modals.open) tutorial.update();
+      }
     },
   );
   pause.onChange((paused, reasons) => {
     loop.simPaused = paused;
+    audio.setMuted(reasons.has('ad') || reasons.has('background'));
     if (reasons.has('background')) loop.stop();
     else if (!loop.running) loop.start();
   });

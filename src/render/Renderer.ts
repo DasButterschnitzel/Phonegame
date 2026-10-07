@@ -4,6 +4,8 @@ import { CameraRig } from './CameraRig.ts';
 import { WorldView } from './views/WorldView.ts';
 import { FieldView } from './views/FieldView.ts';
 import { CaterpillarView } from './views/CaterpillarView.ts';
+import { StackView } from './views/StackView.ts';
+import { Particles } from './fx/Particles.ts';
 import { BIOMES } from './palette.ts';
 import { DynamicResolution, detectTier, settingsFor, type QualitySettings, type QualityTier } from './quality.ts';
 import { sampleAt, type PathSample } from '../game/path.ts';
@@ -28,6 +30,8 @@ export class GameRenderer {
   world: WorldView;
   field: FieldView;
   cat: CaterpillarView;
+  stacks: StackView;
+  fx: Particles;
   quality: QualitySettings;
   private dyn: DynamicResolution;
   private hemi: THREE.HemisphereLight;
@@ -55,7 +59,10 @@ export class GameRenderer {
     this.world = new WorldView(sim, this.scene);
     this.field = new FieldView(sim);
     this.cat = new CaterpillarView(sim);
-    this.scene.add(this.world.group, this.field.group, this.cat.group);
+    this.stacks = new StackView(sim, this.cat);
+    this.fx = new Particles();
+    this.fx.budget = this.quality.particleScale;
+    this.scene.add(this.world.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh);
     this.applyBiome();
     const h = sim.headPosition(hs);
     this.rig.snap(h.x, h.z);
@@ -73,6 +80,7 @@ export class GameRenderer {
   onFarmChanged(): void {
     this.world.rebuild();
     this.field.rebuild();
+    this.stacks.onFarmChanged();
     this.applyBiome();
     const h = this.sim.headPosition(hs);
     this.rig.snap(h.x, h.z);
@@ -80,6 +88,7 @@ export class GameRenderer {
 
   onStageChanged(): void {
     this.world.setStage();
+    this.stacks.onFarmChanged();
   }
 
   resize(w: number, h: number): void {
@@ -101,6 +110,8 @@ export class GameRenderer {
     const headS = this.headS(alpha);
     this.field.update(now);
     this.cat.update(headS, this.rig.camera, dt, now);
+    this.stacks.update(now, dt, headS);
+    this.fx.update(dt);
     this.world.update(now);
     for (const x of this.extras) x.update(now, dt);
     sampleAt(this.sim.path, headS, hs);

@@ -73,10 +73,13 @@ export class GameController {
     this.applySettings(d.settings);
   }
 
+  readonly settingsListeners: ((s: Settings) => void)[] = [];
+
   applySettings(s: Settings): void {
     setLang(s.lang);
     this.d.input.toggleMode = s.toggleHold;
     this.d.renderer.rig.reduceMotion = s.reduceMotion;
+    for (const l of this.settingsListeners ?? []) l(s);
   }
 
   // ——— HUD actions ———

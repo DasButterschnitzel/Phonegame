@@ -31,7 +31,7 @@ export const levelColor = (level: number): number => LEVEL_COLORS[(level - 1) % 
 
 /** Loot-stack block colours per crop tier (golden = index 4). */
 export const TIER_BLOCK_COLORS: Record<FarmId, number[]> = {
-  meadow: [0x7ed957, 0xf2d16b, 0xff8c3b, 0xff7b1c, 0xffd700],
+  meadow: [0xc6f25a, 0xf2d16b, 0xff8c3b, 0xff7b1c, 0xffd700],
   pumpkin: [0x8fd694, 0xe9d36a, 0xff7b1c, 0x3fae49, 0xffd700],
   sunflower: [0xc77dff, 0xff4d4d, 0xffe14d, 0xffc300, 0xffd700],
   snowyberry: [0xc77dff, 0x4d6bff, 0xff3b5c, 0xff7b1c, 0xffd700],

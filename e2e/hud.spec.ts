@@ -10,6 +10,10 @@ test('upgrade buttons add and merge segments @smoke', async ({ page }, info) => 
   await expect(page.locator('.up-merge + .up-lvl, .up-wrap:nth-child(2) .up-lvl')).toContainText('2');
   await page.locator('.up-merge').click();
   expect(await g<number[]>(page, 'g.state().progress.segments.map(s => s.level)')).toEqual([2, 1]);
+  // First level-2 segment → "new segment unlocked" popup.
+  await expect(page.locator('.modal-newlevel')).toBeVisible();
+  await page.locator('.modal-newlevel .btn-big').click();
+  await expect(page.locator('.modal-newlevel')).toBeHidden();
   await page.locator('.up-speed').click();
   await page.locator('.up-capacity').click();
   expect(await g<number>(page, 'g.state().progress.speedLevel')).toBe(2);

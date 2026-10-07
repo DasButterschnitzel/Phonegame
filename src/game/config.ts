@@ -40,7 +40,7 @@ export const capacity = (capLevel: number, segments: number): number => capacity
 export const capacityOf = (st: { progress: { capacityLevel: number; segments: readonly unknown[] } }): number =>
   capacity(st.progress.capacityLevel, st.progress.segments.length);
 /** Stack height (blocks per segment) when the basket is 100% full. */
-export const maxBlocks = (capLevel: number): number => Math.min(5 + Math.floor(capLevel / 2), 14);
+export const maxBlocks = (capLevel: number): number => Math.min(8 + capLevel, 18);
 
 /** Upgrade cost curves; multiplied by the farm's costMult. */
 export const cost = {
