@@ -6,6 +6,7 @@ import { FieldView } from './views/FieldView.ts';
 import { CaterpillarView } from './views/CaterpillarView.ts';
 import { StackView } from './views/StackView.ts';
 import { Particles } from './fx/Particles.ts';
+import { TornadoView } from './views/TornadoView.ts';
 import { BIOMES } from './palette.ts';
 import { DynamicResolution, detectTier, settingsFor, type QualitySettings, type QualityTier } from './quality.ts';
 import { sampleAt, type PathSample } from '../game/path.ts';
@@ -32,6 +33,7 @@ export class GameRenderer {
   cat: CaterpillarView;
   stacks: StackView;
   fx: Particles;
+  tornado = new TornadoView();
   quality: QualitySettings;
   private dyn: DynamicResolution;
   private hemi: THREE.HemisphereLight;
@@ -62,7 +64,7 @@ export class GameRenderer {
     this.stacks = new StackView(sim, this.cat);
     this.fx = new Particles();
     this.fx.budget = this.quality.particleScale;
-    this.scene.add(this.world.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh);
+    this.scene.add(this.world.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group);
     this.applyBiome();
     const h = sim.headPosition(hs);
     this.rig.snap(h.x, h.z);
@@ -112,6 +114,7 @@ export class GameRenderer {
     this.cat.update(headS, this.rig.camera, dt, now);
     this.stacks.update(now, dt, headS);
     this.fx.update(dt);
+    this.tornado.update(now);
     this.world.update(now);
     for (const x of this.extras) x.update(now, dt);
     sampleAt(this.sim.path, headS, hs);

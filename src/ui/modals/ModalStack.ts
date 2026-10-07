@@ -31,7 +31,7 @@ export class ModalStack {
     this.closedListeners.push(fn);
   }
 
-  push(name: string, content: (close: () => void) => HTMLElement[], opts: { closable?: boolean; onClose?: () => void } = {}): ModalHandle {
+  push(name: string, content: (close: () => void) => (HTMLElement | null)[], opts: { closable?: boolean; onClose?: () => void } = {}): ModalHandle {
     const closable = opts.closable ?? true;
     const modal = h('div', { class: `modal modal-${name}`, 'data-ui': true, role: 'dialog', 'aria-modal': 'true' });
     const layer = h('div', { class: 'modal-layer', 'data-ui': true }, modal);
@@ -49,7 +49,7 @@ export class ModalStack {
       onClose: opts.onClose,
     };
     if (closable) modal.append(button('close-x', () => handle.close(), icon('close')));
-    modal.append(...content(handle.close));
+    for (const c of content(handle.close)) if (c) modal.append(c);
     layer.addEventListener('pointerdown', (e) => {
       if (e.target === layer && closable) handle.close();
     });

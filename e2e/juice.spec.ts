@@ -24,7 +24,8 @@ test('collection shows discovered levels', async ({ page }) => {
 test('tutorial suggests ADD when affordable', async ({ page }) => {
   await ready(page);
   await g(page, 'g.grant(50)');
-  await expect(page.locator('.tut')).toBeVisible({ timeout: 3000 });
+  await expect(page.locator('.tut')).toContainText('ADD', { timeout: 3000 });
   await page.locator('.up-add').click();
-  await expect(page.locator('.tut')).toBeHidden({ timeout: 3000 });
+  // Next hint in the sequence: merge the two level-1 segments.
+  await expect(page.locator('.tut')).toContainText('MERGE', { timeout: 3000 });
 });

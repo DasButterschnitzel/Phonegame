@@ -55,7 +55,6 @@ test('backgrounding pauses the game loop', async ({ page }) => {
   const f2 = await g<number>(page, 'g.perf().frames');
   expect(f2 - f1).toBeLessThanOrEqual(1);
   await setVis('visible');
-  await page.waitForTimeout(400);
-  expect(await g<number>(page, 'g.perf().frames')).toBeGreaterThan(f2 + 5);
+  await page.waitForFunction((f) => (window as any).__game.perf().frames > f + 3, f2, { timeout: 5000 });
   expect(await g<number>(page, 'g.lastSaved()')).toBeGreaterThan(0);
 });

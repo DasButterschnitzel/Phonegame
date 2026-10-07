@@ -358,3 +358,24 @@
     opacity: 0;
   }
 }
+
+.trophy-big {
+  width: 84px;
+  height: 84px;
+  animation: pop-in 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.gift .wing {
+  transform-origin: 32px 32px;
+  animation: flap 0.18s ease-in-out infinite alternate;
+}
+
+.gift .wing.r {
+  animation-direction: alternate-reverse;
+}
+
+@keyframes flap {
+  to {
+    transform: scaleX(0.55);
+  }
+}

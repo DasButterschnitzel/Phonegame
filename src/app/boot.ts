@@ -31,6 +31,7 @@ import { AudioEngine } from '../platform/audio/AudioEngine.ts';
 import { Haptics } from '../platform/haptics.ts';
 import { Tutorial } from './tutorial.ts';
 import { juice, juiceFrame } from './juice.ts';
+import { installMetaFlows } from './metaFlows.ts';
 
 export interface App {
   sim: Sim;
@@ -145,6 +146,7 @@ export async function boot(): Promise<App | null> {
       openNewLevel(game.modals, e.level);
     }
   });
+  const metaFlows = installMetaFlows(sim, game, meta, saves);
   let tutAcc = 0;
 
   const onEvent = (e: SimEvent) => {
@@ -170,6 +172,7 @@ export async function boot(): Promise<App | null> {
       renderer.frame(alpha, dt, now, frameMs);
       game.frame(dt);
       juiceFrame(sim, audio);
+      metaFlows.frame();
       tutAcc += dt;
       if (tutAcc > 0.5) {
         tutAcc = 0;
@@ -240,6 +243,7 @@ export async function boot(): Promise<App | null> {
     splash?.classList.add('hide');
     setTimeout(() => splash?.remove(), 400);
     if (loaded.ok) checkOffline(clock.wall() - loaded.save.savedAtWall);
+    setTimeout(() => metaFlows.maybeShowDaily(), 1200);
   });
   void ads.init();
   saves.startAutosave();
