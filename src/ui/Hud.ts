@@ -276,14 +276,15 @@ export class Hud {
     this.basket.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12) rotate(-4deg)', offset: 0.35 }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' });
   }
 
-  bumpCoins(): void {
+  /** `strong`: the last coin of a depot pass lands — a bigger, brighter tick. */
+  bumpCoins(strong = false): void {
     this.coinPill.animate(
       [
         { transform: 'scale(1)', filter: 'brightness(1)' },
-        { transform: 'scale(1.18)', filter: 'brightness(1.25)', offset: 0.3 },
+        { transform: `scale(${strong ? 1.3 : 1.18})`, filter: `brightness(${strong ? 1.45 : 1.25})`, offset: 0.3 },
         { transform: 'scale(1)', filter: 'brightness(1)' },
       ],
-      { duration: 280, easing: 'cubic-bezier(.3,1.6,.5,1)' },
+      { duration: strong ? 420 : 280, easing: 'cubic-bezier(.3,1.6,.5,1)' },
     );
   }
 

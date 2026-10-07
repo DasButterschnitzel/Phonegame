@@ -109,6 +109,8 @@ export class CaterpillarView {
   private gulps = new Float32Array(MAX + 1).fill(-9);
   /** Per-body time a chunk last landed in its basket (the segment dips under the weight). */
   private lands = new Float32Array(MAX + 1).fill(-9);
+  /** Per-body time it tipped its cargo into the depot hopper (a quick heave). */
+  private tips = new Float32Array(MAX + 1).fill(-9);
 
   constructor(sim: Sim) {
     this.sim = sim;
@@ -180,6 +182,11 @@ export class CaterpillarView {
   /** A chunk landed in body b's basket. */
   land(b: number, now: number): void {
     if (b <= MAX) this.lands[b] = now;
+  }
+
+  /** Body b heaves its cargo up and out (depot unload). */
+  tip(b: number, now: number): void {
+    if (b <= MAX) this.tips[b] = now;
   }
 
   /** Arc slot (fractional index) currently shown for a segment id. */
@@ -301,10 +308,13 @@ export class CaterpillarView {
       // A landing chunk pushes the segment down a touch and it springs back.
       const lu = (now - this.lands[i + 1]) / 0.2;
       const dip = lu >= 0 && lu < 1 ? Math.sin(lu * Math.PI) * (1 - lu) : 0;
+      // Unloading: the segment heaves its stack up and out, then settles lighter.
+      const tu = (now - this.tips[i + 1]) / 0.32;
+      const heave = tu >= 0 && tu < 1 ? Math.sin(tu * Math.PI) * (1 - tu * 0.6) : 0;
       // Loaded segments sit lower, squat wider and jiggle heavier with each step.
       const L = this.load;
-      const squash = (1 + Math.sin(odo * 3 - (i + 1) * 0.8) * (0.04 + 0.03 * L)) * (1 + g * 0.08 + dip * 0.1) * (1 + Math.sin(now * 2.2 - i * 0.6) * 0.015 * (1 - speedFrac));
-      p.y = p.y * (1 - 0.6 * L) - 0.05 * L - dip * 0.06;
+      const squash = (1 + Math.sin(odo * 3 - (i + 1) * 0.8) * (0.04 + 0.03 * L)) * (1 + g * 0.08 + dip * 0.1 - heave * 0.1) * (1 + Math.sin(now * 2.2 - i * 0.6) * 0.015 * (1 - speedFrac));
+      p.y = p.y * (1 - 0.6 * L) - 0.05 * L - dip * 0.06 + heave * 0.16;
       V.set(p.x, p.y, p.z);
       // Lean into turns (roll) — the chain follows the head's lean.
       E.set(Math.max(-0.12, Math.min(0.12, -this.turn * 0.07)), p.yaw, 0, 'YXZ');

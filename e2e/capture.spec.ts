@@ -114,13 +114,22 @@ test('motion: accelerate, cruise, brake', async ({ page }) => {
   });
 });
 
-test('depot: a loaded crawler rolls through the unload', async ({ page }) => {
+async function depotClip(page: Page, name: string, adds: number) {
   await start(page);
-  await g(page, '(g.grant(5000), [0,1,2,3,4,5].forEach(() => g.buy("add")), g.fillBasket(0.95))');
-  expect(await g<boolean>(page, 'g.runUntil((st) => { const s = g.sim; const L = s.path.length; return ((s.path.barnS - st.headS) % L + L) % L < 6; })')).toBe(true);
+  await g(page, `(g.state().maxLevelReached = 9, g.grant(1e6), Array.from({ length: ${adds} }, () => g.buy("add")), g.fillBasket(0.95))`);
+  // Stop well before the chute so the approach (glow, doors, camera lean) is in the clip.
+  expect(await g<boolean>(page, 'g.runUntil((st) => { const s = g.sim; const L = s.path.length; return ((s.path.barnS - st.headS) % L + L) % L < 3.2; })')).toBe(true);
   await g(page, 'g.setThrottle(true)');
-  await clip(page, 'depot-unload', 200, { every: 2 });
+  await clip(page, name, 150, { every: 2 });
   await g(page, 'g.setThrottle(null)');
+}
+
+test('depot: a loaded crawler rolls through the unload', async ({ page }) => {
+  await depotClip(page, 'depot-unload', 6);
+});
+
+test('depot: a long crawler unloads in one capped wave', async ({ page }) => {
+  await depotClip(page, 'depot-long', 15);
 });
 
 test('bite lineup: every crop at stages 0–3', async ({ page }) => {

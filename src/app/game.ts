@@ -227,7 +227,8 @@ export class GameController {
         const h = renderer.depot.hopperTop;
         if (renderer.project(h.x, h.y + 0.6, h.z, tmpP)) {
           const target = this.hud.center(this.hud.coinPill);
-          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, e.last ? 3 : 1, () => this.hud.bumpCoins(), this.d.settings.reduceMotion, (i) => this.onCoinLand(this.unloadCoin++ + i));
+          const last = e.last;
+          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, last ? 3 : 1, () => this.hud.bumpCoins(last), this.d.settings.reduceMotion, (i) => this.onCoinLand(this.unloadCoin++ + i));
         }
         break;
       }
@@ -275,7 +276,7 @@ export class GameController {
     }
     this.floaters.update();
     const hop = renderer.depot.hopperTop;
-    this.unloadCounter.frame(now / 1000, dt, renderer.project(hop.x, hop.y + 1.1, hop.z, tmpP) ? tmpP : null);
+    this.unloadCounter.frame(now / 1000, dt, renderer.project(hop.x, hop.y + 2.3, hop.z, tmpP) ? tmpP : null);
     this.hud.tickCoins(sim.state.coins, dt);
     this.hudAcc += dt;
     if (this.hudAcc >= 0.1) {

@@ -1,7 +1,7 @@
 import type { CoinReason, Command, DepotPass, FarmId, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
 import { FARM_ORDER } from './types.ts';
 import { FARMS, type FarmDef } from './farms/index.ts';
-import { DEPOT, FIELD, MISC, TERRITORY, capacityOf, farmEco, vMax } from './config.ts';
+import { DEPOT, FIELD, MISC, TERRITORY, capacityOf, farmEco, unloadAt, vMax } from './config.ts';
 import { buildBins, buildField, buildRoute, computeReach, markDirty } from './field.ts';
 import { nearestS, sampleAt, type PathSample } from './path.ts';
 import { bodyOffset, findMergePair, sortSegments, updateSpeed } from './caterpillar.ts';
@@ -41,7 +41,7 @@ export function clearedOfSnapshot(id: FarmId, snap: FieldSnapshot | undefined): 
   return n / total;
 }
 
-export const newDepotPass = (): DepotPass => ({ active: false, dist: 0, segs: 0, mass: 0, value: 0, done: 0, paidMass: 0, paidValue: 0 });
+export const newDepotPass = (): DepotPass => ({ active: false, t: 0, segs: 0, mass: 0, value: 0, done: 0, paidMass: 0, paidValue: 0 });
 
 export function newGameState(seed = 0x5eed): GameState {
   return {
@@ -224,7 +224,7 @@ export class Sim {
     const L = this.path.length;
     const b = this.path.barnS;
     if (Math.floor((st.headS - b) / L) > Math.floor((st.prevHeadS - b) / L)) this.depotEnter(st.headS - b - Math.floor((st.headS - b) / L) * L);
-    if (st.depot.active) this.depotRoll(ds);
+    else if (st.depot.active) this.depotRoll(dt);
 
     const passive = passiveRate(st) * dt;
     if (passive > 0) {
@@ -242,21 +242,25 @@ export class Sim {
 
   // ── Depot: rolling unload ──────────────────────────────────────────────────────────────────────────────────────
 
-  /** The head just passed the chute (`over` units ago): start a pass that empties each segment as it rolls through. */
+  /**
+   * The head just passed the chute (`over` units ago): start a pass. The cargo leaves in a wave from the first
+   * segment to the last (`unloadAt`), each segment paying its share as its load lands in the hopper — no stopping,
+   * and never longer than DEPOT.WAVE_MAX_S however long the caterpillar is.
+   */
   private depotEnter(over: number): void {
     const st = this.state;
     if (st.depot.active) this.depotFlush();
     if (st.basket.mass <= 0) return;
     const d = st.depot;
     d.active = true;
-    d.dist = Math.max(0, over);
+    d.t = Math.max(0, over) / Math.max(0.5, st.v);
     d.segs = Math.max(1, st.progress.segments.length);
     d.mass = st.basket.mass;
     d.value = st.basket.value;
     d.done = 0;
     d.paidMass = 0;
     d.paidValue = 0;
-    this.events.push({ t: 'unloadStart', segs: d.segs, value: d.value * this.incomeMult, mass: d.mass, massByTier: st.basket.massByTier.slice() });
+    this.events.push({ t: 'unloadStart', segs: d.segs, value: d.value * this.incomeMult, mass: d.mass, massByTier: st.basket.massByTier.slice(), elapsed: d.t });
     this.depotRoll(0);
   }
 
@@ -264,10 +268,10 @@ export class Sim {
     return this.state.boosts.incomeX2 > 0 ? 2 : 1;
   }
 
-  private depotRoll(ds: number): void {
+  private depotRoll(dt: number): void {
     const d = this.state.depot;
-    d.dist += ds;
-    while (d.active && d.dist >= bodyOffset(d.done + 1)) this.depotPay();
+    d.t += dt;
+    while (d.active && d.t >= unloadAt(d.done, d.segs) - 1e-9) this.depotPay();
   }
 
   /** Pays out every segment still waiting (leaving the farm, or a new pass before the old one finished). */

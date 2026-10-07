@@ -41,6 +41,7 @@ export class DepotView {
   private hopperT = -1;
   private cueT = -1;
   private cueLevel = 0;
+  private wakeT = -1;
   /** World positions used by other views (stack fliers aim here). */
   readonly hopperTop = new THREE.Vector3();
   readonly doorPos = new THREE.Vector3();
@@ -135,6 +136,12 @@ export class DepotView {
     this.bounceT = now;
   }
 
+  /** The unload wave starts: the hopper rears up to catch, the bay flashes, the conveyor starts. */
+  wake(now: number): void {
+    this.wakeT = now;
+    this.beltRun = 2;
+  }
+
   /** A segment just tipped its cargo into the hopper. */
   onSegment(now: number): void {
     this.hopperT = now;
@@ -186,6 +193,7 @@ export class DepotView {
       if (u >= 1) this.cueT = -1;
       else flash = (1 - u) * (0.25 + 0.15 * this.cueLevel);
     }
+    if (this.wakeT >= 0) flash = Math.max(flash, (1 - (now - this.wakeT) / 0.35) * 0.55);
     this.glowMat.opacity = carrying || st.depot.active ? Math.min(0.95, (0.08 + 0.22 * fill + 0.35 * ap) * (0.6 + 0.4 * pulse) + flash) : 0;
     this.padGlow.visible = this.glowMat.opacity > 0.01;
 
@@ -220,13 +228,22 @@ export class DepotView {
     }
     this.cleats.instanceMatrix.needsUpdate = true;
 
-    // Hopper kicks when a segment tips in.
+    // Hopper rears up as the wave starts (anticipation), then kicks each time a load drops in.
+    let hx = 0;
+    let hy = 0;
+    if (this.wakeT >= 0) {
+      const u = (now - this.wakeT) / 0.35;
+      if (u >= 1) this.wakeT = -1;
+      else hy += Math.sin(u * Math.PI) * (1 - u * 0.5) * 0.12;
+    }
     if (this.hopperT >= 0) {
       const u = (now - this.hopperT) / 0.3;
       const k = u >= 1 ? 0 : Math.sin(u * Math.PI) * (1 - u);
-      this.hopper.scale.set(1 + 0.12 * k, 1 - 0.14 * k, 1 + 0.12 * k);
+      hx += 0.12 * k;
+      hy -= 0.14 * k;
       if (u >= 1) this.hopperT = -1;
     }
+    this.hopper.scale.set(1 + hx - hy * 0.4, 1 + hy, 1 + hx - hy * 0.4);
 
     // "Sell here" arrow while the basket is full.
     const full = st.basket.mass >= capacityOf(st);

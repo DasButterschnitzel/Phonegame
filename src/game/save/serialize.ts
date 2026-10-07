@@ -54,7 +54,9 @@ export function validateGame(g: Partial<GameState> | undefined): GameState {
   if (!isNum(out.basket.mass) || out.basket.mass < 0) out.basket.mass = 0;
   if (!isNum(out.basket.value) || out.basket.value < 0) out.basket.value = 0;
   if (!Array.isArray(out.basket.massByTier) || out.basket.massByTier.length !== 5 || !out.basket.massByTier.every(isNum)) out.basket.massByTier = [out.basket.mass, 0, 0, 0, 0];
-  const dp = { ...newDepotPass(), ...(g.depot ?? {}) };
+  // Known fields only (older builds stored the pass by distance: a pass in flight resumes its wave from the start).
+  const dp = newDepotPass();
+  for (const k of Object.keys(dp) as (keyof typeof dp)[]) if (g.depot && k in g.depot) (dp as unknown as Record<string, unknown>)[k] = (g.depot as unknown as Record<string, unknown>)[k];
   out.depot = Object.values(dp).every((x) => typeof x === 'boolean' || isNum(x)) && (!dp.active || dp.segs >= 1) ? dp : newDepotPass();
   out.boosts = { ...d.boosts, ...(g.boosts ?? {}) };
   out.economy = { ...d.economy, ...(g.economy ?? {}), passive: { ...(g.economy?.passive ?? {}) } };

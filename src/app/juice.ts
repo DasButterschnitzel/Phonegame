@@ -1,6 +1,6 @@
 import type { Sim } from '../game/sim.ts';
 import type { SimEvent } from '../game/types.ts';
-import { vMax } from '../game/config.ts';
+import { unloadAt, vMax } from '../game/config.ts';
 import { plotRect } from '../game/territory.ts';
 import type { GameRenderer } from '../render/Renderer.ts';
 import { MERGE_TRAVEL } from '../render/views/CaterpillarView.ts';
@@ -98,19 +98,28 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       break;
     }
     case 'unloadStart':
+      // The wave starts: each segment tips its stack so it lands as that segment is paid.
+      r.stacks.beginUnload(e.segs, e.elapsed, now);
+      r.depot.wake(now);
+      r.onUnloadStart(e.segs, unloadAt(e.segs - 1, e.segs) - e.elapsed);
       audio.unloadStart();
       haptics.fire('light');
       break;
     case 'unloadSeg':
-      r.stacks.onUnloadSeg(e.seg, e.mass, now);
+      r.stacks.onUnloadSeg(e.seg, now);
       r.depot.onSegment(now);
       audio.unloadSeg(e.seg, e.last);
       if (e.last || e.seg % 3 === 0) haptics.fire(e.last ? 'medium' : 'selection');
       break;
-    case 'unload':
+    case 'unload': {
+      // Last load in: the barn answers, coins spray out of the hopper.
       audio.unload(e.mass);
       r.depot.bounce(now);
+      const h = r.depot.hopperTop;
+      r.fx.burst(h.x, h.y + 0.5, h.z, 0xffd23f, 10, 3, 0.16, 0.9, 5.5, 12);
+      r.waves.spawn(h.x, h.z, 0xffe680, 2.6, now, 0.5);
       break;
+    }
     case 'basketFull': {
       // The blades grind against crops that won't fit: sparks, a shake and a grumble.
       r.cat.grind(now);

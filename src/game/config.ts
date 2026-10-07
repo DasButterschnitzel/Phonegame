@@ -55,7 +55,22 @@ export const TERRITORY = {
 export const DEPOT = {
   /** Speed factor while cargo rolls off into the chute (a gentle magnetic drag). */
   SLOW: 0.85,
+  /** The first segment's cargo lands this long after the head crosses the chute (its short hop into the hopper). */
+  FIRST_S: 0.36,
+  /** The unload wave runs head → tail; its length grows with the chain but is capped so long crawlers never wait. */
+  WAVE_BASE_S: 0.45,
+  WAVE_PER_SEG_S: 0.035,
+  WAVE_MAX_S: 1.3,
+  /** Stagger between neighbouring segments never exceeds this (short chains stay snappy). */
+  GAP_MAX_S: 0.08,
 } as const;
+
+/** Seconds after the head crosses the chute at which segment k (0 = first) of an n-segment unload pays out. */
+export const unloadAt = (k: number, n: number): number => {
+  if (n <= 1) return DEPOT.FIRST_S;
+  const total = Math.min(DEPOT.WAVE_MAX_S, DEPOT.WAVE_BASE_S + DEPOT.WAVE_PER_SEG_S * n);
+  return DEPOT.FIRST_S + k * Math.min(DEPOT.GAP_MAX_S, (total - DEPOT.FIRST_S) / (n - 1));
+};
 
 /** HP removed per world unit travelled while a crop is within reach. */
 export const power = (level: number): number => 4 * 2.4 ** (level - 1);

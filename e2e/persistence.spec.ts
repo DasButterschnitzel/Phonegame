@@ -26,19 +26,22 @@ test('cleared land and a rolling unload survive a reload (no regrowth)', async (
   expect(await g<number>(page, 'g.sim.terr.claimedCount')).toBe(claimed);
   expect(await g<number>(page, 'g.sim.field.deadCount')).toBeGreaterThanOrEqual(dead);
   expect(await g<number>(page, 'g.sim.path.length')).toBeCloseTo(route, 3);
-  // Mid-unload: the pass resumes after the reload and pays out.
-  await g(page, '(g.grant(500), g.buy("add"), g.buy("add"), g.fillBasket(0.8))');
+  // Mid-unload: the pass resumes after the reload and pays out. (Real time is stopped while we get there: the wave
+  // only lasts about a second.)
+  await g(page, '(g.grant(500), g.buy("add"), g.buy("add"), g.fillBasket(0.8), g.setTimeScale(0))');
   expect(await g<boolean>(page, 'g.runUntil((st) => st.depot.active && st.depot.done > 0)')).toBe(true);
   await g(page, 'g.saveNow()');
   const unloads = await g<number>(page, 'g.state().stats.unloads');
+  const paid = await g<number>(page, 'g.state().depot.paidValue');
+  expect(paid).toBeGreaterThan(0);
   await page.reload();
   await page.waitForFunction(() => (window as any).__game?.ready);
-  expect(await g<boolean>(page, 'g.state().depot.active')).toBe(true);
-  // Second session: the daily reward greets us first (the game pauses under it).
+  // The pass in flight resumes where it was (already-paid segments are not paid again) and finishes; a fresh pass
+  // would need another lap first. Second session: the daily reward may greet us first (the game pauses under it).
   const daily = page.locator('.modal-daily .close-x');
   if (await daily.isVisible({ timeout: 3000 }).catch(() => false)) await daily.click();
-  await g(page, 'g.setThrottle(true)');
-  await page.waitForFunction((u) => (window as any).__game.state().stats.unloads > u, unloads, { timeout: 20000 });
+  await page.waitForFunction((u) => (window as any).__game.state().stats.unloads > u, unloads, { timeout: 5000 });
+  expect(await g<boolean>(page, 'g.state().depot.active')).toBe(false);
 });
 
 test('offline earnings dialog with x3 ad', async ({ page }) => {

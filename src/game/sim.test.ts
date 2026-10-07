@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Sim, newGameState } from './sim.ts';
-import { BODY, MOVE, SIM, TERRITORY, capacityOf, power, vMax } from './config.ts';
+import { BODY, DEPOT, MOVE, SIM, TERRITORY, capacityOf, power, unloadAt, vMax } from './config.ts';
 import { sampleAt } from './path.ts';
-import { bodyOffset, findMergePair } from './caterpillar.ts';
+import { findMergePair } from './caterpillar.ts';
 import { offlineReward } from './economy.ts';
 import type { GameState, SimEvent } from './types.ts';
 
@@ -167,7 +167,7 @@ describe('route growth', () => {
 });
 
 describe('depot (rolling unload)', () => {
-  it('each segment unloads its share as it passes the chute; coins equal the unloaded value', () => {
+  it('each segment unloads its share in a wave after the head passes the chute; coins equal the unloaded value', () => {
     const sim = new Sim();
     barren(sim);
     strongCaterpillar(sim, 5, 1);
@@ -230,7 +230,7 @@ describe('depot (rolling unload)', () => {
     // Value conservation: everything ever loaded is paid or still aboard.
     expect(paid + sim.state.basket.value).toBeGreaterThan(filled * 0.999);
   });
-  it('one pass per chute crossing; the pass length follows the caterpillar length', () => {
+  it('one pass per chute crossing; the wave runs head to tail on the capped schedule', () => {
     const sim = new Sim();
     barren(sim);
     strongCaterpillar(sim, 4, 1);
@@ -238,19 +238,37 @@ describe('depot (rolling unload)', () => {
     sim.state.v = 3;
     let passes = 0;
     const start = sim.state.headS;
-    let dist0 = -1;
-    let distEnd = -1;
+    let t0 = -1;
+    let tEnd = -1;
+    let elapsed = 0;
+    const order: number[] = [];
     while (sim.state.headS < start + 3 * L) {
       sim.enqueue({ c: 'fillBasket', frac: 0.3 });
       sim.step(SIM.DT, { throttleHeld: true });
       for (const e of sim.drainEvents()) {
-        if (e.t === 'unloadStart' && ++passes === 1) dist0 = sim.state.odometer;
-        if (e.t === 'unload' && passes === 1) distEnd = sim.state.odometer;
+        if (e.t === 'unloadStart' && ++passes === 1) {
+          t0 = sim.state.simTime;
+          elapsed = e.elapsed;
+        }
+        if (e.t === 'unloadSeg' && passes === 1) order.push(e.seg);
+        if (e.t === 'unload' && passes === 1) tEnd = sim.state.simTime;
       }
     }
     expect(passes).toBe(3);
-    expect(distEnd - dist0).toBeGreaterThan(bodyOffset(4) - 0.5);
-    expect(distEnd - dist0).toBeLessThan(bodyOffset(4) + 0.5);
+    expect(order).toEqual([0, 1, 2, 3]);
+    // The last segment pays when the schedule says (to within a simulation step).
+    expect(tEnd - t0 + elapsed).toBeGreaterThan(unloadAt(3, 4) - SIM.DT);
+    expect(tEnd - t0 + elapsed).toBeLessThan(unloadAt(3, 4) + SIM.DT);
+  });
+  it('wave timing: small loads 0.4–0.7 s, long caterpillars 0.8–1.4 s, never longer', () => {
+    for (let n = 1; n <= 32; n++) {
+      const total = unloadAt(n - 1, n);
+      for (let k = 1; k < n; k++) expect(unloadAt(k, n)).toBeGreaterThan(unloadAt(k - 1, n));
+      expect(unloadAt(0, n)).toBeCloseTo(DEPOT.FIRST_S, 9);
+      expect(total).toBeLessThanOrEqual(DEPOT.WAVE_MAX_S + 1e-9);
+      if (n >= 2 && n <= 4) (expect(total).toBeGreaterThanOrEqual(0.4), expect(total).toBeLessThanOrEqual(0.7));
+      if (n >= 12) (expect(total).toBeGreaterThanOrEqual(0.8), expect(total).toBeLessThanOrEqual(1.4));
+    }
   });
   it('travelling mid-unload pays out the rest at once', () => {
     const sim = new Sim();

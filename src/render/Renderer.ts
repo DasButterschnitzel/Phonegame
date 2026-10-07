@@ -46,7 +46,9 @@ export class GameRenderer {
   tornado = new TornadoView();
   waves = new Shockwaves();
   private dustAcc = 0;
+  /** 0..~0.25: how far the framing leans towards the depot hopper (approach with cargo, held through a wave). */
   private depotBias = 0;
+  private depotHoldUntil = -1;
   private bodies = { poses: [] as { x: number; z: number }[], count: 0 };
   private sparkleAcc = 0;
   quality: QualitySettings;
@@ -134,6 +136,16 @@ export class GameRenderer {
     this.rig.zoomPulse(0.16 + Math.min(0.2, plots.length * 0.05), 0.55);
   }
 
+  /**
+   * A depot wave starts (`dur` s until the last segment is paid): the framing holds on the hopper until it's over,
+   * and a long caterpillar gets a slight pull-back so its whole wave is in view.
+   */
+  onUnloadStart(segs: number, dur: number): void {
+    const now = shared.uTime.value;
+    this.depotHoldUntil = now + Math.max(0, dur) + 0.3;
+    if (segs >= 8) this.rig.zoomPulse(0.04 + Math.min(0.06, segs * 0.002), Math.max(0, dur));
+  }
+
   /** A zone fence opened: bigger reveal. */
   onZoneOpened(): void {
     this.rig.zoomPulse(0.6, 1.0);
@@ -181,14 +193,18 @@ export class GameRenderer {
     const mid = this.cat.poses[Math.min(n, Math.ceil(n / 3))];
     let tx = (hs.x + hs.tx * look) * 0.75 + mid.x * 0.25;
     let tz = (hs.z + hs.tz * look) * 0.75 + mid.z * 0.25;
-    // Carrying cargo towards the depot: lean the framing towards the barn so the drop-off is in view.
+    // Approaching the depot with a real load: lean the framing towards the hopper; hold it there while the wave
+    // runs, then let go slowly (no snap, nothing on a near-empty lap).
     const ahead = wrap(this.sim.path.barnS - headS, this.sim.path.length);
-    const want = st.basket.mass > 0 ? clamp(1 - ahead / 12, 0, 1) * 0.22 : 0;
-    this.depotBias += (want - this.depotBias) * Math.min(1, dt * 2.5);
+    const fill = st.basket.mass / Math.max(1, this.sim.capacity);
+    let want = 0;
+    if (now < this.depotHoldUntil) want = Math.max(this.depotBias, 0.18);
+    else if (fill >= 0.25) want = clamp(1 - ahead / 12, 0, 1) * (0.12 + 0.12 * Math.min(1, fill));
+    this.depotBias += (want - this.depotBias) * Math.min(1, dt * (want > this.depotBias ? 2.2 : 1.1));
     if (this.depotBias > 0.001) {
-      const b = this.sim.farm.barn;
-      tx += (b.bx - tx) * this.depotBias;
-      tz += (b.bz - tz) * this.depotBias;
+      const hop = this.depot.hopperTop;
+      tx += (hop.x - tx) * this.depotBias;
+      tz += (hop.z - tz) * this.depotBias;
     }
     if (this.focus) {
       tx = this.focus.x;

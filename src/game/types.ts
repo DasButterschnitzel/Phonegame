@@ -82,8 +82,8 @@ export interface FarmProgress {
 /** A rolling unload in progress: each segment empties its share as it passes the depot chute. */
 export interface DepotPass {
   active: boolean;
-  /** Distance the head has travelled since it passed the chute. */
-  dist: number;
+  /** Seconds since the head passed the chute (segment k pays at `unloadAt(k, segs)`). */
+  t: number;
   segs: number;
   mass: number;
   value: number;
@@ -160,7 +160,8 @@ export type SimEvent =
   | { t: 'plotReady'; plot: number }
   | { t: 'routeGrew'; plots: number[]; prevLength: number }
   | { t: 'zoneOpened'; zone: number; free: boolean }
-  | { t: 'unloadStart'; segs: number; value: number; mass: number; massByTier: number[] }
+  /** `elapsed`: seconds of the pass already gone when the event fires (the head crossed mid-step). */
+  | { t: 'unloadStart'; segs: number; value: number; mass: number; massByTier: number[]; elapsed: number }
   | { t: 'unloadSeg'; seg: number; value: number; mass: number; last: boolean }
   | { t: 'unload'; value: number; mass: number }
   | { t: 'segAdded'; id: number; level: number }

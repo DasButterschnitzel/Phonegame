@@ -7,11 +7,15 @@ test('loot stacks grow with the basket and roll off at the depot @smoke', async 
   await g(page, 'g.fillBasket(0.9)');
   await page.waitForFunction(() => (window as any).__game.app.renderer.stacks.blockCount > 30, null, { timeout: 8000 });
   await shot(page, 'stacks', info.project.name);
-  // Crawl until the cargo rolls off at the depot: segments unload one by one while the pass is active.
-  await g(page, 'g.setThrottle(true)');
-  await page.waitForFunction(() => (window as any).__game.state().depot.active, null, { timeout: 30000 });
-  await shot(page, 'unloading', info.project.name);
+  // Crawl until the cargo rolls off at the depot: segments unload one by one (a wave) while the pass is active.
+  const before = await g<number>(page, 'g.state().coins');
+  await g(page, 'g.setTimeScale(0)');
+  expect(await g<boolean>(page, 'g.runUntil((st) => st.depot.active && st.depot.done > 0 && st.depot.done < st.depot.segs)')).toBe(true);
   const during = await g<number>(page, 'g.state().coins');
+  expect(during).toBeGreaterThan(before);
+  await g(page, 'g.setTimeScale(1)');
+  await shot(page, 'unloading', info.project.name);
+  await g(page, 'g.setThrottle(true)');
   await page.waitForFunction(() => (window as any).__game.state().stats.unloads > 0, null, { timeout: 30000 });
   expect(await g<number>(page, 'g.state().coins')).toBeGreaterThan(during);
   await g(page, 'g.setThrottle(null)');

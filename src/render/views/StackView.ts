@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
-import { capacityPerSegment, maxBlocks } from '../../game/config.ts';
+import { capacityPerSegment, maxBlocks, unloadAt } from '../../game/config.ts';
 import { blockGeometry } from '../geo/caterpillar.ts';
 import { instancedOutline, toon } from '../materials.ts';
 import { TIER_BLOCK_COLORS } from '../palette.ts';
@@ -97,6 +97,8 @@ export class StackView {
   private index = new Map<number, number>();
   /** Cargo that has left the stacks for the hopper but is still in the basket (not paid yet). */
   private unloading = 0;
+  /** Depot wave in progress: when it started (render clock), how many segments, how many have tipped so far. */
+  private wave = { active: false, start: 0, n: 0, launched: 0 };
   private flying: Flier[] = [];
   private sim: Sim;
   private cat: CaterpillarView;
@@ -139,6 +141,7 @@ export class StackView {
     this.load.clear();
     this.pending.clear();
     this.unloading = 0;
+    this.wave.active = false;
   }
 
   private cap(): number {
@@ -223,40 +226,88 @@ export class StackView {
     this.onChunkLand(k, this.blocksFor(this.load.get(id) ?? 0));
   }
 
-  /** Segment k just tipped its cargo into the hopper (its share is already paid in the simulation). */
-  onUnloadSeg(k: number, mass: number, now: number): void {
-    void mass;
+  /**
+   * The head crossed the chute: the cargo leaves head → tail on the simulation's schedule (`unloadAt`). Each segment
+   * tips its stack early enough that the blocks land in the hopper exactly when that segment is paid.
+   */
+  beginUnload(n: number, elapsed: number, now: number): void {
+    if (this.wave.active) while (this.wave.launched < this.wave.n) this.launchSeg(this.wave.launched++, now, now);
+    this.wave = { active: true, start: now - elapsed, n, launched: 0 };
+  }
+
+  /** Segment k's share was paid. If its stack hasn't left yet (a pass resumed from a save), it goes now. */
+  onUnloadSeg(k: number, now: number): void {
+    if (this.wave.active && k < this.wave.launched) return;
+    if (this.wave.active) this.wave.launched = Math.max(this.wave.launched, k + 1);
+    this.launchSeg(k, now + 0.25, now);
+  }
+
+  /** Lift segment k's whole stack off (top block first) on arcs that land in the hopper at `landT`. */
+  private launchSeg(k: number, landT: number, now: number): void {
     const segs = this.sim.state.progress.segments;
     const pose = this.cat.poses[k + 1];
     if (!pose || !segs[k]) return;
     const id = segs[k].id;
-    const n = this.blocksFor(this.load.get(id) ?? 0);
+    const mass = this.load.get(id) ?? 0;
+    const n = this.blocksFor(mass);
     this.load.set(id, 0);
+    this.cat.tip(k + 1, now);
+    if (n === 0) return;
     const st = this.sim.state;
     const tiers = this.layerTiers(st.basket.massByTier, Math.max(1e-6, st.basket.mass), n);
-    for (let b = 0; b < n; b++) {
+    const cy = Math.cos(pose.yaw);
+    const sy = Math.sin(pose.yaw);
+    const d = Math.hypot(this.target.x - pose.x, this.target.z - pose.z);
+    for (let b = n - 1; b >= 0; b--) {
       if (this.flying.length >= FLIERS) break;
       const layer = Math.floor(b / PER_LAYER);
+      const fromTop = Math.floor((n - 1 - b) / PER_LAYER);
+      const lx = ((b % PER_LAYER) - 0.5) * 0.31;
+      const delay = fromTop * 0.02;
+      this.unloading += mass / n;
       this.flying.push({
-        sx: pose.x + ((b % 2) - 0.5) * 0.3,
+        sx: pose.x + lx * cy,
         sy: pose.y + BASE_Y + layer * LAYER_H,
-        sz: pose.z,
+        sz: pose.z - lx * sy,
         ex: this.target.x + (Math.random() - 0.5) * 0.3,
         ey: this.target.y,
         ez: this.target.z + (Math.random() - 0.5) * 0.3,
-        t0: now + (n - 1 - b) * 0.018,
-        dur: 0.32 + Math.random() * 0.08,
+        t0: now + delay,
+        dur: Math.max(0.22, landT - now),
         color: this.tierColors[st.basket.mass > 0 ? tiers[b] : 0] ?? 0xffffff,
         spin: (Math.random() - 0.5) * 12,
         seg: -1,
-        mass: 0,
+        mass: mass / n,
         size: 1,
         land: true,
-        arc: 1.1,
-        side: 0,
+        arc: Math.min(3.5, 0.9 + d * 0.12) * (0.9 + 0.2 * Math.random()),
+        side: (Math.random() - 0.5) * 0.25,
         frame: this.frame,
       });
     }
+  }
+
+  /** Per frame while a wave runs: tip each segment once its cargo would need to leave now to land on time. */
+  private runWave(now: number): void {
+    const w = this.wave;
+    if (!w.active) return;
+    const segs = this.sim.state.progress.segments;
+    while (w.launched < w.n) {
+      const k = w.launched;
+      const landT = w.start + unloadAt(k, w.n);
+      const pose = this.cat.poses[k + 1];
+      if (!pose || !segs[k]) {
+        w.launched++;
+        continue;
+      }
+      // Far stacks fly a little longer (and higher): 0.3–0.55 s.
+      const d = Math.hypot(this.target.x - pose.x, this.target.z - pose.z);
+      const dur = Math.min(0.55, Math.max(0.3, 0.26 + d * 0.012));
+      if (now < landT - dur) break;
+      this.launchSeg(k, landT, now);
+      w.launched++;
+    }
+    if (w.launched >= w.n && !this.sim.state.depot.active) w.active = false;
   }
 
   /**
@@ -267,8 +318,8 @@ export class StackView {
   private reconcile(): void {
     const st = this.sim.state;
     const segs = st.progress.segments;
-    if (st.depot.active || segs.length === 0) return;
-    let inAir = this.unloading;
+    if (st.depot.active || this.wave.active || this.unloading > 1e-6 || segs.length === 0) return;
+    let inAir = 0;
     for (const v of this.pending.values()) inAir += v;
     let sum = 0;
     for (const s of segs) sum += this.load.get(s.id) ?? 0;
@@ -322,6 +373,7 @@ export class StackView {
     const segs = st.progress.segments;
     this.index.clear();
     for (let i = 0; i < segs.length; i++) this.index.set(segs[i].id, i);
+    this.runWave(now);
     this.updateFliers(now);
     this.reconcile();
     const liveTiers = this.layerTiers(st.basket.massByTier, st.basket.mass, MAX_BLOCKS, this.liveTiers);
@@ -426,7 +478,10 @@ export class StackView {
     let landedNow = 0;
     for (const f of this.flying) {
       if (now - f.t0 >= f.dur) {
-        if (f.land) landedNow++;
+        if (f.land) {
+          landedNow++;
+          this.unloading = Math.max(0, this.unloading - f.mass);
+        }
         if (f.seg >= 0) {
           const k = this.index.get(f.seg);
           if (k !== undefined) this.arrive(f.seg, k, f.mass, now);

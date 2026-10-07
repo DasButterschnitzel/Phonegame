@@ -19,17 +19,19 @@ export class UnloadCounter {
     root.append(this.el);
   }
 
+  /** A pass begins; the label appears with the first payment (never as "+0"). */
   start(): void {
     this.active = true;
     this.endAt = -1;
     this.shown = 0;
     this.target = 0;
-    this.el.style.display = '';
+    this.el.style.display = 'none';
     this.el.classList.remove('done');
   }
 
   add(value: number, reduceMotion: boolean): void {
     if (!this.active) this.start();
+    this.el.style.display = '';
     this.target += value;
     if (!reduceMotion) this.el.animate([{ scale: '1.25' }, { scale: '1' }], { duration: 180, easing: 'ease-out' });
   }
@@ -42,7 +44,7 @@ export class UnloadCounter {
 
   /** `at`: projected hopper position (null when off screen). */
   frame(now: number, dt: number, at: { x: number; y: number } | null): void {
-    if (!this.active) return;
+    if (!this.active || this.target <= 0) return;
     this.shown += (this.target - this.shown) * (1 - Math.exp(-dt / 0.08));
     if (this.target - this.shown < 0.5) this.shown = this.target;
     setText(this.el, `+${fmt(this.shown)}`);
