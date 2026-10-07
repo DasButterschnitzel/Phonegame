@@ -5,9 +5,7 @@ test('loot stacks grow with the basket and unload at the barn @smoke', async ({ 
   await ready(page);
   await g(page, '(g.grant(200000), [0,1,2,3,4,5].forEach(() => g.buy("add")), g.buy("capacity"), g.buy("capacity"))');
   await g(page, 'g.fillBasket(0.9)');
-  await page.waitForTimeout(500);
-  const blocks = await g<number>(page, 'g.app.renderer.stacks.blockCount');
-  expect(blocks).toBeGreaterThan(30);
+  await page.waitForFunction(() => (window as any).__game.app.renderer.stacks.blockCount > 30, null, { timeout: 8000 });
   await shot(page, 'stacks', info.project.name);
   // Crawl until the basket has been sold.
   await g(page, 'g.setThrottle(true)');

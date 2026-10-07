@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { ready, g } from './helpers.ts';
 
+/** Tutorial hints suppress interstitials — mark them all seen for policy tests. */
+const skipTutorial = "Object.assign(g.meta().tutorial, { add: true, merge: true, full: true, expand: true, tornado: true })";
+
 async function unloadWithoutThrottle(page: import('@playwright/test').Page) {
   const before = await g<number>(page, 'g.state().stats.unloads');
   await g(page, 'g.fillBasket(0.5)');
@@ -26,9 +29,13 @@ test('no interstitial during the first minutes of play', async ({ page }) => {
 
 test('interstitial at a barn break once the policy allows it', async ({ page }) => {
   await ready(page);
+  await g(page, skipTutorial);
   await g(page, '(g.setPlaytime(600), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5)');
   await unloadWithoutThrottle(page);
-  await expect(page.locator('.ad-overlay[data-ad^="interstitial"]')).toBeVisible({ timeout: 4000 });
+  await page.waitForFunction(() => (window as any).__game.app.ads.lastCheck !== null, null, { timeout: 4000 });
+  expect(await g(page, 'g.app.ads.lastCheck')).toMatchObject({ ok: true, kind: 'barn_unload' });
+  // The simulated interstitial lasts only 300 ms — assert on the recorded impression.
+  await page.waitForFunction(() => (window as any).__game.app.ads.policy.interstitialWall.length === 1, null, { timeout: 5000 });
   await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });
   // Cooldown: the next unload does not show another one.
   await unloadWithoutThrottle(page);

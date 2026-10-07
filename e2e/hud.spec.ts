@@ -31,7 +31,7 @@ test('German UI', async ({ page }, info) => {
 });
 
 test('rewarded boost via simulated ad', async ({ page }) => {
-  await ready(page);
+  await ready(page, '&adms=1500');
   await page.locator('.chip-incomeX2').click();
   await expect(page.locator('.ad-overlay')).toBeVisible();
   await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });

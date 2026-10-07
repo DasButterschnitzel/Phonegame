@@ -51,6 +51,8 @@ export class Tutorial {
     const st = this.sim.state;
     const f = this.flags;
     const age = st.simTime - this.shownAt;
+    // A step can be completed elsewhere (another device's save, debug) — never leave its hint hanging.
+    if (this.current && f[this.current]) this.show(null);
     if (this.current === 'full' && age > 5) this.done('full');
     if (this.current === 'tornado' && age > 12) this.done('tornado');
     if (this.current) return;

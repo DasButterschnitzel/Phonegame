@@ -18,6 +18,8 @@ export class AdManager {
   private hooks: AdHooks;
   private busy = false;
   inAd = false;
+  /** Last interstitial policy decision (debug/tests). */
+  lastCheck: { ok: boolean; reason?: string; kind?: string } | null = null;
 
   constructor(provider: AdService, policy: AdPolicyState, hooks: AdHooks) {
     this.provider = provider;
@@ -73,9 +75,13 @@ export class AdManager {
 
   /** Shows an interstitial if the policy allows it at this break. */
   async maybeInterstitial(ctx: Omit<BreakCtx, 'wallNow'>): Promise<boolean> {
-    if (this.busy) return false;
+    if (this.busy) {
+      this.lastCheck = { ok: false, reason: 'busy', kind: ctx.kind };
+      return false;
+    }
     const now = this.hooks.now();
     const chk = canShowInterstitial(this.policy, DEFAULT_POLICY, now, { ...ctx, wallNow: this.hooks.wallNow() });
+    this.lastCheck = { ...chk, kind: ctx.kind };
     if (!chk.ok) return false;
     this.busy = true;
     this.inAd = true;
