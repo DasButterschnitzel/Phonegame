@@ -404,10 +404,15 @@ export class StackView {
       sp.pvx = vx;
       sp.pvz = vz;
       const gain = 0.012;
-      sp.vx += (-k * sp.ox - c * sp.vx - ax * gain * k) * d;
-      sp.vz += (-k * sp.oz - c * sp.vz - az * gain * k) * d;
-      sp.ox += sp.vx * d;
-      sp.oz += sp.vz * d;
+      // ≤ 1/60 s sub-steps keep the spring stable through long frames.
+      const subs = Math.min(16, Math.max(1, Math.ceil(d * 60)));
+      const hs = d / subs;
+      for (let j = 0; j < subs; j++) {
+        sp.vx += (-k * sp.ox - c * sp.vx - ax * gain * k) * hs;
+        sp.vz += (-k * sp.oz - c * sp.vz - az * gain * k) * hs;
+        sp.ox += sp.vx * hs;
+        sp.oz += sp.vz * hs;
+      }
       const lim = 0.35;
       sp.ox = Math.max(-lim, Math.min(lim, sp.ox));
       sp.oz = Math.max(-lim, Math.min(lim, sp.oz));

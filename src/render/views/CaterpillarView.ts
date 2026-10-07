@@ -270,8 +270,14 @@ export class CaterpillarView {
     this.head.position.set(hp.x, hp.y - 0.04 * this.load, hp.z);
     // Pitch: leans into acceleration (the head leads), nods forward when braking, then settles on a spring.
     const pitchTarget = Math.max(-0.12, Math.min(0.12, this.accelS > 0 ? -this.accelS * 0.03 : this.accelS * 0.018));
-    this.pitchV += (-110 * (this.pitchA - pitchTarget) - 9 * this.pitchV) * dt;
-    this.pitchA += this.pitchV * dt;
+    // Springs integrate in ≤ 1/60 s sub-steps: one long frame (a hitch, a slow GPU) must never make them blow up.
+    const subs = Math.min(16, Math.max(1, Math.ceil(dt * 60)));
+    const h = dt / subs;
+    for (let j = 0; j < subs; j++) {
+      this.pitchV += (-110 * (this.pitchA - pitchTarget) - 9 * this.pitchV) * h;
+      this.pitchA += this.pitchV * h;
+    }
+    this.pitchA = Math.max(-0.35, Math.min(0.35, this.pitchA));
     // Roll: lean into turns (more at speed).
     this.head.rotation.set(
       Math.max(-0.14, Math.min(0.14, -hp.curv * st.v * 0.07)),
@@ -300,8 +306,10 @@ export class CaterpillarView {
     for (let i = 0; i < 2; i++) {
       const s = this.antSpring[i];
       const force = this.accelS * 0.09 - this.turn * 0.25 * (i === 0 ? 1 : 0.8) + Math.sin(this.bobPhase + i) * 0.4 * speedFrac;
-      s.v += (-90 * s.a - 7 * s.v + force * 20) * dt;
-      s.a += s.v * dt;
+      for (let j = 0; j < subs; j++) {
+        s.v += (-90 * s.a - 7 * s.v + force * 20) * h;
+        s.a += s.v * h;
+      }
       s.a = Math.max(-0.6, Math.min(0.6, s.a));
       this.antennae[i].rotation.set((i === 0 ? 0.35 : -0.35) + s.a * 0.5, 0, -0.25 + s.a);
     }
