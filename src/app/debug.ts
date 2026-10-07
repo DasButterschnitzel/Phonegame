@@ -2,6 +2,7 @@ import type { Sim } from '../game/sim.ts';
 import type { UpgradeId } from '../game/types.ts';
 import type { App } from './boot.ts';
 import { clock } from '../platform/clock.ts';
+import { BIOMES } from '../render/palette.ts';
 
 export interface DebugApi {
   ready: boolean;
@@ -64,11 +65,13 @@ export function installDebug(app: App): DebugApi {
       gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
       const colors = new Set<number>();
       let nonSky = 0;
-      const sky = renderer.scene.background as { r: number; g: number; b: number } | null;
-      const sr = sky ? Math.round(sky.r * 255) : -1;
+      // Sky is a vertical gradient between the biome's sky and fog colours.
+      const b = BIOMES[sim.farm.id];
+      const refs = [b.sky, b.fog].map((h) => [(h >> 16) & 255, (h >> 8) & 255, h & 255]);
       for (let i = 0; i < px.length; i += 4 * 7) {
         colors.add((px[i] >> 3) | ((px[i + 1] >> 3) << 5) | ((px[i + 2] >> 3) << 10));
-        if (Math.abs(px[i] - sr) > 6) nonSky++;
+        const near = refs.some(([r, g, bl]) => Math.abs(px[i] - r) + Math.abs(px[i + 1] - g) + Math.abs(px[i + 2] - bl) < 30);
+        if (!near) nonSky++;
       }
       return { uniqueColors: colors.size, nonSkyFrac: nonSky / (px.length / (4 * 7)) };
     },

@@ -1,17 +1,18 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
-import { BODY } from '../../game/config.ts';
+import { BODY, vMax } from '../../game/config.ts';
 import { sampleAt, type PathSample } from '../../game/path.ts';
-import { bladeGeometry, headGeometry, legGeometry, segmentGeometry, trayGeometry } from '../geo/caterpillar.ts';
+import { bladeGeometry, crownGeometry, haloGeometry, headParts, hornsGeometry, legGeometry, segmentGeometry, trayGeometry } from '../geo/caterpillar.ts';
 import { blobTexture } from '../geo/world.ts';
-import { lambert } from '../geo/lowpoly.ts';
 import { badgeMaterial, numberAtlas } from '../fx/NumberAtlas.ts';
 import { levelColor } from '../palette.ts';
+import { instancedOutline, hullGeometry, outlineMaterial, toon } from '../materials.ts';
 import { C, E, M4, Q, Q2, S, V, V2 } from '../scratch.ts';
 import { wrap } from '../../shared/math.ts';
 
 const MAX = 32;
 const ps: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
+const ps2: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
 
 export interface BodyPose {
   x: number;
@@ -22,50 +23,101 @@ export interface BodyPose {
   tz: number;
 }
 
+interface Spring {
+  a: number;
+  v: number;
+}
+
 /**
- * The robot caterpillar: head mesh plus instanced bodies, trays, side blades, legs, level badges and blob shadows.
- * Visual segments are keyed by id and spring towards their simulated slot, so merges/reorders animate smoothly.
+ * The robot caterpillar. The head is a small rig (blinking eyes, looking pupils, spring antennae, chomping
+ * mandibles); bodies, trays, blades, legs, badges, accessories and blob shadows are instanced. Visual segments
+ * are keyed by id and ease towards their simulated slot, so merges/reorders slide smoothly.
  */
 export class CaterpillarView {
   readonly group = new THREE.Group();
-  readonly head: THREE.Mesh;
+  readonly head = new THREE.Group();
+  private eyes: THREE.Group;
+  private pupils: THREE.Mesh;
+  private antennae: THREE.Mesh[] = [];
+  private mandibles: THREE.Mesh[] = [];
   private bodies: THREE.InstancedMesh;
+  private bodyOutline: THREE.InstancedMesh;
   private trays: THREE.InstancedMesh;
   private blades: THREE.InstancedMesh;
   private legs: THREE.InstancedMesh;
   private badges: THREE.InstancedMesh;
   private shadows: THREE.InstancedMesh;
+  private horns: THREE.InstancedMesh;
+  private crowns: THREE.InstancedMesh;
+  private halos: THREE.InstancedMesh;
   private cellAttr: THREE.InstancedBufferAttribute;
   private slot = new Map<number, number>();
+  private alive = new Set<number>();
   private spin = 0;
+  private chompPhase = 0;
+  private nextBlink = 2;
+  private blinkT = -1;
+  private antSpring: Spring[] = [
+    { a: 0, v: 0 },
+    { a: 0, v: 0 },
+  ];
+  private prevV = 0;
+  private prevYaw = 0;
+  private turn = 0;
   /** Latest world pose of each body (0 = head) for other views (stacks, particles). */
   readonly poses: BodyPose[] = Array.from({ length: MAX + 1 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, tx: 1, tz: 0 }));
   private sim: Sim;
-  /** Extra per-segment scale pulses (merge pop). */
+  /** Per-segment scale pulses (merge pop / add). */
   private pulses = new Map<number, number>();
+  /** Per-body gulp time (last chunk eaten), index 0 = head. */
+  private gulps = new Float32Array(MAX + 1).fill(-9);
 
   constructor(sim: Sim) {
     this.sim = sim;
-    const mat = lambert();
-    this.head = new THREE.Mesh(headGeometry(), mat);
+    const mat = toon({ rim: 0.4 });
+    const parts = headParts();
+    const body = new THREE.Mesh(parts.body, mat);
+    body.add(new THREE.Mesh(hullGeometry(parts.body), outlineMaterial(0.035)));
+    this.head.add(body);
+    this.eyes = new THREE.Group();
+    this.eyes.position.set(0.55, 0.88, 0);
+    const eyeWhites = new THREE.Mesh(parts.eyes, mat);
+    eyeWhites.add(new THREE.Mesh(hullGeometry(parts.eyes), outlineMaterial(0.025)));
+    this.pupils = new THREE.Mesh(parts.pupils, mat);
+    this.pupils.position.x = 0.16;
+    this.eyes.add(eyeWhites, this.pupils);
+    this.head.add(this.eyes);
+    for (const side of [1, -1]) {
+      const ant = new THREE.Mesh(parts.antenna, mat);
+      ant.position.set(0.02, 1.12, 0.16 * side);
+      this.antennae.push(ant);
+      this.head.add(ant);
+      const mand = new THREE.Mesh(parts.mandible, mat);
+      mand.position.set(0.6, 0.36, 0.22 * side);
+      this.mandibles.push(mand);
+      this.head.add(mand);
+    }
+    this.head.scale.setScalar(1.25);
     this.group.add(this.head);
+
     this.bodies = new THREE.InstancedMesh(segmentGeometry(), mat, MAX);
     this.bodies.setColorAt(0, C.set(0xffffff));
+    this.bodyOutline = instancedOutline(this.bodies, 0.04);
     this.trays = new THREE.InstancedMesh(trayGeometry(), mat, MAX);
     this.blades = new THREE.InstancedMesh(bladeGeometry(), mat, MAX * 2 + 2);
     this.legs = new THREE.InstancedMesh(legGeometry(), mat, (MAX + 1) * 2);
+    this.horns = new THREE.InstancedMesh(hornsGeometry(), mat, MAX);
+    this.horns.setColorAt(0, C.set(0xffffff));
+    this.crowns = new THREE.InstancedMesh(crownGeometry(), mat, MAX);
+    this.halos = new THREE.InstancedMesh(haloGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true }), MAX);
     const plane = new THREE.PlaneGeometry(0.46, 0.46);
     this.badges = new THREE.InstancedMesh(plane, badgeMaterial(numberAtlas()), MAX);
     this.cellAttr = new THREE.InstancedBufferAttribute(new Float32Array(MAX), 1);
     this.badges.geometry.setAttribute('aCell', this.cellAttr);
     const shadowGeo = new THREE.PlaneGeometry(1.5, 1.2).rotateX(-Math.PI / 2);
-    this.shadows = new THREE.InstancedMesh(
-      shadowGeo,
-      new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false }),
-      MAX + 1,
-    );
+    this.shadows = new THREE.InstancedMesh(shadowGeo, new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false }), MAX + 1);
     this.shadows.renderOrder = -1;
-    for (const m of [this.bodies, this.trays, this.blades, this.legs, this.badges, this.shadows]) {
+    for (const m of [this.bodies, this.bodyOutline, this.trays, this.blades, this.legs, this.horns, this.crowns, this.halos, this.badges, this.shadows]) {
       m.frustumCulled = false;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.group.add(m);
@@ -74,6 +126,11 @@ export class CaterpillarView {
 
   pulse(segId: number, now: number): void {
     this.pulses.set(segId, now);
+  }
+
+  /** Body b (0 = head) just ate a chunk. */
+  gulp(b: number, now: number): void {
+    if (b <= MAX && now - this.gulps[b] > 0.12) this.gulps[b] = now;
   }
 
   /** Arc slot (fractional index) currently shown for a segment id. */
@@ -87,31 +144,77 @@ export class CaterpillarView {
     const path = sim.path;
     const segs = st.progress.segments;
     const n = segs.length;
+    const speedFrac = Math.min(1, st.v / vMax(st.progress.speedLevel));
     this.spin += st.v * dt * 4;
     const odo = st.odometer;
 
-    // Ease each segment's displayed slot towards its true index.
+    // Ease each segment's displayed slot towards its true index (no allocations).
     const k = 1 - Math.exp(-dt / 0.12);
-    const alive = new Set<number>();
+    this.alive.clear();
     for (let i = 0; i < n; i++) {
       const id = segs[i].id;
-      alive.add(id);
+      this.alive.add(id);
       const cur = this.slot.get(id);
       this.slot.set(id, cur === undefined ? i : cur + (i - cur) * k);
     }
-    for (const id of [...this.slot.keys()]) if (!alive.has(id)) this.slot.delete(id);
+    if (this.slot.size > n) for (const id of this.slot.keys()) if (!this.alive.has(id)) this.slot.delete(id);
 
-    // Head.
+    // ——— Head rig ———
     this.pose(0, headS, path, odo);
     const hp = this.poses[0];
+    const accel = dt > 0 ? (st.v - this.prevV) / dt : 0;
+    this.prevV = st.v;
+    let dyaw = hp.yaw - this.prevYaw;
+    if (dyaw > Math.PI) dyaw -= Math.PI * 2;
+    if (dyaw < -Math.PI) dyaw += Math.PI * 2;
+    this.prevYaw = hp.yaw;
+    this.turn += ((dt > 0 ? dyaw / dt : 0) - this.turn) * Math.min(1, dt * 6);
+    const breathe = 1 + Math.sin(now * 2.2) * 0.02 * (1 - speedFrac);
     this.head.position.set(hp.x, hp.y, hp.z);
-    this.head.scale.setScalar(1.25);
-    this.head.rotation.set(0, hp.yaw, Math.sin(odo * 2.2) * 0.04);
+    this.head.rotation.set(0, hp.yaw, Math.sin(odo * 2.2) * 0.04 - Math.max(-0.08, Math.min(0.08, accel * 0.02)));
+    const hg = Math.max(0, 1 - (now - this.gulps[0]) / 0.18);
+    this.head.scale.set(1.25 * (1 + hg * 0.06), 1.25 * breathe * (1 - hg * 0.05), 1.25 * (1 + hg * 0.06));
+    // Blink every few seconds.
+    if (now >= this.nextBlink && this.blinkT < 0) this.blinkT = now;
+    let eyeY = 1;
+    if (this.blinkT >= 0) {
+      const u = (now - this.blinkT) / 0.16;
+      eyeY = Math.max(0.08, Math.abs(1 - 2 * Math.min(1, u)));
+      if (u >= 1) {
+        this.blinkT = -1;
+        this.nextBlink = now + 1.8 + Math.random() * 3.5;
+      }
+    }
+    this.eyes.scale.set(1, eyeY, 1);
+    // Pupils look into turns and up when idle.
+    this.pupils.position.set(0.16, (1 - speedFrac) * 0.03, Math.max(-0.06, Math.min(0.06, this.turn * 0.05)));
+    // Antennae: damped springs kicked by acceleration and turning.
+    for (let i = 0; i < 2; i++) {
+      const s = this.antSpring[i];
+      const force = -accel * 0.08 - this.turn * 0.25 * (i === 0 ? 1 : 0.8) + Math.sin(odo * 3 + i) * 0.4 * speedFrac;
+      s.v += (-90 * s.a - 7 * s.v + force * 20) * dt;
+      s.a += s.v * dt;
+      s.a = Math.max(-0.6, Math.min(0.6, s.a));
+      this.antennae[i].rotation.set((i === 0 ? 0.35 : -0.35) + s.a * 0.5, 0, -0.25 + s.a);
+    }
+    // Mandibles chomp; faster at speed, snap shut on a gulp.
+    this.chompPhase += dt * (3 + 13 * speedFrac);
+    const open = (0.18 + 0.32 * Math.abs(Math.sin(this.chompPhase))) * (0.35 + 0.65 * speedFrac) * (1 - hg * 0.8);
+    this.mandibles[0].rotation.y = -open;
+    this.mandibles[1].rotation.y = open;
+
     this.setShadow(0, hp, 1.2);
     this.setLegs(0, hp, odo, 0);
     this.setBlade(0, hp, 0.62, 0.62, 0.28);
     this.setBlade(1, hp, -0.62, 0.62, 0.28);
 
+    camera.getWorldPosition(V2);
+    const camX = V2.x;
+    const camZ = V2.z;
+    camera.getWorldQuaternion(Q2);
+    let nh = 0;
+    let nc = 0;
+    let na = 0;
     for (let i = 0; i < n; i++) {
       const seg = segs[i];
       const slot = this.slot.get(seg.id) ?? i;
@@ -125,38 +228,78 @@ export class CaterpillarView {
         if (u >= 1) this.pulses.delete(seg.id);
         else scale *= 1 + 0.35 * Math.sin(u * Math.PI) * (1 - u);
       }
-      const squash = 1 + Math.sin(odo * 3 - (i + 1) * 0.8) * 0.04;
+      const g = Math.max(0, 1 - (now - this.gulps[i + 1]) / 0.16);
+      const squash = (1 + Math.sin(odo * 3 - (i + 1) * 0.8) * 0.04) * (1 + g * 0.08) * (1 + Math.sin(now * 2.2 - i * 0.6) * 0.015 * (1 - speedFrac));
       V.set(p.x, p.y, p.z);
       E.set(0, p.yaw, 0);
       Q.setFromEuler(E);
-      S.set(scale * squash, scale / squash, scale);
+      S.set(scale * squash, scale / squash, scale * (1 + g * 0.05));
       M4.compose(V, Q, S);
       this.bodies.setMatrixAt(i, M4);
       this.trays.setMatrixAt(i, M4);
-      this.bodies.setColorAt(i, C.setHex(levelColor(seg.level)));
+      // High levels shimmer.
+      C.setHex(levelColor(seg.level));
+      if (seg.level >= 5) C.multiplyScalar(1 + 0.12 * (0.5 + 0.5 * Math.sin(now * 4 + i)));
+      this.bodies.setColorAt(i, C);
+      if (seg.level >= 3) {
+        this.horns.setMatrixAt(nh, M4);
+        this.horns.setColorAt(nh, C.setHex(seg.level >= 7 ? 0xffd23f : 0xfff6e0));
+        nh++;
+      }
+      if (seg.level >= 6) {
+        V.set(p.x, p.y + 1.18 * scale + Math.sin(now * 3 + i) * 0.04, p.z);
+        E.set(0, p.yaw + now * 0.8, 0);
+        Q.setFromEuler(E);
+        S.setScalar(scale);
+        this.crowns.setMatrixAt(nc++, M4.compose(V, Q, S));
+      }
+      if (seg.level >= 9) {
+        V.set(p.x, p.y + 1.55 * scale + Math.sin(now * 2 + i) * 0.05, p.z);
+        E.set(0.15 * Math.sin(now + i), now * 1.5, 0);
+        Q.setFromEuler(E);
+        S.setScalar(scale);
+        this.halos.setMatrixAt(na++, M4.compose(V, Q, S));
+      }
       this.setShadow(i + 1, p, scale);
       this.setLegs(i + 1, p, odo, i + 1);
       this.setBlade(2 + i * 2, p, 0.56 * scale, 0.45 * scale, 0.3 * scale);
       this.setBlade(3 + i * 2, p, -0.56 * scale, 0.45 * scale, 0.3 * scale);
       // Badge: billboard on the camera-facing side of the body.
-      camera.getWorldPosition(V2);
-      V2.sub(V).setY(0).normalize().multiplyScalar(0.72 * scale);
-      V.set(p.x + V2.x, p.y + 0.5 * scale, p.z + V2.z);
-      camera.getWorldQuaternion(Q2);
-      S.setScalar(scale);
+      let dx = camX - p.x;
+      let dz = camZ - p.z;
+      const dl = Math.hypot(dx, dz) || 1;
+      dx = (dx / dl) * 0.72 * scale;
+      dz = (dz / dl) * 0.72 * scale;
+      V.set(p.x + dx, p.y + 0.5 * scale, p.z + dz);
+      S.setScalar(scale * (1 + g * 0.15));
       M4.compose(V, Q2, S);
       this.badges.setMatrixAt(i, M4);
       this.cellAttr.setX(i, Math.min(63, seg.level - 1));
     }
     this.bodies.count = n;
+    this.bodyOutline.count = n;
     this.trays.count = n;
     this.badges.count = n;
     this.blades.count = 2 + n * 2;
     this.legs.count = (n + 1) * 2;
     this.shadows.count = n + 1;
-    for (const m of [this.bodies, this.trays, this.blades, this.legs, this.badges, this.shadows]) m.instanceMatrix.needsUpdate = true;
+    this.horns.count = nh;
+    this.crowns.count = nc;
+    this.halos.count = na;
+    for (const m of [this.bodies, this.trays, this.blades, this.legs, this.badges, this.shadows, this.horns, this.crowns, this.halos]) m.instanceMatrix.needsUpdate = true;
     if (this.bodies.instanceColor) this.bodies.instanceColor.needsUpdate = true;
+    if (this.horns.instanceColor) this.horns.instanceColor.needsUpdate = true;
     this.cellAttr.needsUpdate = true;
+  }
+
+  /** Point slightly behind body b on the path (for dust puffs). */
+  tailPoint(b: number, back: number): PathSample {
+    const p = this.poses[b];
+    ps2.x = p.x - p.tx * back;
+    ps2.z = p.z - p.tz * back;
+    ps2.tx = p.tx;
+    ps2.tz = p.tz;
+    return ps2;
   }
 
   private pose(b: number, s: number, path: Sim['path'], odo: number, wave = b): void {
@@ -180,15 +323,13 @@ export class CaterpillarView {
   }
 
   private setLegs(b: number, p: BodyPose, odo: number, phase: number): void {
+    const c = Math.cos(p.yaw);
+    const sn = Math.sin(p.yaw);
     for (let side = 0; side < 2; side++) {
       const sgn = side === 0 ? 1 : -1;
       const lift = Math.max(0, Math.sin(odo * 5 + phase * 1.3 + side * Math.PI)) * 0.12;
-      const lx = 0;
       const lz = 0.36 * sgn;
-      // Rotate local offset by yaw.
-      const c = Math.cos(p.yaw);
-      const sn = Math.sin(p.yaw);
-      V.set(p.x + lx * c + lz * sn, lift, p.z - lx * sn + lz * c);
+      V.set(p.x + lz * sn, lift, p.z + lz * c);
       E.set(0, p.yaw, 0);
       Q.setFromEuler(E);
       S.setScalar(1);
@@ -208,4 +349,3 @@ export class CaterpillarView {
     this.blades.setMatrixAt(i, M4);
   }
 }
-

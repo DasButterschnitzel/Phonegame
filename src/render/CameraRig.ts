@@ -16,9 +16,10 @@ export class CameraRig {
   private zoom = 1;
   private shake = 0;
   private kick = 0;
+  private zoomP = 0;
   reduceMotion = false;
   /** Visible world width at the target in portrait. */
-  baseWidth = 11.5;
+  baseWidth = 10;
 
   constructor() {
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 200);
@@ -35,6 +36,11 @@ export class CameraRig {
     if (!this.reduceMotion) this.shake = Math.min(0.4, this.shake + amount);
   }
 
+  /** Temporary zoom-out (e.g. to reveal a freshly expanded path); eases back on its own. */
+  zoomPulse(amount: number): void {
+    if (!this.reduceMotion) this.zoomP = Math.max(this.zoomP, amount);
+  }
+
   addKick(amount: number): void {
     if (!this.reduceMotion) this.kick = Math.min(0.15, this.kick + amount);
   }
@@ -48,7 +54,8 @@ export class CameraRig {
     const aspect = cam.aspect;
     const halfV = THREE.MathUtils.degToRad(cam.fov / 2);
     // Portrait: fit width; landscape: fit an equivalent height so tablets/desktop see a similar area.
-    const width = this.baseWidth * this.zoom;
+    const width = this.baseWidth * this.zoom * (1 + this.zoomP);
+    this.zoomP *= Math.exp(-dt / 1.1);
     const dist = aspect < 1 ? width / (2 * Math.tan(halfV) * aspect) : (width * 1.25) / (2 * Math.tan(halfV));
     const d = dist * (1 - this.kick);
     this.kick *= Math.exp(-dt / 0.15);

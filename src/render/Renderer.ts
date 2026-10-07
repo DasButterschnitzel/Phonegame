@@ -7,6 +7,8 @@ import { CaterpillarView } from './views/CaterpillarView.ts';
 import { StackView } from './views/StackView.ts';
 import { Particles } from './fx/Particles.ts';
 import { TornadoView } from './views/TornadoView.ts';
+import { Shockwaves } from './fx/Shockwave.ts';
+import { shared } from './materials.ts';
 import { BIOMES } from './palette.ts';
 import { DynamicResolution, detectTier, settingsFor, type QualitySettings, type QualityTier } from './quality.ts';
 import { sampleAt, type PathSample } from '../game/path.ts';
@@ -34,6 +36,9 @@ export class GameRenderer {
   stacks: StackView;
   fx: Particles;
   tornado = new TornadoView();
+  waves = new Shockwaves();
+  private dustAcc = 0;
+  private sparkleAcc = 0;
   quality: QualitySettings;
   private dyn: DynamicResolution;
   private hemi: THREE.HemisphereLight;
@@ -53,18 +58,27 @@ export class GameRenderer {
     this.dyn = new DynamicResolution(Math.min(this.quality.dprCap, window.devicePixelRatio || 1));
     this.renderer.setPixelRatio(this.dyn.ratio);
 
-    this.hemi = new THREE.HemisphereLight(0xffffff, 0x5d8a3c, 1.9);
-    this.sun = new THREE.DirectionalLight(0xfff1d6, 1.6);
-    this.sun.position.set(6, 12, 4);
+    // Toon ramp + strong key light from the camera's left gives crisp, readable shapes.
+    this.hemi = new THREE.HemisphereLight(0xffffff, 0x5d8a3c, 1.25);
+    this.sun = new THREE.DirectionalLight(0xfff1d6, 2.1);
+    this.sun.position.set(-4, 12, 7);
     this.scene.add(this.hemi, this.sun, this.sun.target);
 
-    this.world = new WorldView(sim, this.scene);
+    this.world = new WorldView(sim, this.scene, this.quality.tier === 'low');
     this.field = new FieldView(sim);
     this.cat = new CaterpillarView(sim);
     this.stacks = new StackView(sim, this.cat);
     this.fx = new Particles();
     this.fx.budget = this.quality.particleScale;
-    this.scene.add(this.world.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group);
+    this.scene.add(this.world.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group, this.waves.group);
+    // Loads landing in the barn: barn squash, coin spray, ring.
+    this.stacks.onLand = (n) => {
+      const t = shared.uTime.value;
+      const b = this.sim.farm.barn;
+      this.world.bounceBarn(t);
+      this.fx.burst(b.bx, 2.4, b.bz, 0xffd23f, Math.min(10, 2 + n), 3.2, 0.16, 0.9, 6, 12);
+      this.waves.spawn(b.x, b.z, 0xffe680, 2.2, t, 0.45);
+    };
     this.applyBiome();
     const h = sim.headPosition(hs);
     this.rig.snap(h.x, h.z);
@@ -89,7 +103,8 @@ export class GameRenderer {
   }
 
   onStageChanged(): void {
-    this.world.setStage();
+    this.world.setStage(true);
+    this.rig.zoomPulse(0.45);
     this.stacks.onFarmChanged();
   }
 
@@ -110,12 +125,15 @@ export class GameRenderer {
   frame(alpha: number, dt: number, now: number, frameMs: number): void {
     const st = this.sim.state;
     const headS = this.headS(alpha);
+    shared.uTime.value = now;
     this.field.update(now);
     this.cat.update(headS, this.rig.camera, dt, now);
     this.stacks.update(now, dt, headS);
     this.fx.update(dt);
     this.tornado.update(now);
-    this.world.update(now);
+    this.waves.update(now);
+    this.ambientFx(dt);
+    this.world.update(now, dt);
     for (const x of this.extras) x.update(now, dt);
     sampleAt(this.sim.path, headS, hs);
     const n = st.progress.segments.length;
@@ -138,6 +156,36 @@ export class GameRenderer {
       this.renderer.setPixelRatio(r);
       this.renderer.setSize(this.width, this.height, false);
     }
+  }
+
+  /** Dust trail at speed and twinkles on golden crops. */
+  private ambientFx(dt: number): void {
+    const st = this.sim.state;
+    const frac = st.v / vMax(st.progress.speedLevel);
+    this.dustAcc += dt;
+    if (frac > 0.6 && this.dustAcc > 0.09) {
+      this.dustAcc = 0;
+      const n = st.progress.segments.length;
+      const p = this.cat.tailPoint(n, 0.6);
+      this.fx.burst(p.x, 0.12, p.z, 0xe8cfa0, 1, 0.8, 0.22, 0.55, 1.2, 2);
+    }
+    this.sparkleAcc += dt;
+    if (this.sparkleAcc > 0.35) {
+      this.sparkleAcc = 0;
+      const f = this.sim.field;
+      for (let i = 0; i < f.count; i++) {
+        if (f.golden[i] && f.regrowAt[i] === 0 && !f.paved[i]) this.fx.burst(f.x[i], 0.9, f.z[i], 0xfff3a0, 1, 0.4, 0.08, 0.7, 1.5, 0.5);
+      }
+    }
+  }
+
+  /** Compile every material once up front so first-time effects don't hitch. */
+  warmup(): void {
+    this.tornado.group.visible = true;
+    this.waves.setAllVisible(true);
+    this.renderer.compile(this.scene, this.rig.camera);
+    this.tornado.group.visible = false;
+    this.waves.setAllVisible(false);
   }
 
   /** World → CSS pixel coordinates (for DOM floaters). Returns false when behind the camera. */

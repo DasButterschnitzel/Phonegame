@@ -261,6 +261,8 @@ export async function boot(): Promise<App | null> {
   void hideSystemBars();
   requestAnimationFrame(() => {
     portal.firstFrame();
+    // Compile every shader now (behind the loading screen) so first-time effects don't stutter.
+    renderer.warmup();
     const splash = document.getElementById('boot-splash');
     splash?.classList.add('hide');
     setTimeout(() => splash?.remove(), 400);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
 import { BODY, capacityOf, maxBlocks } from '../../game/config.ts';
 import { blockGeometry } from '../geo/caterpillar.ts';
-import { lambert } from '../geo/lowpoly.ts';
+import { instancedOutline, toon } from '../materials.ts';
 import { TIER_BLOCK_COLORS } from '../palette.ts';
 import { C, E, M4, Q, S, V } from '../scratch.ts';
 import type { CaterpillarView } from './CaterpillarView.ts';
@@ -53,6 +53,7 @@ interface Flier {
 export class StackView {
   readonly group = new THREE.Group();
   private blocks: THREE.InstancedMesh;
+  private blockOutline: THREE.InstancedMesh;
   private fliers: THREE.InstancedMesh;
   private springs = new Map<number, Spring>();
   private snaps = new Map<number, Snapshot>();
@@ -62,13 +63,19 @@ export class StackView {
   private sim: Sim;
   private cat: CaterpillarView;
   private tierColors: number[] = [];
+  /** Called (throttled) when unloaded blocks land in the barn. */
+  onLand: (count: number) => void = () => {};
+  private landed = 0;
+  private lastLandCall = 0;
 
   constructor(sim: Sim, cat: CaterpillarView) {
     this.sim = sim;
     this.cat = cat;
-    const mat = lambert();
+    const mat = toon({ rim: 0.3 });
     this.blocks = new THREE.InstancedMesh(blockGeometry(), mat, MAX_SEGS * MAX_BLOCKS);
     this.blocks.setColorAt(0, C.set(0xffffff));
+    this.blockOutline = instancedOutline(this.blocks, 0.025);
+    this.group.add(this.blockOutline);
     this.fliers = new THREE.InstancedMesh(blockGeometry(), mat, FLIERS);
     this.fliers.setColorAt(0, C.set(0xffffff));
     for (const m of [this.blocks, this.fliers]) {
@@ -207,6 +214,7 @@ export class StackView {
       }
     }
     this.blocks.count = idx;
+    this.blockOutline.count = idx;
     this.blocks.instanceMatrix.needsUpdate = true;
     if (this.blocks.instanceColor) this.blocks.instanceColor.needsUpdate = true;
     // Forget springs of merged-away segments.
@@ -244,7 +252,17 @@ export class StackView {
 
   private updateFliers(now: number): void {
     let idx = 0;
-    this.flying = this.flying.filter((f) => now - f.t0 < f.dur);
+    let landedNow = 0;
+    for (const f of this.flying) if (now - f.t0 >= f.dur) landedNow++;
+    if (landedNow) {
+      this.landed += landedNow;
+      if (now - this.lastLandCall > 0.12) {
+        this.lastLandCall = now;
+        this.onLand(this.landed);
+        this.landed = 0;
+      }
+      this.flying = this.flying.filter((f) => now - f.t0 < f.dur);
+    }
     for (const f of this.flying) {
       const u = Math.max(0, (now - f.t0) / f.dur);
       const x = f.sx + (f.ex - f.sx) * u;

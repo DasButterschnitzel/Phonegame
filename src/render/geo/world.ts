@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { PathTable } from '../../game/types.ts';
-import { build, ball, box, cone, cyl, dodeca, type Part } from './lowpoly.ts';
+import { build, ball, box, cone, cyl, dodeca, octa, type Part } from './lowpoly.ts';
 
 /** Checkerboard field ground (vertex colours), tiles of `tile` units inside bounds. */
 export function fieldGround(x0: number, z0: number, x1: number, z1: number, a: number, b: number, tile = 2): THREE.BufferGeometry {
@@ -26,10 +26,14 @@ export function fieldGround(x0: number, z0: number, x1: number, z1: number, a: n
   return g;
 }
 
-/** Path ribbon along the loop: dirt centre plus darker edges. */
-export function pathRibbon(p: PathTable, width: number, center: number, edge: number, y = 0.02): THREE.BufferGeometry {
+/**
+ * Path ribbon along the loop: dirt centre plus darker edges. `aArc` holds each vertex's arc distance from
+ * `arcFrom` (either direction) so the ribbon can "draw itself" outwards from the caterpillar on EXPAND.
+ */
+export function pathRibbon(p: PathTable, width: number, center: number, edge: number, y = 0.02, arcFrom = 0): THREE.BufferGeometry {
   const pos: number[] = [];
   const col: number[] = [];
+  const arc: number[] = [];
   const cc = new THREE.Color(center);
   const ce = new THREE.Color(edge);
   const half = width / 2;
@@ -38,6 +42,11 @@ export function pathRibbon(p: PathTable, width: number, center: number, edge: nu
     [-half + 0.08, half - 0.08, cc],
     [half - 0.08, half + 0.12, ce],
   ];
+  const L = p.length;
+  const arcOf = (i: number) => {
+    const d = Math.abs(i * p.ds - arcFrom) % L;
+    return Math.min(d, L - d);
+  };
   const step = 2; // every other sample keeps the vertex count modest
   for (let i = 0; i < p.n; i += step) {
     const j = (i + step) % p.n;
@@ -45,6 +54,8 @@ export function pathRibbon(p: PathTable, width: number, center: number, edge: nu
     const nzi = p.tx[i];
     const nxj = -p.tz[j];
     const nzj = p.tx[j];
+    const ai = arcOf(i);
+    const aj = arcOf(j);
     for (const [a, b, c] of bands) {
       const ax = p.x[i] + nxi * a;
       const az = p.z[i] + nzi * a;
@@ -55,6 +66,7 @@ export function pathRibbon(p: PathTable, width: number, center: number, edge: nu
       const dx = p.x[j] + nxj * b;
       const dz = p.z[j] + nzj * b;
       pos.push(ax, y, az, cx, y, cz, bx, y, bz, bx, y, bz, cx, y, cz, dx, y, dz);
+      arc.push(ai, aj, ai, ai, aj, aj);
       const shade = 0.96 + 0.08 * (((i * 7919) % 13) / 13);
       for (let k = 0; k < 6; k++) col.push(c.r * shade, c.g * shade, c.b * shade);
     }
@@ -62,8 +74,8 @@ export function pathRibbon(p: PathTable, width: number, center: number, edge: nu
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('aArc', new THREE.Float32BufferAttribute(arc, 1));
   g.computeVertexNormals();
-  // Ribbon is built with mixed winding depending on loop orientation; render double-sided.
   return g;
 }
 
@@ -163,3 +175,60 @@ export const sproutGeometry = (): THREE.BufferGeometry =>
     { geo: cone(0.06, 0.18, 3), color: 0x7ed957, pos: [-0.05, 0.09, 0], rot: [0, 0, 0.4] },
     { geo: cyl(0.16, 0.2, 0.05, 5), color: 0x8b5a2b, pos: [0, 0.02, 0] },
   ]);
+
+export function windmillTowerGeometry(): THREE.BufferGeometry {
+  return build(
+    [
+      { geo: cyl(0.55, 1.0, 3.6, 6), color: 0xf4efe6, pos: [0, 1.8, 0], jitter: 0.06 },
+      { geo: cyl(0.62, 0.62, 0.18, 6), color: 0xb5651d, pos: [0, 0.09, 0] },
+      { geo: cone(0.8, 1.0, 6), color: 0xd64545, pos: [0, 4.05, 0], jitter: 0.08 },
+      { geo: box(0.5, 0.75, 0.08), color: 0x7a2323, pos: [0, 0.5, 0.9], rot: [-0.25, 0, 0] },
+      { geo: cyl(0.12, 0.12, 0.5, 6), color: 0x5c6670, pos: [0, 3.55, 0.6], rot: [Math.PI / 2, 0, 0] },
+    ],
+    0.25,
+    2,
+  );
+}
+
+/** Four sails around the local Z axis (spun by the view). */
+export function windmillSailsGeometry(): THREE.BufferGeometry {
+  const parts: Part[] = [{ geo: cyl(0.18, 0.18, 0.2, 6), color: 0x5c6670, rot: [Math.PI / 2, 0, 0] }];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    parts.push({ geo: box(0.12, 1.9, 0.05), color: 0x8b5a2b, pos: [Math.sin(a) * 0.95, Math.cos(a) * 0.95, 0], rot: [0, 0, -a] });
+    parts.push({ geo: box(0.42, 1.5, 0.03), color: 0xfffaf0, pos: [Math.sin(a) * 1.05 + Math.cos(a) * 0.24, Math.cos(a) * 1.05 - Math.sin(a) * 0.24, 0.03], rot: [0, 0, -a], jitter: 0.04 });
+  }
+  return build(parts);
+}
+
+export function tuftGeometry(): THREE.BufferGeometry {
+  return build([
+    { geo: cone(0.07, 0.42, 3), color: 0x4f9e3a, pos: [0, 0.21, 0], rot: [0, 0, 0.25] },
+    { geo: cone(0.07, 0.36, 3), color: 0x5fb346, pos: [0.08, 0.18, 0.04], rot: [0.2, 0, -0.3] },
+    { geo: cone(0.06, 0.3, 3), color: 0x6cc24a, pos: [-0.07, 0.15, -0.03], rot: [-0.25, 0, 0.1] },
+  ]);
+}
+
+export function flowerGeometry(petal: number): THREE.BufferGeometry {
+  return build([
+    { geo: cyl(0.02, 0.02, 0.4, 3), color: 0x4f9e3a, pos: [0, 0.2, 0] },
+    { geo: octa(0.11), color: petal, pos: [0, 0.42, 0], scale: [1.3, 0.55, 1.3] },
+    { geo: octa(0.05), color: 0xffd23f, pos: [0, 0.46, 0] },
+  ]);
+}
+
+export function snowmanGeometry(): THREE.BufferGeometry {
+  return build(
+    [
+      { geo: ball(0.6, 1), color: 0xffffff, pos: [0, 0.55, 0] },
+      { geo: ball(0.42, 1), color: 0xffffff, pos: [0, 1.35, 0] },
+      { geo: ball(0.3, 1), color: 0xffffff, pos: [0, 1.95, 0] },
+      { geo: cone(0.07, 0.35, 4), color: 0xff8c2b, pos: [0, 1.95, 0.42], rot: [Math.PI / 2, 0, 0] },
+      { geo: cyl(0.32, 0.32, 0.06, 8), color: 0x2b2d42, pos: [0, 2.2, 0] },
+      { geo: cyl(0.2, 0.22, 0.35, 8), color: 0x2b2d42, pos: [0, 2.4, 0] },
+      { geo: box(0.9, 0.12, 0.12), color: 0xd64545, pos: [0, 1.68, 0], rot: [0, 0.3, 0] },
+    ],
+    0.15,
+    2,
+  );
+}

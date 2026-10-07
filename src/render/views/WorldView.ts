@@ -1,28 +1,68 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
 import { farmPaths } from '../../game/field.ts';
+import { wrap } from '../../shared/math.ts';
 import { BIOMES } from '../palette.ts';
-import { barnGeometry, dashGeometry, decorGeometry, fencePostGeometry, fieldGround, pathRibbon, rockGeometry } from '../geo/world.ts';
-import { lambert } from '../geo/lowpoly.ts';
+import {
+  barnGeometry,
+  dashGeometry,
+  decorGeometry,
+  fencePostGeometry,
+  fieldGround,
+  flowerGeometry,
+  pathRibbon,
+  rockGeometry,
+  snowmanGeometry,
+  tuftGeometry,
+  windmillSailsGeometry,
+  windmillTowerGeometry,
+} from '../geo/world.ts';
+import { cloudShadowTexture, hullGeometry, outlineMaterial, shared, skyTexture, toon } from '../materials.ts';
 import { E, M4, Q, S, V } from '../scratch.ts';
 import { hashFloat } from '../../shared/hash.ts';
+import { easeOutBack, easeOutCubic } from '../../shared/math.ts';
 
-/** Static farm scenery: ground, path ribbon, next-stage outline, barn, fence and decor. */
+const FLOWER_COLORS = [0xff6fb5, 0xffffff, 0xffd23f, 0x9b5de5, 0xff5d5d];
+
+/** Static farm scenery + ambient motion: sky, ground, path (with draw-in reveal), barn, windmills, foliage, clouds. */
 export class WorldView {
   readonly group = new THREE.Group();
   private dynamic = new THREE.Group();
   private ribbon: THREE.Mesh | null = null;
   private dashes: THREE.InstancedMesh | null = null;
-  private mat = lambert();
-  private ribbonMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  private mat = toon({ rim: 0.12 });
+  private foliageMat = toon({ rim: 0.12, wind: 0.035 });
+  private ribbonMat: THREE.MeshToonMaterial;
+  private reveal = { value: 1e6 };
+  private revealT0 = -1;
+  private revealMax = 0;
   private dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false });
+  private sails: THREE.Mesh[] = [];
+  private clouds: THREE.Mesh | null = null;
+  private cloudTex: THREE.CanvasTexture | null = null;
   barn!: THREE.Mesh;
+  private barnBounceT = -1;
   private sim: Sim;
   private scene: THREE.Scene;
+  /** Ambient extras (cloud shadows, flowers) are skipped on the low quality tier. */
+  lowQuality = false;
 
-  constructor(sim: Sim, scene: THREE.Scene) {
+  constructor(sim: Sim, scene: THREE.Scene, lowQuality = false) {
     this.sim = sim;
     this.scene = scene;
+    this.lowQuality = lowQuality;
+    this.ribbonMat = toon({ rim: 0, side: THREE.DoubleSide });
+    // Path "draws itself": fragments beyond the reveal radius are discarded, the front edge glows.
+    const base = this.ribbonMat.onBeforeCompile;
+    this.ribbonMat.onBeforeCompile = (sh, r) => {
+      base.call(this.ribbonMat, sh, r);
+      sh.uniforms.uReveal = this.reveal;
+      sh.vertexShader = `attribute float aArc;\nvarying float vArc;\n${sh.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\n vArc = aArc;');
+      sh.fragmentShader = `uniform float uReveal;\nvarying float vArc;\n${sh.fragmentShader}`
+        .replace('void main() {', 'void main() {\n if (vArc > uReveal) discard;')
+        .replace('#include <opaque_fragment>', 'outgoingLight += vec3(1.0, 0.9, 0.5) * smoothstep(uReveal - 1.5, uReveal, vArc) * step(uReveal, 900.0) * 0.6;\n#include <opaque_fragment>');
+    };
+    this.ribbonMat.customProgramCacheKey = () => 'ribbon-reveal';
     this.group.add(this.dynamic);
     this.rebuild();
   }
@@ -31,11 +71,15 @@ export class WorldView {
     for (const c of [...this.group.children]) {
       if (c === this.dynamic) continue;
       this.group.remove(c);
-      if (c instanceof THREE.Mesh) c.geometry.dispose();
+      c.traverse((o) => {
+        if (o instanceof THREE.Mesh && o.geometry !== this.barn?.geometry) o.geometry.dispose();
+      });
     }
+    this.sails = [];
     const { farm } = this.sim;
     const biome = BIOMES[farm.id];
-    this.scene.background = new THREE.Color(biome.sky);
+    (this.scene.background as THREE.Texture | null)?.dispose?.();
+    this.scene.background = skyTexture(biome.sky, biome.fog);
     this.scene.fog = new THREE.Fog(biome.fog, 38, 80);
     const { x0, z0, x1, z1 } = farm.bounds;
     const outside = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: biome.outside }));
@@ -43,8 +87,9 @@ export class WorldView {
     this.group.add(outside);
     this.group.add(new THREE.Mesh(fieldGround(x0 - 1, z0 - 1, x1 + 1, z1 + 1, biome.groundA, biome.groundB), this.mat));
 
-    // Barn faces the unload point.
+    // Barn faces the unload point; outlined for the sticker look.
     this.barn = new THREE.Mesh(barnGeometry(), this.mat);
+    this.barn.add(new THREE.Mesh(hullGeometry(this.barn.geometry), outlineMaterial(0.05)));
     this.barn.position.set(farm.barn.bx, 0, farm.barn.bz);
     this.barn.rotation.y = Math.atan2(farm.barn.x - farm.barn.bx, farm.barn.z - farm.barn.bz);
     this.group.add(this.barn);
@@ -53,58 +98,101 @@ export class WorldView {
     const posts: [number, number, number][] = [];
     for (let x = x0 - 1.5; x < x1 + 1.5; x += 2) posts.push([x, z0 - 1.5, 0], [x, z1 + 1.5, 0]);
     for (let z = z0 - 1.5; z < z1 + 1.5; z += 2) posts.push([x0 - 1.5, z, -Math.PI / 2], [x1 + 1.5, z, -Math.PI / 2]);
-    const fence = new THREE.InstancedMesh(fencePostGeometry(), this.mat, posts.length);
-    posts.forEach(([x, z, r], i) => {
-      V.set(x, 0, z);
-      E.set(0, r, 0);
-      Q.setFromEuler(E);
-      S.setScalar(1);
-      fence.setMatrixAt(i, M4.compose(V, Q, S));
-    });
-    this.group.add(fence);
+    this.addInstanced(fencePostGeometry(), this.mat, posts, () => 1);
 
-    // Decor ring outside the fence.
-    const decor: [number, number, number][] = [];
-    const rocks: [number, number, number][] = [];
-    for (let i = 0; i < 260; i++) {
-      const a = hashFloat(i, 1, farm.seed) * Math.PI * 2;
-      const side = Math.floor(hashFloat(i, 2, farm.seed) * 4);
-      const u = hashFloat(i, 3, farm.seed);
-      const d = 3 + hashFloat(i, 4, farm.seed) * 14;
-      let x = 0;
-      let z = 0;
-      if (side === 0) [x, z] = [x0 - 1 + (x1 - x0 + 2) * u, z0 - d];
-      else if (side === 1) [x, z] = [x0 - 1 + (x1 - x0 + 2) * u, z1 + d];
-      else if (side === 2) [x, z] = [x0 - d, z0 - 1 + (z1 - z0 + 2) * u];
-      else [x, z] = [x1 + d, z0 - 1 + (z1 - z0 + 2) * u];
-      (i % 5 === 0 ? rocks : decor).push([x, z, a]);
-    }
-    const addInstanced = (geo: THREE.BufferGeometry, items: [number, number, number][], scaleBase: number) => {
-      const m = new THREE.InstancedMesh(geo, this.mat, items.length);
-      items.forEach(([x, z, a], i) => {
-        V.set(x, 0, z);
-        E.set(0, a, 0);
-        Q.setFromEuler(E);
-        S.setScalar(scaleBase * (0.8 + 0.5 * hashFloat(i, 9, farm.seed)));
-        m.setMatrixAt(i, M4.compose(V, Q, S));
-      });
-      this.group.add(m);
+    // Decor ring outside the fence: trees, rocks, grass tufts, flowers.
+    const ring = (n: number, salt: number, dMin: number, dMax: number): [number, number, number][] => {
+      const out: [number, number, number][] = [];
+      for (let i = 0; i < n; i++) {
+        const side = Math.floor(hashFloat(i, salt, farm.seed) * 4);
+        const u = hashFloat(i, salt + 1, farm.seed);
+        const d = dMin + hashFloat(i, salt + 2, farm.seed) * (dMax - dMin);
+        const a = hashFloat(i, salt + 3, farm.seed) * Math.PI * 2;
+        if (side === 0) out.push([x0 - 1 + (x1 - x0 + 2) * u, z0 - d, a]);
+        else if (side === 1) out.push([x0 - 1 + (x1 - x0 + 2) * u, z1 + d, a]);
+        else if (side === 2) out.push([x0 - d, z0 - 1 + (z1 - z0 + 2) * u, a]);
+        else out.push([x1 + d, z0 - 1 + (z1 - z0 + 2) * u, a]);
+      }
+      return out;
     };
-    addInstanced(decorGeometry(biome.decor), decor, 1.1);
-    addInstanced(rockGeometry(), rocks, 1);
-    this.setStage();
+    const jitter = (i: number) => 0.8 + 0.5 * hashFloat(i, 9, farm.seed);
+    this.addInstanced(decorGeometry(biome.decor), this.foliageMat, ring(this.lowQuality ? 120 : 210, 10, 4, 18), (i) => 1.1 * jitter(i));
+    this.addInstanced(rockGeometry(), this.mat, ring(40, 20, 2.5, 16), jitter);
+    this.addInstanced(tuftGeometry(), this.foliageMat, ring(this.lowQuality ? 120 : 320, 30, 2.2, 14), (i) => 0.9 + jitter(i) * 0.6);
+    if (!this.lowQuality && biome.decor !== 'cactus') {
+      FLOWER_COLORS.forEach((c, k) => this.addInstanced(flowerGeometry(c), this.foliageMat, ring(40, 40 + k * 7, 2.2, 12), jitter));
+    }
+
+    // Windmills at the field corners (sails spin), snowmen on the snowy farm.
+    const corners: [number, number][] = [
+      [x0 - 4.5, z1 + 3.5],
+      [x1 + 4.5, z1 + 3.5],
+      [x1 + 4.5, z0 - 4.5],
+    ];
+    const towerGeo = windmillTowerGeometry();
+    const sailGeo = windmillSailsGeometry();
+    corners.forEach(([x, z], i) => {
+      const tower = new THREE.Mesh(towerGeo, this.mat);
+      tower.position.set(x, 0, z);
+      // Face roughly towards the field centre.
+      tower.rotation.y = Math.atan2((x0 + x1) / 2 - x, (z0 + z1) / 2 - z) + (i - 1) * 0.3;
+      const sails = new THREE.Mesh(sailGeo, this.mat);
+      sails.position.set(0, 3.55, 0.85);
+      tower.add(sails);
+      this.sails.push(sails);
+      this.group.add(tower);
+    });
+    if (farm.id === 'snowyberry') {
+      this.addInstanced(snowmanGeometry(), this.mat, ring(10, 60, 3, 9), () => 1);
+    }
+
+    // Drifting cloud shadows (cheap: one transparent plane, scrolling texture).
+    this.clouds = null;
+    if (!this.lowQuality) {
+      this.cloudTex ??= cloudShadowTexture();
+      this.cloudTex.repeat.set(5, 5);
+      const mat = new THREE.MeshBasicMaterial({ map: this.cloudTex, transparent: true, opacity: 0.35, depthWrite: false });
+      this.clouds = new THREE.Mesh(new THREE.PlaneGeometry(240, 240).rotateX(-Math.PI / 2), mat);
+      this.clouds.position.y = 0.06;
+      this.clouds.renderOrder = 2;
+      this.group.add(this.clouds);
+    }
+    this.setStage(false);
   }
 
-  /** Path ribbon for the current stage + dashed preview of the next expansion. */
-  setStage(): void {
+  private addInstanced(geo: THREE.BufferGeometry, mat: THREE.Material, items: [number, number, number][], scale: (i: number) => number): THREE.InstancedMesh {
+    const m = new THREE.InstancedMesh(geo, mat, Math.max(1, items.length));
+    m.count = items.length;
+    items.forEach(([x, z, a], i) => {
+      V.set(x, 0, z);
+      E.set(0, a, 0);
+      Q.setFromEuler(E);
+      S.setScalar(scale(i));
+      m.setMatrixAt(i, M4.compose(V, Q, S));
+    });
+    this.group.add(m);
+    return m;
+  }
+
+  /** Path ribbon for the current stage + dashed preview of the next expansion. `animate` draws it in from the head. */
+  setStage(animate = true): void {
     const { farm, path } = this.sim;
     const biome = BIOMES[farm.id];
     if (this.ribbon) {
       this.dynamic.remove(this.ribbon);
       this.ribbon.geometry.dispose();
     }
-    this.ribbon = new THREE.Mesh(pathRibbon(path, 1.3, biome.path, biome.pathEdge), this.ribbonMat);
+    const headS = wrap(this.sim.state.headS, path.length);
+    this.ribbon = new THREE.Mesh(pathRibbon(path, 1.3, biome.path, biome.pathEdge, 0.02, headS), this.ribbonMat);
     this.dynamic.add(this.ribbon);
+    if (animate) {
+      this.revealT0 = shared.uTime.value;
+      this.revealMax = path.length / 2 + 2;
+      this.reveal.value = 0;
+    } else {
+      this.revealT0 = -1;
+      this.reveal.value = 1e6;
+    }
     if (this.dashes) {
       this.dynamic.remove(this.dashes);
       this.dashes.dispose();
@@ -140,8 +228,36 @@ export class WorldView {
     }
   }
 
-  /** Gently pulse the expansion outline so it reads as a goal. */
-  update(now: number): void {
+  /** Barn squash-and-stretch when a load arrives. */
+  bounceBarn(now: number): void {
+    this.barnBounceT = now;
+  }
+
+  update(now: number, dt: number): void {
     this.dashMat.opacity = 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(now * 3));
+    for (let i = 0; i < this.sails.length; i++) this.sails[i].rotation.z -= dt * (0.9 + i * 0.15);
+    if (this.cloudTex) {
+      this.cloudTex.offset.x = now * 0.004;
+      this.cloudTex.offset.y = now * 0.0025;
+    }
+    if (this.revealT0 >= 0) {
+      const u = Math.min(1, (now - this.revealT0) / 1.4);
+      this.reveal.value = easeOutCubic(u) * this.revealMax;
+      if (u >= 1) {
+        this.revealT0 = -1;
+        this.reveal.value = 1e6;
+      }
+    }
+    if (this.barnBounceT >= 0) {
+      const u = (now - this.barnBounceT) / 0.5;
+      if (u >= 1) {
+        this.barnBounceT = -1;
+        this.barn.scale.set(1, 1, 1);
+      } else {
+        const k = easeOutBack(u) - u;
+        const sq = Math.sin(u * Math.PI * 2) * (1 - u) * 0.12 + k * 0.02;
+        this.barn.scale.set(1 + sq, 1 - sq, 1 + sq);
+      }
+    }
   }
 }

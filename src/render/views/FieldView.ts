@@ -3,7 +3,7 @@ import type { Sim } from '../../game/sim.ts';
 import { consumeDirty } from '../../game/field.ts';
 import { cropGeometry } from '../geo/crops.ts';
 import { sproutGeometry } from '../geo/world.ts';
-import { lambert } from '../geo/lowpoly.ts';
+import { toon } from '../materials.ts';
 import { C, E, M4, Q, S, UP, V, ZERO_SCALE } from '../scratch.ts';
 import { easeOutBack } from '../../shared/math.ts';
 
@@ -31,7 +31,7 @@ export class FieldView {
   private sproutSlot!: Int32Array;
   private slotCrop!: Int32Array;
   private sproutCount = 0;
-  private mat = lambert();
+  private mat = toon({ wind: 0.09, rim: 0.18 });
   private sim: Sim;
 
   constructor(sim: Sim) {

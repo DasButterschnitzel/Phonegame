@@ -20,6 +20,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
     case 'chunk':
       if (e.wasted) break;
       r.fx.burst(f.x[e.crop], 0.4, f.z[e.crop], e.golden ? 0xffd700 : colors[e.tier], 2, 2, 0.1, 0.5, 2.5);
+      r.cat.gulp(e.body, performance.now() / 1000);
       audio.chomp(e.golden);
       break;
     case 'kill':
@@ -50,8 +51,11 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       const i = sim.state.progress.segments.findIndex((s) => s.id === e.into);
       const p = r.cat.poses[i + 1];
       if (p) {
+        const now = performance.now() / 1000;
         r.fx.ring(p.x, 0.8, p.z, levelColor(e.level), 22, 0.7);
         r.fx.burst(p.x, 1, p.z, 0xffffff, 10, 3, 0.1, 0.7, 4);
+        r.waves.spawn(p.x, p.z, levelColor(e.level), 3.2, now, 0.55);
+        if (e.firstTime) r.waves.spawn(p.x, p.z, 0xffffff, 5, now, 0.9);
       }
       audio.merge(e.level);
       haptics.fire('medium');
@@ -63,6 +67,8 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
         sampleAt(path, s, tmp);
         r.fx.burst(tmp.x, 0.2, tmp.z, DUST, 2, 1.5, 0.18, 0.9, 2.5, 6);
       }
+      const hp = r.cat.poses[0];
+      r.waves.spawn(hp.x, hp.z, 0xfff3a0, 9, performance.now() / 1000, 1.1);
       audio.expand();
       haptics.fire('heavy');
       break;
@@ -75,6 +81,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       r.fx.burst(e.x, 0.3, e.z, DUST, 30, 6, 0.2, 1.2, 4, 5);
       r.rig.addShake(0.3);
       r.tornado.play(e.x, e.z, performance.now() / 1000);
+      r.waves.spawn(e.x, e.z, 0xdfe8f2, 7, performance.now() / 1000, 0.8);
       audio.tornado();
       haptics.fire('heavy');
       break;
