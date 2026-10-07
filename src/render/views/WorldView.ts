@@ -4,6 +4,7 @@ import { farmPaths } from '../../game/field.ts';
 import { wrap } from '../../shared/math.ts';
 import { BIOMES } from '../palette.ts';
 import {
+  arrowGeometry,
   barnGeometry,
   dashGeometry,
   decorGeometry,
@@ -20,6 +21,7 @@ import {
 import { cloudShadowTexture, hullGeometry, outlineMaterial, shared, toon } from '../materials.ts';
 import type { QualitySettings } from '../quality.ts';
 import { E, M4, Q, S, V } from '../scratch.ts';
+import { capacityOf } from '../../game/config.ts';
 import { hashFloat } from '../../shared/hash.ts';
 import { easeOutBack, easeOutCubic } from '../../shared/math.ts';
 
@@ -47,6 +49,9 @@ export class WorldView {
   private cloudTex: THREE.CanvasTexture | null = null;
   barn!: THREE.Mesh;
   private barnBounceT = -1;
+  /** Bobbing arrow over the barn while the basket is full ("sell here"). */
+  private arrow: THREE.Mesh;
+  private arrowShown = 0;
   private sim: Sim;
   private scene: THREE.Scene;
   /** Ambient extras (flowers, dense foliage) are skipped on the low quality tier. */
@@ -70,6 +75,10 @@ export class WorldView {
         .replace('#include <opaque_fragment>', 'outgoingLight += vec3(1.0, 0.9, 0.5) * smoothstep(uReveal - 1.5, uReveal, vArc) * step(uReveal, 900.0) * 0.6;\n#include <opaque_fragment>');
     };
     this.ribbonMat.customProgramCacheKey = () => 'ribbon-reveal';
+    this.arrow = new THREE.Mesh(arrowGeometry(), this.mat);
+    this.arrow.add(new THREE.Mesh(hullGeometry(this.arrow.geometry), outlineMaterial(0.05)));
+    this.arrow.visible = false;
+    this.dynamic.add(this.arrow);
     this.group.add(this.dynamic);
     this.rebuild();
   }
@@ -255,6 +264,17 @@ export class WorldView {
   }
 
   update(now: number, dt: number): void {
+    // "Sell here" arrow: eases in while the basket is full, bobs and spins over the barn.
+    const st = this.sim.state;
+    const full = st.basket.mass >= capacityOf(st);
+    this.arrowShown += ((full ? 1 : 0) - this.arrowShown) * Math.min(1, dt * 8);
+    this.arrow.visible = this.arrowShown > 0.02;
+    if (this.arrow.visible) {
+      const b = this.sim.farm.barn;
+      this.arrow.position.set(b.bx, 4.6 + Math.abs(Math.sin(now * 3.2)) * 0.7, b.bz);
+      this.arrow.rotation.y = now * 1.6;
+      this.arrow.scale.setScalar(this.arrowShown * (1 + 0.08 * Math.sin(now * 6.4)));
+    }
     this.dashMat.opacity = 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(now * 3));
     for (let i = 0; i < this.sails.length; i++) this.sails[i].rotation.z -= dt * (0.9 + i * 0.15);
     if (this.cloudTex) {

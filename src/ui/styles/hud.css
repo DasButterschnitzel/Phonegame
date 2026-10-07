@@ -296,18 +296,24 @@
   animation: shake 0.5s ease-in-out infinite;
 }
 
+/* Horizontal count under the bar (rotated text was hard to read). Grows to the right if wide. */
 .basket-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  align-self: flex-start;
+  margin-left: 2px;
+  background: rgba(30, 32, 50, 0.85);
   color: #fff;
   font-weight: 700;
-  font-size: 15px;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 9px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.basket.full .basket-text {
+  background: var(--red);
 }
 
 .full-badge {

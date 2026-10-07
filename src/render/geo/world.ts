@@ -149,6 +149,15 @@ export function fencePostGeometry(): THREE.BufferGeometry {
 }
 
 /** Dash for the "next expansion" outline. */
+/** Chunky "go here" arrow pointing down (shown over the barn when the basket is full). */
+export function arrowGeometry(): THREE.BufferGeometry {
+  const gold = 0xffd23f;
+  return build([
+    { geo: cone(0.62, 0.9, 6), color: gold, pos: [0, 0.45, 0], rot: [Math.PI, 0, 0] },
+    { geo: cyl(0.24, 0.24, 0.8, 6), color: gold, pos: [0, 1.25, 0] },
+  ]);
+}
+
 export function dashGeometry(): THREE.BufferGeometry {
   return build([{ geo: box(0.5, 0.03, 0.16), color: 0xffffff }]);
 }

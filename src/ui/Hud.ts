@@ -110,13 +110,14 @@ export class Hud {
     );
 
     this.basketFill = h('div', { class: 'basket-fill' });
-    this.basketText = h('div', { class: 'basket-text outline' });
+    this.basketText = h('div', { class: 'basket-text' });
     this.fullBadge = h('div', { class: 'full-badge' });
     this.basket = h(
       'div',
       { class: 'basket' },
       icon('basket'),
-      h('div', { class: 'basket-bar' }, h('div', { class: 'basket-track' }, this.basketFill, this.basketText)),
+      h('div', { class: 'basket-bar' }, h('div', { class: 'basket-track' }, this.basketFill)),
+      this.basketText,
       this.fullBadge,
     );
 
