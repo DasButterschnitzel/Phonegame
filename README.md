@@ -85,5 +85,5 @@ For a Microsoft Store package, wrap the PWA with PWABuilder; a Tauri shell is a 
 - `android.yml` — debug APK artifact on every relevant push; signed release AAB when the keystore secrets exist
   (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`; repo variables
   `ADMOB_REAL`, `ADMOB_APP_ID_ANDROID`, `ADMOB_ANDROID_REWARDED`, `ADMOB_ANDROID_INTERSTITIAL`).
-- `pages.yml` — publishes a playable web demo (simulated ads) and `privacy.html` from the default branch
-  (enable *Settings → Pages → Source: GitHub Actions* once).
+- `pages.yml` — publishes a playable web demo (simulated ads) and `privacy.html` from the default branch.
+  One-time setup: *Settings → Pages → Source: GitHub Actions*, then add the repository variable `PAGES_ENABLED=true`.
