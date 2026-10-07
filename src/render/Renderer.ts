@@ -53,6 +53,8 @@ export class GameRenderer {
   private sparkleAcc = 0;
   quality: QualitySettings;
   readonly dyn: DynamicResolution;
+  /** GPU / driver name as WebGL reports it (perf overlay, bug reports). */
+  readonly gpu: string;
   private hemi: THREE.HemisphereLight;
   private sun: THREE.DirectionalLight;
   private sim: Sim;
@@ -71,6 +73,9 @@ export class GameRenderer {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.dyn = new DynamicResolution(Math.min(this.quality.dprCap, window.devicePixelRatio || 1));
+    const gl = this.renderer.getContext();
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    this.gpu = String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? 'unknown');
     this.renderer.setPixelRatio(this.dyn.ratio);
 
     // Toon ramp + strong key light from the camera's left gives crisp, readable shapes.

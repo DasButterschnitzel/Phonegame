@@ -92,6 +92,8 @@ export const en = {
   'settings.privacyPolicy': 'Privacy policy',
   'settings.reset': 'Reset progress',
   'settings.resetConfirm': 'Really delete all progress? This cannot be undone.',
+  'settings.perfOn': 'Performance overlay on (tap it to copy)',
+  'settings.perfOff': 'Performance overlay off',
   'settings.on': 'On',
   'settings.off': 'Off',
   'quit.title': 'Leave the farm?',

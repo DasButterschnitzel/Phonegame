@@ -20,6 +20,9 @@ describe('RingStats', () => {
     expect(r.summary().worst).toBe(80);
     expect(r.summary(3).median).toBe(16);
     expect(r.last).toBe(80);
+    expect(r.countAbove(50)).toBe(1);
+    expect(r.countAbove(50, 1)).toBe(1);
+    expect(r.countAbove(10, 3)).toBe(3);
     r.clear();
     expect(r.summary()).toEqual({ n: 0, median: 0, p95: 0, p99: 0, worst: 0 });
   });

@@ -43,6 +43,14 @@ export class RingStats {
     return this.filled ? this.buf[(this.next - 1 + this.buf.length) % this.buf.length] : 0;
   }
 
+  /** How many of the last `n` samples exceed `x`. */
+  countAbove(x: number, n = this.filled): number {
+    const k = Math.min(n, this.filled);
+    let c = 0;
+    for (let i = 0; i < k; i++) if (this.buf[(this.next - 1 - i + this.buf.length * 2) % this.buf.length] > x) c++;
+    return c;
+  }
+
   /** Percentiles over the last `n` samples (default: everything held). */
   summary(n = this.filled): FrameSummary {
     const k = Math.min(n, this.filled);

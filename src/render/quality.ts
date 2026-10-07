@@ -91,6 +91,11 @@ export class DynamicResolution {
     this.ratio = cap;
   }
 
+  /** Highest pixel ratio it may return to. */
+  get max(): number {
+    return this.cap;
+  }
+
   setCap(cap: number): number {
     this.cap = cap;
     this.ratio = Math.min(this.ratio, cap);

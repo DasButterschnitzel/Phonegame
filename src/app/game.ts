@@ -182,6 +182,7 @@ export class GameController {
       privacyUrl: import.meta.env.VITE_FLAVOR === 'youtube' || import.meta.env.VITE_FLAVOR === 'crazygames' ? '' : 'https://dasbutterschnitzel.github.io/Phonegame/privacy.html',
       resetProgress: () => this.d.resetProgress(),
       version: __APP_VERSION__,
+      notify: (m) => this.toasts.show(m),
     });
   }
 

@@ -11,6 +11,8 @@ export interface SettingsDeps {
   privacyUrl: string;
   resetProgress: () => void;
   version: string;
+  /** Short confirmation toast. */
+  notify: (msg: string) => void;
 }
 
 function seg<T extends string | boolean>(options: [T, string][], value: T, onPick: (v: T) => void): HTMLElement {
@@ -83,6 +85,18 @@ export function openSettings(modals: ModalStack, d: SettingsDeps): void {
         ),
       ]);
     }, t('settings.reset'));
-    return [h('h2', {}, t('settings.title')), list, extras, policy, reset, h('div', { class: 'version' }, `Crop Crawler v${d.version}`)];
+    // Hidden developer switch for testing on a phone: seven quick taps on the version toggle the performance overlay.
+    const version = h('div', { class: 'version', 'data-ui': true }, `Crop Crawler v${d.version}`);
+    let taps: number[] = [];
+    version.addEventListener('click', () => {
+      const now = performance.now();
+      taps = [...taps.filter((x) => now - x < 4000), now];
+      if (taps.length < 7) return;
+      taps = [];
+      s.perfOverlay = !s.perfOverlay;
+      d.apply(s, 'perfOverlay');
+      d.notify(t(s.perfOverlay ? 'settings.perfOn' : 'settings.perfOff'));
+    });
+    return [h('h2', {}, t('settings.title')), list, extras, policy, reset, version];
   });
 }

@@ -34,6 +34,7 @@ import { Haptics } from '../platform/haptics.ts';
 import { Tutorial } from './tutorial.ts';
 import { juice, juiceFrame } from './juice.ts';
 import { installMetaFlows } from './metaFlows.ts';
+import { PerfOverlay } from '../ui/PerfOverlay.ts';
 
 export interface App {
   sim: Sim;
@@ -177,6 +178,20 @@ export async function boot(): Promise<App | null> {
   });
   const metaFlows = installMetaFlows(sim, game, meta, saves);
   let tutAcc = 0;
+  // Developer performance overlay (Settings → tap the version 7×, or ?perf=1): off for players.
+  let perf: PerfOverlay | null = null;
+  let perfAcc = 0;
+  let perfFrames = 0;
+  const syncPerf = (s: Settings) => {
+    const on = s.perfOverlay || params.has('perf');
+    if (on && !perf) perf = new PerfOverlay(root);
+    if (!on && perf) {
+      perf.remove();
+      perf = null;
+    }
+  };
+  game.settingsListeners.push(syncPerf);
+  syncPerf(settings);
 
   // The route the renderer is showing (to find the freshly grown stretches when it changes).
   let shownPath = sim.path;
@@ -225,6 +240,30 @@ export async function boot(): Promise<App | null> {
         game.frame(dt);
         juiceFrame(sim, audio, input.effective || sim.state.boosts.autopilot > 0, renderer);
         metaFlows.frame();
+        if (perf) {
+          perfAcc += dt;
+          if (perfAcc >= 0.5) {
+            const memory = (performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+            const gl = renderer.renderer.domElement;
+            perf.update({
+              fps: (loop.frames - perfFrames) / perfAcc,
+              cap: loop.maxFps,
+              interval: loop.interval.summary(120),
+              work: loop.work.summary(120),
+              hitches: loop.interval.countAbove(50),
+              bufferW: gl.width,
+              bufferH: gl.height,
+              pixelRatio: renderer.renderer.getPixelRatio(),
+              maxRatio: renderer.dyn.max,
+              tier: renderer.quality.tier,
+              ...renderer.info,
+              gpu: renderer.gpu,
+              heapMB: memory ? { used: Math.round(memory.usedJSHeapSize / 1048576), limit: Math.round(memory.jsHeapSizeLimit / 1048576) } : null,
+            });
+            perfAcc = 0;
+            perfFrames = loop.frames;
+          }
+        }
         tutAcc += dt;
         if (tutAcc > 0.5) {
           tutAcc = 0;

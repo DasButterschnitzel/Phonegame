@@ -94,6 +94,8 @@ export const de: Record<I18nKey, string> = {
   'settings.privacyPolicy': 'Datenschutzerklärung',
   'settings.reset': 'Fortschritt zurücksetzen',
   'settings.resetConfirm': 'Wirklich den gesamten Fortschritt löschen? Das kann nicht rückgängig gemacht werden.',
+  'settings.perfOn': 'Leistungsanzeige an (antippen zum Kopieren)',
+  'settings.perfOff': 'Leistungsanzeige aus',
   'settings.on': 'An',
   'settings.off': 'Aus',
   'quit.title': 'Hof verlassen?',

@@ -1422,3 +1422,25 @@
   width: 28px;
   height: 28px;
 }
+
+/* Developer performance overlay (hidden switch in Settings). Tap to copy. */
+.perf-overlay {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 56px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  max-width: 96vw;
+  padding: 4px 7px;
+  border-radius: 7px;
+  background: rgba(10, 16, 24, 0.62);
+  color: #c6ffb8;
+  pointer-events: auto;
+}
+
+.perf-overlay pre {
+  margin: 0;
+  font: 600 10px/1.32 ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
