@@ -164,6 +164,10 @@ export class GameRenderer {
     if (ratio !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w, h, false);
     this.rig.camera.aspect = w / h;
+    // Portrait: the controls take the bottom of the screen, so frame the action 8 % above the middle — the caterpillar
+    // sits in the middle of the clear area instead of drifting behind the upgrade bar.
+    if (w < h) this.rig.camera.setViewOffset(w, h, 0, h * 0.08, w, h);
+    else this.rig.camera.clearViewOffset();
     this.rig.camera.updateProjectionMatrix();
   }
 

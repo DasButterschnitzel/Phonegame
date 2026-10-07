@@ -268,8 +268,8 @@
 .basket {
   position: absolute;
   left: 10px;
-  top: calc(var(--sat) + 96px);
-  width: 48px;
+  top: calc(var(--sat) + 92px);
+  width: 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -277,8 +277,8 @@
 }
 
 .basket > .ico {
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
 }
 
 .basket.got > .ico {
@@ -287,9 +287,9 @@
 
 .basket-bar {
   position: relative;
-  width: 42px;
-  height: min(34vh, 240px);
-  border-radius: 16px;
+  width: 34px;
+  height: min(22vh, 170px);
+  border-radius: 14px;
   background: #fff;
   padding: 4px;
   box-shadow:
@@ -389,7 +389,7 @@
 .rail-right {
   position: absolute;
   right: 10px;
-  bottom: calc(var(--sab) + 204px);
+  bottom: calc(var(--sab) + 190px);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -399,7 +399,7 @@
 .rail-left {
   position: absolute;
   left: 10px;
-  bottom: calc(var(--sab) + 204px);
+  bottom: calc(var(--sab) + 190px);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -468,9 +468,9 @@
   --c: #5ab8ff;
   --c-lo: #3a8ff0;
   --cd: #2463b8;
-  width: 72px;
-  height: 80px;
-  border-radius: 20px;
+  width: 64px;
+  height: 70px;
+  border-radius: 18px;
   color: #fff;
   font-weight: 700;
   font-size: 12px;
@@ -483,8 +483,8 @@
 }
 
 .tornado-btn .ico {
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
 }
 
 .tornado-btn:not(.empty) .ico {
@@ -549,7 +549,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(var(--sab) + 160px);
+  bottom: calc(var(--sab) + 146px);
   display: flex;
   justify-content: center;
   pointer-events: none;
@@ -620,6 +620,17 @@
   display: none;
 }
 
+/* Not affordable yet: a compact progress button. It grows to full size (and pulses) once it can be bought. */
+.goal:not(.ready):not(.travel) {
+  min-width: 148px;
+  padding: 5px 16px 7px;
+  gap: 2px;
+}
+
+.goal:not(.ready):not(.travel) .title {
+  font-size: 16px;
+}
+
 .goal-wrap {
   transition:
     opacity 0.25s ease,
@@ -628,7 +639,8 @@
 
 .coaching-bar .goal-wrap {
   opacity: 0;
-  transform: translateY(24px) scale(0.9);
+  /* Fades away upwards: sliding down would put it on top of the upgrade bar being coached. */
+  transform: translateY(-10px) scale(0.9);
 }
 
 .coaching-bar .goal-wrap .goal {
@@ -651,7 +663,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -662,7 +674,7 @@
   --cd: #1a6fa8;
   width: 100%;
   border-radius: 18px;
-  padding: 6px 4px 7px;
+  padding: 5px 4px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -705,8 +717,8 @@
 }
 
 .up > .ico {
-  width: 46px;
-  height: 42px;
+  width: 40px;
+  height: 34px;
   position: relative;
 }
 
@@ -963,7 +975,7 @@
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(var(--sab) + 248px);
+  bottom: calc(var(--sab) + 234px);
   background: #fff;
   color: var(--ink);
   border-radius: 16px;
@@ -1344,7 +1356,7 @@
 /* Short phones: keep the basket bar clear of the boost chips. */
 @media (max-height: 720px) {
   .basket-bar {
-    height: 20vh;
+    height: 16vh;
   }
   .side-buttons {
     gap: 10px;
