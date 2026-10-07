@@ -167,8 +167,11 @@ export async function boot(): Promise<App | null> {
     tutorial.onEvent(e);
     if ((e.t === 'merged' && e.firstTime) || e.t === 'farmFinished') portal.happy();
     if (e.t === 'merged' && e.firstTime) {
-      audio.levelUp();
-      openNewLevel(game.modals, e.level);
+      // Let the player see the merge land before the celebration dialog covers it.
+      setTimeout(() => {
+        audio.levelUp();
+        openNewLevel(game.modals, e.level);
+      }, 700);
     }
   });
   const metaFlows = installMetaFlows(sim, game, meta, saves);

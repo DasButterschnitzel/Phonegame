@@ -28,6 +28,11 @@ export class Toasts {
     return this.tut !== null;
   }
 
+  /** The element the current hint points at (null when no hint or no target). */
+  get hintTarget(): HTMLElement | null {
+    return this.tut ? this.fingerTarget : null;
+  }
+
   /**
    * Tutorial speech bubble with a finger tapping the target button (one at a time). The bubble sits just above the
    * target and its tail points at it; the target gets a pulsing coach ring.

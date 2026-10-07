@@ -3,6 +3,8 @@ import { ready, g, shot } from './helpers.ts';
 
 test('expand all stages, finish the farm and travel @smoke', async ({ page }, info) => {
   await ready(page);
+  // Seasoned player: no tutorial hints (they move the goal button aside while pointing at the upgrade bar).
+  await g(page, "Object.assign(g.meta().tutorial, { add: true, merge: true, full: true, capacity: true, expand: true, tornado: true })");
   await g(page, 'g.grant(1e8)');
   for (let i = 0; i < 3; i++) {
     await page.locator('.goal').click({ force: true });

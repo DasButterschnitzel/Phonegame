@@ -4,6 +4,7 @@ import { vMax } from '../game/config.ts';
 import { sampleAt } from '../game/path.ts';
 import { farmPaths } from '../game/field.ts';
 import type { GameRenderer } from '../render/Renderer.ts';
+import { MERGE_TRAVEL } from '../render/views/CaterpillarView.ts';
 import { TIER_BLOCK_COLORS, levelColor } from '../render/palette.ts';
 import type { AudioEngine } from '../platform/audio/AudioEngine.ts';
 import type { Haptics } from '../platform/haptics.ts';
@@ -48,17 +49,22 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       haptics.fire('selection');
       break;
     case 'merged': {
-      const i = sim.state.progress.segments.findIndex((s) => s.id === e.into);
-      const p = r.cat.poses[i + 1];
-      if (p) {
-        const now = performance.now() / 1000;
-        r.fx.ring(p.x, 0.8, p.z, levelColor(e.level), 22, 0.7);
-        r.fx.burst(p.x, 1, p.z, 0xffffff, 10, 3, 0.1, 0.7, 4);
-        r.waves.spawn(p.x, p.z, levelColor(e.level), 3.2, now, 0.55);
-        if (e.firstTime) r.waves.spawn(p.x, p.z, 0xffffff, 5, now, 0.9);
-      }
-      audio.merge(e.level);
-      haptics.fire('medium');
+      // The two segments are pulled together first; the flash, ring, sound and haptic land on impact.
+      r.cat.merge(e.consumed, e.into, e.level, performance.now() / 1000);
+      setTimeout(() => {
+        const i = sim.state.progress.segments.findIndex((s) => s.id === e.into);
+        const p = i >= 0 ? r.cat.poses[i + 1] : undefined;
+        if (p) {
+          const now = performance.now() / 1000;
+          r.fx.ring(p.x, 0.8, p.z, levelColor(e.level), 22, 0.7);
+          r.fx.burst(p.x, 1, p.z, 0xffffff, 10, 3, 0.1, 0.7, 4);
+          r.waves.spawn(p.x, p.z, levelColor(e.level), 3.2, now, 0.55);
+          if (e.firstTime) r.waves.spawn(p.x, p.z, 0xffffff, 5, now, 0.9);
+        }
+        r.rig.addKick(e.firstTime ? 0.09 : 0.06);
+        audio.merge(e.level);
+        haptics.fire(e.firstTime ? 'heavy' : 'medium');
+      }, MERGE_TRAVEL * 1000);
       break;
     }
     case 'stageChanged': {

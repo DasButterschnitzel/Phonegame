@@ -8,9 +8,21 @@ import { badgeMaterial, numberAtlas } from '../fx/NumberAtlas.ts';
 import { levelColor } from '../palette.ts';
 import { instancedOutline, hullGeometry, outlineMaterial, toon } from '../materials.ts';
 import { C, E, M4, Q, Q2, S, V, V2 } from '../scratch.ts';
-import { wrap } from '../../shared/math.ts';
+import { easeOutBack, wrap } from '../../shared/math.ts';
 
 const MAX = 32;
+/** Extra body instances for merge "ghosts" (the two consumed segments sliding into the new one). */
+const GHOSTS = 4;
+/** Merge choreography (s): ghosts travel, then the new segment pops out with overshoot. */
+export const MERGE_TRAVEL = 0.26;
+const MERGE_POP = 0.34;
+
+interface Ghost {
+  fromSlot: number;
+  into: number;
+  level: number;
+  t0: number;
+}
 const ps: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
 const ps2: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
 
@@ -67,6 +79,23 @@ export class CaterpillarView {
   /** Latest world pose of each body (0 = head) for other views (stacks, particles). */
   readonly poses: BodyPose[] = Array.from({ length: MAX + 1 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, tx: 1, tz: 0 }));
   private sim: Sim;
+  private ghosts: Ghost[] = [];
+  /** New merged segments: time their pop-out starts. */
+  private emerge = new Map<number, number>();
+
+  /**
+   * Merge choreography: the two consumed segments are pulled into the new one (ease-in, so they "snap"
+   * together), which then pops out with overshoot. Call before the next update (slots are still known).
+   */
+  merge(consumed: [number, number], into: number, level: number, now: number): void {
+    const target = this.sim.state.progress.segments.findIndex((s) => s.id === into);
+    for (const id of consumed) {
+      const fromSlot = this.slot.get(id) ?? target;
+      if (this.ghosts.length < GHOSTS) this.ghosts.push({ fromSlot, into, level: level - 1, t0: now });
+    }
+    this.emerge.set(into, now + MERGE_TRAVEL);
+  }
+
   /** Per-segment scale pulses (merge pop / add). */
   private pulses = new Map<number, number>();
   /** Per-body gulp time (last chunk eaten), index 0 = head. */
@@ -100,7 +129,7 @@ export class CaterpillarView {
     this.head.scale.setScalar(1.25);
     this.group.add(this.head);
 
-    this.bodies = new THREE.InstancedMesh(segmentGeometry(), mat, MAX);
+    this.bodies = new THREE.InstancedMesh(segmentGeometry(), mat, MAX + GHOSTS);
     this.bodies.setColorAt(0, C.set(0xffffff));
     this.bodyOutline = instancedOutline(this.bodies, 0.04);
     this.trays = new THREE.InstancedMesh(trayGeometry(), mat, MAX);
@@ -228,6 +257,13 @@ export class CaterpillarView {
         if (u >= 1) this.pulses.delete(seg.id);
         else scale *= 1 + 0.35 * Math.sin(u * Math.PI) * (1 - u);
       }
+      const et = this.emerge.get(seg.id);
+      if (et !== undefined) {
+        // Hidden while the ghosts travel in, then an overshooting pop.
+        const u = (now - et) / MERGE_POP;
+        if (u >= 1) this.emerge.delete(seg.id);
+        else scale *= u < 0 ? 0.35 : 0.35 + 0.65 * easeOutBack(u);
+      }
       const g = Math.max(0, 1 - (now - this.gulps[i + 1]) / 0.16);
       const squash = (1 + Math.sin(odo * 3 - (i + 1) * 0.8) * 0.04) * (1 + g * 0.08) * (1 + Math.sin(now * 2.2 - i * 0.6) * 0.015 * (1 - speedFrac));
       V.set(p.x, p.y, p.z);
@@ -276,8 +312,31 @@ export class CaterpillarView {
       this.badges.setMatrixAt(i, M4);
       this.cellAttr.setX(i, Math.min(63, seg.level - 1));
     }
-    this.bodies.count = n;
-    this.bodyOutline.count = n;
+    // Merge ghosts: the consumed segments accelerate into the new one and shrink as they arrive.
+    let ng = 0;
+    for (let k = 0; k < this.ghosts.length; k++) {
+      const gh = this.ghosts[k];
+      const u = (now - gh.t0) / MERGE_TRAVEL;
+      if (u >= 1) continue;
+      const target = this.slot.get(gh.into) ?? gh.fromSlot;
+      const e = u * u * u;
+      const slot = gh.fromSlot + (target - gh.fromSlot) * e;
+      this.pose(MAX, headS - BODY.HEAD_GAP - slot * BODY.SEG_SPACING, path, odo, MAX);
+      const p = this.poses[MAX];
+      const sc = (1 + Math.min(0.15, 0.015 * (gh.level - 1))) * (1 - 0.45 * e);
+      // Stretch along the direction of travel as it speeds up.
+      V.set(p.x, p.y + 0.06 * Math.sin(u * Math.PI), p.z);
+      E.set(0, p.yaw, 0);
+      Q.setFromEuler(E);
+      S.set(sc * (1 + 0.25 * e), sc * (1 - 0.12 * e), sc);
+      M4.compose(V, Q, S);
+      this.bodies.setMatrixAt(n + ng, M4);
+      this.bodies.setColorAt(n + ng, C.setHex(levelColor(gh.level)));
+      ng++;
+    }
+    if (ng === 0 && this.ghosts.length) this.ghosts.length = 0;
+    this.bodies.count = n + ng;
+    this.bodyOutline.count = n + ng;
     this.trays.count = n;
     this.badges.count = n;
     this.blades.count = 2 + n * 2;

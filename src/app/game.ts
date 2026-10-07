@@ -229,10 +229,6 @@ export class GameController {
         this.pendingUnloadBreak = true;
         break;
       }
-      case 'merged':
-        renderer.cat.pulse(e.into, performance.now() / 1000);
-        renderer.rig.addKick(0.05);
-        break;
       case 'segAdded':
         renderer.cat.pulse(e.id, performance.now() / 1000);
         break;
@@ -275,6 +271,8 @@ export class GameController {
       this.hud.tornadoAd = ads.canOffer('free_tornado');
       this.hud.update(vm, free, this.d.isDailyAvailable());
       this.hud.holdHint.classList.toggle('hide', input.totalHeld > 2.5 || sim.state.boosts.autopilot > 0 || this.toasts.hinting);
+      // A hint pointing into the upgrade bar sits where the goal button is: the goal steps aside meanwhile.
+      this.hud.el.classList.toggle('coaching-bar', !!this.toasts.hintTarget?.closest('.upgrades'));
       this.toasts.placeFinger();
     }
     // Interstitial break after an unload, once the coins have landed and the player isn't steering or tapping.

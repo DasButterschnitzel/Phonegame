@@ -571,6 +571,21 @@
   display: none;
 }
 
+.goal-wrap {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.coaching-bar .goal-wrap {
+  opacity: 0;
+  transform: translateY(24px) scale(0.9);
+}
+
+.coaching-bar .goal-wrap .goal {
+  pointer-events: none;
+}
+
 /* ——— Upgrade bar ——— */
 .upgrades {
   position: absolute;
