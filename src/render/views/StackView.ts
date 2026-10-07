@@ -13,6 +13,7 @@ const PER_LAYER = 2;
 const LAYER_H = 0.21;
 const BASE_Y = 1.08;
 const FLIERS = 480;
+const WHITE = new THREE.Color(0xffffff);
 
 /** Mark only the first `n` instances (matrix + colour) for upload. */
 function uploadRange(m: THREE.InstancedMesh, n: number): void {
@@ -215,8 +216,12 @@ export class StackView {
       sp.ox = Math.max(-lim, Math.min(lim, sp.ox));
       sp.oz = Math.max(-lim, Math.min(lim, sp.oz));
 
-      const n = this.blocksFor(this.segMass(i, segs.length));
+      const segMass = this.segMass(i, segs.length);
+      const n = this.blocksFor(segMass);
       const tiers = liveTiers;
+      // A full stack's top flashes: "I can't take more — go unload".
+      const full = segMass >= capacityPerSegment(st.progress.capacityLevel) - 0.01;
+      const flash = full ? 0.5 + 0.5 * Math.sin(now * 9 + i * 0.7) : 0;
       const prevShown = this.shown.get(seg.id) ?? 0;
       if (n > prevShown) this.popAt.set(seg.id, now);
       this.shown.set(seg.id, n);
@@ -247,7 +252,9 @@ export class StackView {
         S.setScalar(scale);
         M4.compose(V, Q, S);
         this.blocks.setMatrixAt(idx, M4);
-        this.blocks.setColorAt(idx, C.setHex(this.tierColors[tiers[b]] ?? 0xffffff));
+        C.setHex(this.tierColors[tiers[b]] ?? 0xffffff);
+        if (flash > 0 && b >= n - PER_LAYER) C.lerp(WHITE, flash * 0.6);
+        this.blocks.setColorAt(idx, C);
         idx++;
       }
     }

@@ -83,9 +83,19 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       audio.unload(e.mass);
       r.depot.bounce(now);
       break;
-    case 'basketFull':
+    case 'basketFull': {
+      // The blades grind against crops that won't fit: sparks, a shake and a grumble.
+      r.cat.grind(now);
+      const n = Math.min(4, sim.state.progress.segments.length + 1);
+      for (let b = 0; b < n; b++) {
+        const p = r.cat.poses[b];
+        r.fx.burst(p.x - p.tz * 0.6, 0.55, p.z + p.tx * 0.6, 0xfff3a0, 3, 3.2, 0.05, 0.25, 2, 8);
+        r.fx.burst(p.x + p.tz * 0.6, 0.55, p.z - p.tx * 0.6, 0xfff3a0, 3, 3.2, 0.05, 0.25, 2, 8);
+      }
       audio.full();
+      haptics.fire('light');
       break;
+    }
     case 'segAdded':
       audio.upgrade();
       haptics.fire('selection');

@@ -1374,3 +1374,51 @@
 .reduce-motion .banner {
   animation: none !important;
 }
+
+/* ——— Hierarchy: the farm is the hero. Menus and optional ad boosts recede (smaller, translucent, lighter lip);
+   the upgrade bar, goal and tornado keep full weight. ——— */
+.side-buttons {
+  gap: 9px;
+}
+
+.side-buttons .round {
+  --c-hi: rgba(255, 255, 255, 0.86);
+  --c: rgba(241, 244, 248, 0.8);
+  --c-lo: rgba(223, 229, 236, 0.78);
+  --lip: 3px;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  padding: 5px;
+}
+
+.side-buttons .round .ico {
+  width: 28px;
+  height: 28px;
+}
+
+.side-buttons .badge-dot {
+  min-width: 18px;
+  height: 18px;
+  font-size: 11px;
+  top: -5px;
+  right: -5px;
+}
+
+.chip:not(.active) {
+  --c-hi: rgba(255, 255, 255, 0.82);
+  --c: rgba(241, 244, 248, 0.76);
+  --c-lo: rgba(223, 229, 236, 0.74);
+  --lip: 3px;
+}
+
+.chip {
+  width: 56px;
+  font-size: 11px;
+  border-radius: 15px;
+}
+
+.chip > .ico {
+  width: 28px;
+  height: 28px;
+}

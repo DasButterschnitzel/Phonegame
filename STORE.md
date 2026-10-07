@@ -13,11 +13,12 @@
 ### Full description
 **EN**
 Hold your finger down and watch your robot caterpillar chomp through the fields! Every segment munches the crops
-beside the path and piles the harvest on its back — sell it at the barn, grow your caterpillar and merge segments into
-ever stronger chompers.
+beside its route and piles the harvest on its back — roll through the depot to cash in. Every plot you clear turns into
+meadow and your route grows into it, until the whole farm is yours.
 • Satisfying one-finger gameplay — hold to crawl, let go to relax
+• Clear the land and watch your route grow across the farm
 • Merge segments and discover new levels
-• Upgrade speed and baskets, expand your farm into richer fields
+• Upgrade speed and baskets, open fences to richer fields
 • 5 farms: Sunny Meadow, Pumpkin Patch, Sunflower Hills, Snowy Berry Farm and Cactus Ranch
 • Finished farms keep earning — even while you're away
 • Tornadoes, golden crops, lucky ladybugs and daily rewards
@@ -25,11 +26,12 @@ Free to play. Optional ads give bonuses.
 
 **DE**
 Halte den Finger gedrückt und sieh zu, wie deine Roboter-Raupe sich durch die Felder mampft! Jedes Segment frisst die
-Pflanzen am Wegesrand und stapelt die Ernte auf dem Rücken – verkaufe sie an der Scheune, lass deine Raupe wachsen und
-fusioniere Segmente zu immer stärkeren Mampfern.
+Pflanzen an seiner Route und stapelt die Ernte auf dem Rücken – fahr durchs Depot und kassiere ab. Jede geräumte
+Parzelle wird zur Wiese und deine Route wächst hinein, bis der ganze Hof dir gehört.
 • Entspanntes Ein-Finger-Gameplay – halten zum Krabbeln, loslassen zum Entspannen
+• Räume das Land und sieh zu, wie deine Route über den Hof wächst
 • Segmente fusionieren und neue Stufen entdecken
-• Tempo und Körbe verbessern, den Hof auf reichere Felder erweitern
+• Tempo und Körbe verbessern, Zäune zu reicheren Feldern öffnen
 • 5 Höfe: Sonnenwiese, Kürbisfeld, Sonnenblumenhügel, Schneebeerenhof und Kaktusranch
 • Abgeschlossene Höfe verdienen weiter – auch wenn du nicht spielst
 • Tornados, goldene Pflanzen, Glücks-Marienkäfer und tägliche Belohnungen

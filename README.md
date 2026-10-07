@@ -1,9 +1,11 @@
 # Crop Crawler 🐛🌽
 
-A hold-to-crawl idle/merge farming game: a **robot caterpillar** chomps its way round a garden path, piles crops
-onto its back and sells them at the barn. Add segments, merge them into stronger ones, upgrade speed and baskets,
-expand the farm and move on to new biomes. Inspired by the gameplay loop of *Train Miner*, with its own theme and
-twists (regrowing crops, wobbling loot stacks, passive income from finished farms, lucky bugs, tornadoes).
+A hold-to-crawl idle/merge farming game: a **robot caterpillar** chomps its way round the farm, piles crops onto its
+back and rolls them through the depot to sell. Crops never grow back — every plot you clear becomes meadow and your
+route grows out around it, so the farm visibly transforms as you play. Add segments, merge them into stronger ones,
+upgrade speed and baskets, open new fields and move on to new biomes. Inspired by the gameplay loop of *Train Miner*,
+with its own theme and twists (route growth by clearing, wobbling loot stacks, rolling depot payout, passive income
+from finished farms, lucky bugs, tornadoes). Design: `docs/GAME_DESIGN.md`, `docs/TRAIN_MINER_ANALYSIS.md`.
 
 - **Platforms:** Android (primary), iOS, web/PWA (installable on Windows), YouTube Playables, CrazyGames
 - **Stack:** TypeScript · Vite · Three.js (all 3D models are generated in code) · Capacitor 8

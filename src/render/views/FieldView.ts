@@ -162,14 +162,16 @@ export class FieldView {
       mesh.setMatrixAt(k, ZERO_SCALE);
       return;
     }
-    // Staged damage: 1 = untouched … 0 = gone. Height drops faster than width (bitten down).
-    const frac = f.dead[i] ? 0.25 : f.hp[i] / f.maxHp[i];
+    // Staged damage: 1 = untouched … 0 = gone. Mostly continuous (it shrinks as it is chewed) with a visible step at
+    // each quarter, so 100 / 75 / 50 / 25 % read at a glance. Height drops faster than width (bitten down).
+    const raw = f.dead[i] ? 0.25 : f.hp[i] / f.maxHp[i];
+    const frac = 0.6 * raw + 0.4 * (Math.ceil(raw * 4 - 1e-6) / 4);
     const d = 1 - frac;
     const base = 0.85 + 0.3 * f.seed[i];
-    let sxz = base * (1 - 0.28 * d);
-    let sy = base * (1 - 0.5 * d ** 0.8);
+    let sxz = base * (1 - 0.34 * d);
+    let sy = base * (1 - 0.66 * d ** 0.85);
     // Lean away from where it was bitten; more with damage.
-    let lean = 0.38 * d;
+    let lean = 0.5 * d;
     if (a) {
       const u = Math.min(1, (now - a.t) / a.dur);
       if (a.kind === 'hit') {
@@ -197,8 +199,9 @@ export class FieldView {
     S.set(sxz, sy, sxz);
     mesh.setMatrixAt(k, M4.compose(V, Q, S));
     // Damaged crops pale and brown; golden crops glow; crops behind a closed fence are dimmed.
+    // Chewed crops wilt towards olive-brown.
     if (f.golden[i]) C.setRGB(1.7, 1.35, 0.35);
-    else C.setRGB(1 + 0.4 * d, 1 + 0.28 * d, 1 - 0.1 * d);
+    else C.setRGB(1 + 0.12 * d, 1 - 0.18 * d, 1 - 0.55 * d);
     if (t > this.sim.state.progress.zone) C.multiplyScalar(0.62);
     mesh.setColorAt(k, C);
   }

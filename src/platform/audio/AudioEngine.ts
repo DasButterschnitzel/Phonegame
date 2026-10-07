@@ -1,7 +1,7 @@
 /**
  * Procedural WebAudio sound: no audio files. SFX pitch and motor/music tempo follow the caterpillar's speed.
  */
-type Ctx = AudioContext;
+type Ctx = BaseAudioContext;
 
 const PENTA = [0, 2, 4, 7, 9, 12, 14, 16];
 const midi = (n: number) => 440 * 2 ** ((n - 69) / 12);
@@ -35,12 +35,20 @@ export class AudioEngine {
   private combo = 0;
   private lastChompAt = 0;
 
-  /** Must be called from a user gesture (iOS/Chrome autoplay rules). */
-  unlock(): void {
+  /** Rendering into an OfflineAudioContext (audio QA): automation is allowed while not "running". */
+  private offline = false;
+
+  /** Must be called from a user gesture (iOS/Chrome autoplay rules). `ctx` is injected only by the audio QA. */
+  unlock(ctx?: BaseAudioContext): void {
     if (!this.ctx) {
-      const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AC) return;
-      this.ctx = new AC();
+      if (ctx) {
+        this.ctx = ctx;
+        this.offline = true;
+      } else {
+        const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AC) return;
+        this.ctx = new AC();
+      }
       const comp = this.ctx.createDynamicsCompressor();
       comp.connect(this.ctx.destination);
       this.master = this.ctx.createGain();
@@ -98,10 +106,11 @@ export class AudioEngine {
    * suspended when muted (ads, background, portal) or when both sound and music are off.
    */
   private syncRunning(): void {
-    if (!this.ctx) return;
+    if (!this.ctx || this.offline) return;
+    const ac = this.ctx as AudioContext;
     const run = !this.muted && (this.soundOn || this.musicOn);
-    if (run && this.ctx.state === 'suspended') void this.ctx.resume();
-    if (!run && this.ctx.state === 'running') void this.ctx.suspend();
+    if (run && ac.state === 'suspended') void ac.resume();
+    if (!run && ac.state === 'running') void ac.suspend();
     const wantMusic = run && this.musicOn;
     if (wantMusic && !this.sched) this.sched = setInterval(() => this.scheduleMusic(), 90);
     if (!wantMusic && this.sched) {
@@ -136,7 +145,7 @@ export class AudioEngine {
   /** 0..1 speed fraction; drives the servo whirr and music tempo. */
   setSpeed(frac: number): void {
     this.speed = frac;
-    if (!this.ctx || !this.servoA || this.ctx.state !== 'running') return;
+    if (!this.ctx || !this.servoA || (this.ctx.state !== 'running' && !this.offline)) return;
     // Automation events cross to the audio thread: send only real changes, at most ~15 Hz.
     const now = performance.now();
     if (Math.abs(frac - this.sentSpeed) < 0.02 || now - this.sentAt < 66) return;
@@ -148,8 +157,8 @@ export class AudioEngine {
     this.servoA.frequency.setTargetAtTime(f, t, 0.12);
     this.servoB!.frequency.setTargetAtTime(f * 2.01, t, 0.12);
     this.motorFilter.frequency.setTargetAtTime(f * 2.4, t, 0.12);
-    this.motorGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.006 + 0.02 * frac, t, 0.18);
-    this.whirrGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.003 + 0.011 * frac, t, 0.18);
+    this.motorGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.0018 + 0.0052 * frac, t, 0.18);
+    this.whirrGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.0008 + 0.0028 * frac, t, 0.18);
   }
 
   /**
@@ -157,7 +166,7 @@ export class AudioEngine {
    * releases.
    */
   motion(odometer: number, held: boolean): void {
-    if (!this.ctx || this.ctx.state !== 'running') return;
+    if (!this.ctx || (this.ctx.state !== 'running' && !this.offline)) return;
     const step = Math.floor(odometer / 0.55);
     if (step !== this.lastStep) {
       if (this.lastStep >= 0 && this.speed > 0.05 && this.can('leg', 45)) this.legTick(step % 2 === 0);
@@ -178,7 +187,7 @@ export class AudioEngine {
     f.type = 'highpass';
     f.frequency.value = left ? 3200 : 2700;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0.012 + 0.02 * this.speed, t);
+    g.gain.setValueAtTime(0.006 + 0.009 * this.speed, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.012);
     src.connect(f).connect(g).connect(this.duckGain);
     src.start(t, Math.random() * 0.3);
@@ -240,8 +249,10 @@ export class AudioEngine {
     this.combo = now - this.lastChompAt < 450 ? Math.min(10, this.combo + 1) : 0;
     this.lastChompAt = now;
     const p = (0.9 + 0.35 * this.speed + Math.random() * 0.15) * (1 + this.combo * 0.025);
-    this.noiseHit(0.07, 1800 * p, 2.5, 0.25);
-    this.tone(220 * p, 0.06, 'square', 0.04, 0, 140 * p);
+    // Crunch: a bright bite plus a short low body.
+    this.noiseHit(0.07, 1800 * p, 1.6, 0.55);
+    this.noiseHit(0.05, 420 * p, 1.2, 0.3);
+    this.tone(220 * p, 0.06, 'square', 0.07, 0, 140 * p);
     if (golden) this.tone(1568, 0.25, 'sine', 0.12, 0.02);
   }
 
@@ -249,8 +260,8 @@ export class AudioEngine {
   pop(tier = 0): void {
     if (!this.ctx || !this.can('pop', 60)) return;
     const k = 1 - tier * 0.12;
-    this.noiseHit(0.09, 2400 * k, 1.8, 0.1);
-    this.tone((480 + Math.random() * 160) * k, 0.08, 'sine', 0.1, 0.01, 820 * k);
+    this.noiseHit(0.09, 2400 * k, 1.4, 0.16);
+    this.tone((480 + Math.random() * 160) * k, 0.08, 'sine', 0.12, 0.01, 820 * k);
   }
 
   coin(): void {
@@ -273,16 +284,16 @@ export class AudioEngine {
   unloadStart(): void {
     if (!this.ctx || !this.can('unloadStart', 400)) return;
     this.duck(0.45, 0.4);
-    this.tone(120, 0.12, 'triangle', 0.14, 0, 80);
-    this.noiseHit(0.12, 700, 2, 0.12, 0.02);
+    this.tone(120, 0.12, 'triangle', 0.2, 0, 80);
+    this.noiseHit(0.12, 700, 1.5, 0.22, 0.02);
   }
 
   /** One segment tipping its stack: a cargo thump and a coin plink that climbs with each segment. */
   unloadSeg(i: number, last: boolean): void {
     if (!this.ctx || !this.can('unloadSeg', 45)) return;
-    this.noiseHit(0.06, 380, 1.5, 0.12);
+    this.noiseHit(0.06, 380, 1.2, 0.26);
     const step = Math.min(i, 15);
-    this.tone(midi(76 + PENTA[step % PENTA.length] + 12 * Math.floor(step / PENTA.length)), 0.09, 'triangle', last ? 0.12 : 0.08, 0.01);
+    this.tone(midi(76 + PENTA[step % PENTA.length] + 12 * Math.floor(step / PENTA.length)), 0.1, 'triangle', last ? 0.2 : 0.15, 0.01);
   }
 
   /** Getting close to the depot with cargo: soft blips at 50 %, 25 % and "almost there". */
@@ -460,6 +471,6 @@ export class AudioEngine {
 
   dispose(): void {
     if (this.sched) clearInterval(this.sched);
-    void this.ctx?.close();
+    if (!this.offline) void (this.ctx as AudioContext | null)?.close();
   }
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
-import { BODY, vMax } from '../../game/config.ts';
+import { BODY, capacityOf, vMax } from '../../game/config.ts';
 import { sampleAt, type PathSample } from '../../game/path.ts';
 import { bladeGeometry, crownGeometry, haloGeometry, headParts, hornsGeometry, legGeometry, segmentGeometry, trayGeometry } from '../geo/caterpillar.ts';
 import { blobTexture } from '../geo/world.ts';
@@ -74,6 +74,13 @@ export class CaterpillarView {
     { a: 0, v: 0 },
   ];
   private prevV = 0;
+  /** Smoothed acceleration, chain compression (+ bunches up when braking) and cargo load (0..1). */
+  private accelS = 0;
+  private compress = 0;
+  private load = 0;
+  /** Blades grinding against crops that won't fit in a full basket. */
+  private grindUntil = -1;
+  private lastNow = 0;
   private prevYaw = 0;
   private turn = 0;
   /** Latest world pose of each body (0 = head) for other views (stacks, particles). */
@@ -199,14 +206,27 @@ export class CaterpillarView {
     const hp = this.poses[0];
     const accel = dt > 0 ? (st.v - this.prevV) / dt : 0;
     this.prevV = st.v;
+    this.accelS += (accel - this.accelS) * Math.min(1, dt * 8);
+    // Weight: braking bunches the chain up, accelerating stretches it a touch; cargo makes everything heavier.
+    const wantCompress = Math.max(-0.05, Math.min(0.12, -this.accelS * 0.035));
+    this.compress += (wantCompress - this.compress) * Math.min(1, dt * 5);
+    this.load += (Math.min(1, st.basket.mass / Math.max(1, capacityOf(st))) - this.load) * Math.min(1, dt * 3);
+    const grinding = now < this.grindUntil;
+    this.lastNow = now;
     let dyaw = hp.yaw - this.prevYaw;
     if (dyaw > Math.PI) dyaw -= Math.PI * 2;
     if (dyaw < -Math.PI) dyaw += Math.PI * 2;
     this.prevYaw = hp.yaw;
     this.turn += ((dt > 0 ? dyaw / dt : 0) - this.turn) * Math.min(1, dt * 6);
     const breathe = 1 + Math.sin(now * 2.2) * 0.02 * (1 - speedFrac);
-    this.head.position.set(hp.x, hp.y, hp.z);
-    this.head.rotation.set(0, hp.yaw, Math.sin(odo * 2.2) * 0.04 - Math.max(-0.08, Math.min(0.08, accel * 0.02)));
+    this.head.position.set(hp.x, hp.y - 0.04 * this.load, hp.z);
+    // Pitch: nod with the stride, dip forward when accelerating, rear back when braking. Roll: lean into turns.
+    this.head.rotation.set(
+      Math.max(-0.14, Math.min(0.14, -this.turn * 0.09)),
+      hp.yaw + (grinding ? Math.sin(now * 60) * 0.03 : 0),
+      Math.sin(odo * 2.2) * 0.04 - Math.max(-0.1, Math.min(0.1, this.accelS * 0.025)) - 0.04 * this.load,
+      'YXZ',
+    );
     const hg = Math.max(0, 1 - (now - this.gulps[0]) / 0.18);
     this.head.scale.set(1.25 * (1 + hg * 0.06), 1.25 * breathe * (1 - hg * 0.05), 1.25 * (1 + hg * 0.06));
     // Blink every few seconds.
@@ -253,7 +273,7 @@ export class CaterpillarView {
     for (let i = 0; i < n; i++) {
       const seg = segs[i];
       const slot = this.slot.get(seg.id) ?? i;
-      const s = headS - BODY.HEAD_GAP - slot * BODY.SEG_SPACING;
+      const s = headS - (BODY.HEAD_GAP + slot * BODY.SEG_SPACING) * (1 - this.compress);
       this.pose(i + 1, s, path, odo, i + 1);
       const p = this.poses[i + 1];
       let scale = 1 + Math.min(0.15, 0.015 * (seg.level - 1));
@@ -271,11 +291,15 @@ export class CaterpillarView {
         else scale *= u < 0 ? 0.35 : 0.35 + 0.65 * easeOutBack(u);
       }
       const g = Math.max(0, 1 - (now - this.gulps[i + 1]) / 0.16);
-      const squash = (1 + Math.sin(odo * 3 - (i + 1) * 0.8) * 0.04) * (1 + g * 0.08) * (1 + Math.sin(now * 2.2 - i * 0.6) * 0.015 * (1 - speedFrac));
+      // Loaded segments sit lower, squat wider and jiggle heavier with each step.
+      const L = this.load;
+      const squash = (1 + Math.sin(odo * 3 - (i + 1) * 0.8) * (0.04 + 0.03 * L)) * (1 + g * 0.08) * (1 + Math.sin(now * 2.2 - i * 0.6) * 0.015 * (1 - speedFrac));
+      p.y = p.y * (1 - 0.6 * L) - 0.05 * L;
       V.set(p.x, p.y, p.z);
-      E.set(0, p.yaw, 0);
+      // Lean into turns (roll) — the chain follows the head's lean.
+      E.set(Math.max(-0.12, Math.min(0.12, -this.turn * 0.07)), p.yaw, 0, 'YXZ');
       Q.setFromEuler(E);
-      S.set(scale * squash, scale / squash, scale * (1 + g * 0.05));
+      S.set(scale * squash * (1 + 0.05 * L), (scale / squash) * (1 - 0.07 * L), scale * (1 + g * 0.05) * (1 + 0.05 * L));
       M4.compose(V, Q, S);
       this.bodies.setMatrixAt(i, M4);
       this.trays.setMatrixAt(i, M4);
@@ -403,10 +427,16 @@ export class CaterpillarView {
     }
   }
 
+  /** Blades grind (shake, spark) for a moment: the basket is full and the crop won't give. */
+  grind(now: number): void {
+    this.grindUntil = now + 0.6;
+  }
+
   private setBlade(i: number, p: BodyPose, side: number, y: number, size: number): void {
     const c = Math.cos(p.yaw);
     const sn = Math.sin(p.yaw);
-    V.set(p.x + side * sn, p.y + y, p.z + side * c);
+    const j = this.grindUntil > this.lastNow ? Math.sin(this.lastNow * 70 + i) * 0.04 : 0;
+    V.set(p.x + side * sn + j, p.y + y, p.z + side * c - j);
     E.set(0, p.yaw, this.spin * (side > 0 ? 1 : -1), 'YXZ');
     Q.setFromEuler(E);
     S.setScalar(size / 0.3);

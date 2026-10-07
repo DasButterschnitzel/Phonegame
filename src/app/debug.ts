@@ -4,6 +4,7 @@ import type { App } from './boot.ts';
 import { clock } from '../platform/clock.ts';
 import { BIOMES } from '../render/palette.ts';
 import { DebugView } from '../render/views/DebugView.ts';
+import { AudioEngine } from '../platform/audio/AudioEngine.ts';
 
 export interface DebugApi {
   ready: boolean;
@@ -103,6 +104,55 @@ export function installDebug(app: App): DebugApi {
       for (let t = 0; t < maxSec && !(ok = cond(sim.state)); t += 1 / 30) loop.fastForward(1 / 30);
       input.force = prev;
       return ok;
+    },
+    /**
+     * Audio QA: renders each sound into an OfflineAudioContext and reports its loudness (RMS over the loud part and
+     * peak, in dBFS). The motor is measured in its steady state at idle and full speed.
+     */
+    audioQA: async () => {
+      const db = (x: number) => (x > 0 ? Math.round(20 * Math.log10(x) * 10) / 10 : -120);
+      const render = async (play: (a: AudioEngine) => void, dur = 1.2, from = 0) => {
+        const ctx = new OfflineAudioContext(1, Math.ceil(44100 * dur), 44100);
+        const a = new AudioEngine();
+        a.unlock(ctx);
+        a.setEnabled(true, false);
+        play(a);
+        const d = (await ctx.startRendering()).getChannelData(0);
+        let peak = 0;
+        let sum = 0;
+        let n = 0;
+        // RMS over 50 ms windows; report the loudest window (what the ear notices).
+        const win = 2205;
+        let best = 0;
+        for (let i = Math.floor(from * 44100); i < d.length; i++) {
+          const v = Math.abs(d[i]);
+          if (v > peak) peak = v;
+          sum += v * v;
+          if (++n === win) {
+            best = Math.max(best, Math.sqrt(sum / n));
+            sum = 0;
+            n = 0;
+          }
+        }
+        return { rms: db(best), peak: db(peak) };
+      };
+      const out: Record<string, { rms: number; peak: number }> = {};
+      out.motorIdle = await render((a) => a.setSpeed(0.2), 1.5, 0.8);
+      out.motorFull = await render((a) => a.setSpeed(1), 1.5, 0.8);
+      out.legTick = await render((a) => (a.setSpeed(0.6), a.motion(0, false), a.motion(0.6, false)), 0.3);
+      out.throttleChirp = await render((a) => (a.motion(0, false), a.motion(0, true)), 0.3);
+      out.chomp = await render((a) => a.chomp(), 0.3);
+      out.collapse = await render((a) => a.pop(0), 0.3);
+      out.plotReady = await render((a) => a.plotReady(), 0.5);
+      out.routeGrow = await render((a) => a.routeGrow(1), 0.8);
+      out.zoneOpen = await render((a) => a.expand(), 1.2);
+      out.unloadStart = await render((a) => a.unloadStart(), 0.4);
+      out.unloadSeg = await render((a) => a.unloadSeg(3, false), 0.3);
+      out.unloadDone = await render((a) => a.unload(60), 0.6);
+      out.merge = await render((a) => a.merge(3), 0.8);
+      out.full = await render((a) => a.full(), 0.5);
+      out.coin = await render((a) => a.coin(), 0.4);
+      return out;
     },
     /** Grow the territory to at least `plots` claimed plots (clears frontier plots and lets the route catch up). */
     growTerritory: (plots: number) => {
