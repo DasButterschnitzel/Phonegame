@@ -9,7 +9,7 @@ export interface LifecycleHooks {
 }
 
 /** Visibility + native app lifecycle. Uses Capacitor App events on native, Page Visibility on web. */
-export async function installLifecycle(h: LifecycleHooks): Promise<void> {
+export async function installLifecycle(h: LifecycleHooks, opts: { pageVisibility: boolean } = { pageVisibility: true }): Promise<void> {
   let hidden = false;
   const hide = () => {
     if (hidden) return;
@@ -21,9 +21,12 @@ export async function installLifecycle(h: LifecycleHooks): Promise<void> {
     hidden = false;
     h.onShow();
   };
-  document.addEventListener('visibilitychange', () => (document.visibilityState === 'hidden' ? hide() : show()));
-  window.addEventListener('pagehide', hide);
-  window.addEventListener('pageshow', show);
+  // YouTube Playables forbids the Page Visibility API; it delivers pause/resume through its SDK instead.
+  if (opts.pageVisibility) {
+    document.addEventListener('visibilitychange', () => (document.visibilityState === 'hidden' ? hide() : show()));
+    window.addEventListener('pagehide', hide);
+    window.addEventListener('pageshow', show);
+  }
   if (Capacitor.isNativePlatform()) {
     const { App } = await import('@capacitor/app');
     await App.addListener('pause', hide);

@@ -17,13 +17,14 @@ import { ThrottleInput } from './input.ts';
 import { GameController } from './game.ts';
 import { AdManager } from '../platform/ads/AdManager.ts';
 import { newPolicyState } from '../platform/ads/AdPolicy.ts';
-import { createAdService, type ProviderName } from '../platform/ads/select.ts';
+import { createAdService } from '../platform/ads/select.ts';
 import { defaultSettings, type Settings } from '../platform/settings.ts';
 import { setLang, t } from '../platform/i18n/i18n.ts';
 import { LocalStore, PreferencesStore, type KeyValueStore } from '../platform/storage/Storage.ts';
 import { SaveManager } from '../platform/storage/SaveManager.ts';
 import { clock } from '../platform/clock.ts';
 import { exitApp, installLifecycle } from '../platform/lifecycle.ts';
+import { noPortal, type PortalHooks } from '../platform/portal.ts';
 import { openOffline } from '../ui/modals/Offline.ts';
 import { button, h } from '../ui/dom.ts';
 import { openCollection, openNewLevel } from '../ui/modals/NewLevel.ts';
@@ -64,7 +65,11 @@ export async function boot(): Promise<App | null> {
   const params = new URLSearchParams(location.search);
   const debug = import.meta.env.VITE_DEBUG_HOOKS === 'true' || params.has('debug');
 
-  const store: KeyValueStore = Capacitor.isNativePlatform() ? new PreferencesStore() : new LocalStore();
+  const provider = await createAdService();
+  const portal: PortalHooks = 'firstFrame' in provider ? (provider as unknown as PortalHooks) : noPortal;
+  // CrazyGames' cloud data needs the SDK initialised before the save is read.
+  if (provider.name === 'crazygames') await provider.init();
+  const store: KeyValueStore = portal.store?.() ?? (Capacitor.isNativePlatform() ? new PreferencesStore() : new LocalStore());
   let buildSave: () => string = () => '';
   const saves = new SaveManager(store, () => buildSave());
   const loaded = params.has('fresh') ? ({ ok: false, reason: 'empty' } as const) : await saves.load(clock.wall());
@@ -72,7 +77,7 @@ export async function boot(): Promise<App | null> {
   const settings: Settings = { ...defaultSettings(), ...(loaded.ok ? (loaded.save.settings as Partial<Settings>) : {}) };
   const langParam = params.get('lang');
   if (langParam === 'en' || langParam === 'de') settings.lang = langParam;
-  setLang(settings.lang);
+  setLang(settings.lang, (await portal.language?.()) ?? undefined);
   if (!hasWebGL()) {
     root.append(h('div', { class: 'fatal' }, t('webgl.missing')));
     return null;
@@ -87,7 +92,6 @@ export async function boot(): Promise<App | null> {
   const pause = new PauseController();
   const input = new ThrottleInput(root);
 
-  const provider = await createAdService(import.meta.env.VITE_AD_PROVIDER as ProviderName);
   const ads = new AdManager(provider, newPolicyState(meta.adPlaytimeSec, meta.adInterstitialWall), {
     onAdStart: () => pause.add('ad'),
     onAdEnd: () => pause.remove('ad'),
@@ -141,6 +145,7 @@ export async function boot(): Promise<App | null> {
   game.listeners.push((e) => {
     juice(e, sim, renderer, audio, haptics);
     tutorial.onEvent(e);
+    if ((e.t === 'merged' && e.firstTime) || e.t === 'farmFinished') portal.happy();
     if (e.t === 'merged' && e.firstTime) {
       audio.levelUp();
       openNewLevel(game.modals, e.level);
@@ -180,9 +185,16 @@ export async function boot(): Promise<App | null> {
       }
     },
   );
+  let portalMuted = false;
+  portal.onAudio?.((on) => {
+    portalMuted = !on;
+    audio.setMuted(portalMuted || pause.has('ad') || pause.has('background') || pause.has('yt'));
+  });
+  portal.onPause?.((p) => (p ? pause.add('yt') : pause.remove('yt')));
   pause.onChange((paused, reasons) => {
     loop.simPaused = paused;
-    audio.setMuted(reasons.has('ad') || reasons.has('background'));
+    portal.gameplay(!paused);
+    audio.setMuted(portalMuted || reasons.has('ad') || reasons.has('background') || reasons.has('yt'));
     if (reasons.has('background')) loop.stop();
     else if (!loop.running) loop.start();
   });
@@ -208,44 +220,50 @@ export async function boot(): Promise<App | null> {
   };
 
   let hiddenAt = 0;
-  await installLifecycle({
-    onHide: () => {
-      hiddenAt = clock.wall();
-      pause.add('background');
-      void saves.saveNow();
+  await installLifecycle(
+    {
+      onHide: () => {
+        hiddenAt = clock.wall();
+        pause.add('background');
+        void saves.saveNow();
     },
-    onShow: () => {
-      pause.remove('background');
-      const away = clock.wall() - hiddenAt;
-      if (!ads.inAd && hiddenAt > 0) checkOffline(away);
+      onShow: () => {
+        pause.remove('background');
+        const away = clock.wall() - hiddenAt;
+        if (!ads.inAd && hiddenAt > 0) checkOffline(away);
     },
-    onBack: () => game.modals.back(),
-    onExitRequest: () => {
-      game.modals.push('quit', (close) => [
-        h('h2', {}, t('quit.title')),
-        h('p', {}, t('quit.body')),
-        h(
-          'div',
-          { class: 'btn-row' },
-          button('btn-big grey', () => close(), t('common.no')),
-          button('btn-big danger', async () => {
-            await saves.saveNow();
-            await exitApp();
-          }, t('common.yes')),
-        ),
-      ]);
+      onBack: () => game.modals.back(),
+      onExitRequest: () => {
+        game.modals.push('quit', (close) => [
+          h('h2', {}, t('quit.title')),
+          h('p', {}, t('quit.body')),
+          h(
+            'div',
+            { class: 'btn-row' },
+            button('btn-big grey', () => close(), t('common.no')),
+            button('btn-big danger', async () => {
+              await saves.saveNow();
+              await exitApp();
+            }, t('common.yes')),
+          ),
+        ]);
+      },
     },
-  });
+    { pageVisibility: provider.name !== 'youtube' },
+  );
 
   loop.start();
   requestAnimationFrame(() => {
+    portal.firstFrame();
     const splash = document.getElementById('boot-splash');
     splash?.classList.add('hide');
     setTimeout(() => splash?.remove(), 400);
     if (loaded.ok) checkOffline(clock.wall() - loaded.save.savedAtWall);
     setTimeout(() => metaFlows.maybeShowDaily(), 1200);
+    portal.gameReady();
+    portal.gameplay(true);
   });
-  void ads.init();
+  if (provider.name !== 'crazygames') void ads.init();
   saves.startAutosave();
 
   const app: App = { sim, renderer, loop, pause, input, game, ads, saves, meta, settings, checkOffline };

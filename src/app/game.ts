@@ -138,7 +138,7 @@ export class GameController {
       },
       privacyOptionsAvailable: this.d.ads.provider.privacyOptionsAvailable,
       showPrivacyOptions: () => void this.d.ads.provider.showPrivacyOptions?.(),
-      privacyUrl: 'https://dasbutterschnitzel.github.io/Phonegame/privacy.html',
+      privacyUrl: import.meta.env.VITE_FLAVOR === 'youtube' || import.meta.env.VITE_FLAVOR === 'crazygames' ? '' : 'https://dasbutterschnitzel.github.io/Phonegame/privacy.html',
       resetProgress: () => this.d.resetProgress(),
       version: __APP_VERSION__,
     });

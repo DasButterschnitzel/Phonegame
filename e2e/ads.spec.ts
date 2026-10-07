@@ -1,0 +1,69 @@
+import { test, expect } from '@playwright/test';
+import { ready, g } from './helpers.ts';
+
+async function unloadWithoutThrottle(page: import('@playwright/test').Page) {
+  const before = await g<number>(page, 'g.state().stats.unloads');
+  await g(page, 'g.fillBasket(0.5)');
+  await page.waitForFunction(
+    (b) => {
+      const gg = (window as any).__game;
+      if (gg.state().stats.unloads > b) return true;
+      gg.fastForward(2, false);
+      return false;
+    },
+    before,
+    { timeout: 20000, polling: 50 },
+  );
+}
+
+test('no interstitial during the first minutes of play', async ({ page }) => {
+  await ready(page);
+  await g(page, '(g.setPlaytime(0), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5)');
+  await unloadWithoutThrottle(page);
+  await page.waitForTimeout(1600);
+  await expect(page.locator('.ad-overlay')).toHaveCount(0);
+});
+
+test('interstitial at a barn break once the policy allows it', async ({ page }) => {
+  await ready(page);
+  await g(page, '(g.setPlaytime(600), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5)');
+  await unloadWithoutThrottle(page);
+  await expect(page.locator('.ad-overlay[data-ad^="interstitial"]')).toBeVisible({ timeout: 4000 });
+  await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });
+  // Cooldown: the next unload does not show another one.
+  await unloadWithoutThrottle(page);
+  await page.waitForTimeout(1600);
+  await expect(page.locator('.ad-overlay')).toHaveCount(0);
+});
+
+test('no interstitial right after a rewarded ad', async ({ page }) => {
+  await ready(page);
+  await g(page, '(g.setPlaytime(600), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5)');
+  await page.locator('.chip-incomeX2').click();
+  await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });
+  await unloadWithoutThrottle(page);
+  await page.waitForTimeout(1600);
+  await expect(page.locator('.ad-overlay')).toHaveCount(0);
+});
+
+test('free upgrade offer appears when stuck and grants the upgrade', async ({ page }) => {
+  await ready(page);
+  // Spend everything and wait past the offer delay.
+  await g(page, '(g.state().coins = 0, g.app.game.offers.poorSince = performance.now() / 1000 - 60)');
+  await expect(page.locator('.free-badge:visible')).toHaveCount(1, { timeout: 3000 });
+  const btn = page.locator('.up:has(.free-badge:visible)');
+  const cls = (await btn.getAttribute('class')) ?? '';
+  await btn.click();
+  await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });
+  const st = await g<{ segments: number; speed: number; cap: number }>(page, '({ segments: g.state().progress.segments.length, speed: g.state().progress.speedLevel, cap: g.state().progress.capacityLevel })');
+  expect(st.segments + st.speed + st.cap).toBe(4);
+  expect(cls).toContain('up-');
+});
+
+test('ads failing to load hide ad-only offers gracefully', async ({ page }) => {
+  await ready(page, '&ads=fail');
+  await page.locator('.tornado-btn').click(); // uses the free tornado
+  await page.locator('.tornado-btn').click(); // needs an ad → not available
+  await expect(page.locator('.toast')).toBeVisible();
+  await expect(page.locator('.chip-incomeX2')).toBeHidden();
+});

@@ -68,7 +68,8 @@ export function openSettings(modals: ModalStack, d: SettingsDeps): void {
     );
     const extras = h('div', { class: 'btn-row' });
     if (d.privacyOptionsAvailable) extras.append(button('btn-big grey', () => d.showPrivacyOptions(), t('settings.privacy')));
-    const policy = h('a', { class: 'link', href: d.privacyUrl, target: '_blank', rel: 'noopener', 'data-ui': true }, t('settings.privacyPolicy'));
+    // Web portals forbid outbound links; their own pages cover privacy.
+    const policy = d.privacyUrl ? h('a', { class: 'link', href: d.privacyUrl, target: '_blank', rel: 'noopener', 'data-ui': true }, t('settings.privacyPolicy')) : null;
     const reset = button('link', () => {
       if (confirm(t('settings.resetConfirm'))) d.resetProgress();
     }, t('settings.reset'));

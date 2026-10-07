@@ -5,27 +5,27 @@ import { t } from '../i18n/i18n.ts';
 
 export type ProviderName = 'none' | 'devstub' | 'admob' | 'crazygames' | 'youtube';
 
-/** Picks the ad provider for this build/runtime. Network SDKs are loaded lazily, only in their own flavor. */
-export async function createAdService(name: ProviderName): Promise<AdService> {
+const devStub = () => new DevStubAds(() => t('ad.simulated'), () => t('ad.skip'));
+
+/**
+ * Picks the ad provider for this build flavor. The comparisons use the statically replaced
+ * `import.meta.env.VITE_AD_PROVIDER`, so other networks' code is dead-code-eliminated from each bundle.
+ */
+export async function createAdService(): Promise<AdService> {
   const q = new URLSearchParams(location.search);
-  const debugOverride = q.get('ads');
-  if (debugOverride && (import.meta.env.VITE_DEBUG_HOOKS === 'true' || q.has('debug'))) return new DevStubAds(() => t('ad.simulated'), () => t('ad.skip'));
-  switch (name) {
-    case 'devstub':
-      return new DevStubAds(() => t('ad.simulated'), () => t('ad.skip'));
-    case 'admob': {
-      const { AdMobAds } = await import('./providers/AdMob.ts');
-      return new AdMobAds();
-    }
-    case 'crazygames': {
-      const { CrazyGamesAds } = await import('./providers/CrazyGames.ts');
-      return new CrazyGamesAds();
-    }
-    case 'youtube': {
-      const { YouTubeAds } = await import('./providers/YouTube.ts');
-      return new YouTubeAds();
-    }
-    default:
-      return new NoAds();
+  if (q.get('ads') && (import.meta.env.VITE_DEBUG_HOOKS === 'true' || q.has('debug'))) return devStub();
+  if (import.meta.env.VITE_AD_PROVIDER === 'admob') {
+    const { AdMobAds } = await import('./providers/AdMob.ts');
+    return new AdMobAds();
   }
+  if (import.meta.env.VITE_AD_PROVIDER === 'crazygames') {
+    const { CrazyGamesAds } = await import('./providers/CrazyGames.ts');
+    return new CrazyGamesAds();
+  }
+  if (import.meta.env.VITE_AD_PROVIDER === 'youtube') {
+    const { YouTubeAds } = await import('./providers/YouTube.ts');
+    return new YouTubeAds();
+  }
+  if (import.meta.env.VITE_AD_PROVIDER === 'devstub') return devStub();
+  return new NoAds();
 }
