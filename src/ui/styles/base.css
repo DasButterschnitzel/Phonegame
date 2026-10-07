@@ -1,0 +1,134 @@
+:root {
+  --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --sal: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+  --sar: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  --ink: #2b2d42;
+  --ink-soft: #4a4e69;
+  --cream: #fffaf0;
+  --green: #5cc93b;
+  --green-d: #3d9a24;
+  --purple: #9b5de5;
+  --purple-d: #6f3cb8;
+  --blue: #3fa7f5;
+  --blue-d: #1f77c4;
+  --orange: #ff9f1c;
+  --orange-d: #d97a00;
+  --gold: #ffd23f;
+  --red: #ff5d5d;
+  --font: 'Fredoka', 'Arial Rounded MT Bold', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #7cc56b;
+  font-family: var(--font);
+  color: var(--ink);
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+#gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#ui [data-ui] {
+  pointer-events: auto;
+}
+
+#boot-splash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: radial-gradient(circle at 50% 35%, #b8f08f, #6cc24a 70%);
+  z-index: 50;
+  transition: opacity 0.35s ease;
+}
+
+#boot-splash.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot-logo {
+  font-size: 54px;
+  font-weight: 700;
+  line-height: 0.95;
+  text-align: center;
+  color: #fff;
+  text-shadow:
+    0 4px 0 #3d9a24,
+    0 8px 18px rgba(0, 0, 0, 0.25);
+  letter-spacing: 1px;
+}
+
+.boot-bar {
+  width: 200px;
+  height: 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+}
+
+.boot-bar-fill {
+  width: 40%;
+  height: 100%;
+  border-radius: 10px;
+  background: #fff;
+  animation: boot 1.2s ease-in-out infinite;
+}
+
+@keyframes boot {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+.fatal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+  font-size: 20px;
+  background: #fffaf0;
+  z-index: 100;
+}
