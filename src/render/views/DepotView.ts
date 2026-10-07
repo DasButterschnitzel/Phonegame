@@ -4,6 +4,7 @@ import { capacityOf } from '../../game/config.ts';
 import { sampleAt } from '../../game/path.ts';
 import { arrowGeometry, barnDoorGeometry, barnGeometry, chevronGeometry, conveyorGeometry, depotPadGeometry, depotSignGeometry, hopperGeometry } from '../geo/world.ts';
 import { hullGeometry, outlineMaterial, toon } from '../materials.ts';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { C, E, M4, Q, S, V } from '../scratch.ts';
 import { clamp, easeOutBack, wrap } from '../../shared/math.ts';
 
@@ -45,6 +46,7 @@ export class DepotView {
   readonly doorPos = new THREE.Vector3();
   private tx = 1;
   private tz = 0;
+  private staticGeo: THREE.BufferGeometry | null = null;
 
   constructor(sim: Sim) {
     this.sim = sim;
@@ -53,6 +55,8 @@ export class DepotView {
 
   rebuild(): void {
     for (const c of [...this.group.children]) this.group.remove(c);
+    this.staticGeo?.dispose();
+    this.staticGeo = null;
     const { farm, path } = this.sim;
     const [nx, nz] = farm.layout.depotNormal;
     const t = sampleAt(path, path.barnS, { x: 0, z: 0, tx: 0, tz: 0 });
@@ -87,23 +91,22 @@ export class DepotView {
     this.group.add(this.hopper);
     this.hopperTop.set(hx, 1.45, hz);
     const doorDist = Math.hypot(bx - hx, bz - hz) - 1.3;
-    const belt = new THREE.Mesh(conveyorGeometry(Math.max(0.3, doorDist)), this.mat);
-    belt.position.set(hx, 0, hz);
-    belt.rotation.y = Math.atan2(bx - hx, bz - hz);
-    this.group.add(belt);
+    const beltYaw = Math.atan2(bx - hx, bz - hz);
+    // Static pieces (conveyor bed, painted bay, sign) are merged into one mesh: one draw call.
+    const statics: THREE.BufferGeometry[] = [];
+    const place = (g: THREE.BufferGeometry, x0: number, y0: number, z0: number, yaw: number) =>
+      statics.push(g.applyMatrix4(new THREE.Matrix4().compose(V.set(x0, y0, z0), Q.setFromEuler(E.set(0, yaw, 0)), S.setScalar(1))));
+    place(conveyorGeometry(Math.max(0.3, doorDist)), hx, 0, hz, beltYaw);
     this.doorPos.set(hx + (bx - hx) * (doorDist / (doorDist + 1.3)), 0.9, hz + (bz - hz) * (doorDist / (doorDist + 1.3)));
     this.cleats = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.05, 0.08), new THREE.MeshLambertMaterial({ color: 0x2b2f38 }), CLEATS);
     this.cleats.frustumCulled = false;
     this.cleats.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.cleats.userData = { x: hx, z: hz, yaw: belt.rotation.y, len: Math.max(0.3, doorDist) };
+    this.cleats.userData = { x: hx, z: hz, yaw: beltYaw, len: Math.max(0.3, doorDist) };
     this.group.add(this.cleats);
 
     // Painted bay on the route + chevrons pointing the way you drive.
     const padYaw = Math.atan2(-this.tz, this.tx);
-    const pad = new THREE.Mesh(depotPadGeometry(PAD_LEN, PAD_W), this.mat);
-    pad.position.set(x, 0.012, z);
-    pad.rotation.y = padYaw;
-    this.group.add(pad);
+    place(depotPadGeometry(PAD_LEN, PAD_W), x, 0.012, z, padYaw);
     this.padGlow = new THREE.Mesh(new THREE.PlaneGeometry(PAD_LEN + 0.5, PAD_W + 0.5).rotateX(-Math.PI / 2), this.glowMat);
     this.padGlow.position.set(x, 0.045, z);
     this.padGlow.rotation.y = padYaw;
@@ -116,10 +119,10 @@ export class DepotView {
     this.group.add(this.chevrons);
 
     // Sign on the far side of the bay.
-    const sign = new THREE.Mesh(depotSignGeometry(), this.mat);
-    sign.position.set(x + this.tx * (PAD_LEN / 2 + 0.6) + nx * 1.05, 0, z + this.tz * (PAD_LEN / 2 + 0.6) + nz * 1.05);
-    sign.rotation.y = faceYaw;
-    this.group.add(sign);
+    place(depotSignGeometry(), x + this.tx * (PAD_LEN / 2 + 0.6) + nx * 1.05, 0, z + this.tz * (PAD_LEN / 2 + 0.6) + nz * 1.05, faceYaw);
+    this.staticGeo = mergeGeometries(statics);
+    for (const g of statics) g.dispose();
+    if (this.staticGeo) this.group.add(new THREE.Mesh(this.staticGeo, this.mat));
 
     this.arrow = new THREE.Mesh(arrowGeometry(), this.mat);
     this.arrow.add(new THREE.Mesh(hullGeometry(this.arrow.geometry), outline));

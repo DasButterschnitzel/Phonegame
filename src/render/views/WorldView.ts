@@ -32,7 +32,10 @@ export class WorldView {
   private reveal = { value: 1e6 };
   private revealT0 = -1;
   private revealMax = 0;
-  private sails: THREE.Mesh[] = [];
+  /** Windmill sails (one instanced mesh) spun about each tower's hub. */
+  private sails: THREE.InstancedMesh | null = null;
+  private towerM: THREE.Matrix4[] = [];
+  private sailAngle = 0;
   private clouds: THREE.Mesh | null = null;
   private cloudTex: THREE.CanvasTexture | null = null;
   private sim: Sim;
@@ -77,7 +80,8 @@ export class WorldView {
     }
     for (const m of this.owned) m.dispose();
     this.owned = [];
-    this.sails = [];
+    this.sails = null;
+    this.towerM = [];
     const { farm } = this.sim;
     const biome = BIOMES[farm.id];
     // The tilted camera never sees the horizon, so a plain clear colour (free) matches the fog.
@@ -120,18 +124,14 @@ export class WorldView {
       [x1 + 4.5, z1 + 3.5],
       [x1 + 4.5, z0 - 4.5],
     ];
-    const towerGeo = windmillTowerGeometry();
-    const sailGeo = windmillSailsGeometry();
-    corners.forEach(([x, z], i) => {
-      const tower = new THREE.Mesh(towerGeo, this.mat);
-      tower.position.set(x, 0, z);
-      tower.rotation.y = Math.atan2((x0 + x1) / 2 - x, (z0 + z1) / 2 - z) + (i - 1) * 0.3;
-      const sails = new THREE.Mesh(sailGeo, this.mat);
-      sails.position.set(0, 3.55, 0.85);
-      tower.add(sails);
-      this.sails.push(sails);
-      this.group.add(tower);
-    });
+    // Towers and sails are one instanced mesh each (2 draw calls for all windmills).
+    const towers: [number, number, number][] = corners.map(([x, z], i) => [x, z, Math.atan2((x0 + x1) / 2 - x, (z0 + z1) / 2 - z) + (i - 1) * 0.3]);
+    this.addInstanced(windmillTowerGeometry(), this.mat, towers, () => 1);
+    this.towerM = towers.map(([x, z, a]) => new THREE.Matrix4().compose(V.set(x, 0, z), Q.setFromEuler(E.set(0, a, 0)), S.setScalar(1)));
+    this.sails = new THREE.InstancedMesh(windmillSailsGeometry(), this.mat, towers.length);
+    this.sails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.group.add(this.sails);
+    this.spinSails(0);
     if (farm.id === 'snowyberry') this.addInstanced(snowmanGeometry(), this.mat, ring(10, 60, 3, 9), () => 1);
 
     // Drifting cloud shadows (one transparent full-screen layer: high tier only).
@@ -226,6 +226,16 @@ export class WorldView {
     this.ghostT0 = -1;
   }
 
+  private spinSails(a: number): void {
+    if (!this.sails) return;
+    for (let i = 0; i < this.towerM.length; i++) {
+      // Hub offset on the tower, then spin about the local z axis (each mill at its own pace).
+      M4.makeRotationZ(a * (0.9 + i * 0.15)).setPosition(0, 3.55, 0.85);
+      this.sails.setMatrixAt(i, M4.premultiply(this.towerM[i]));
+    }
+    this.sails.instanceMatrix.needsUpdate = true;
+  }
+
   /** Shader warm-up: temporarily show the path with its draw-in material so that program is compiled up front. */
   useRevealMaterial(on: boolean): void {
     if (!this.ribbon || this.revealT0 >= 0) return;
@@ -234,7 +244,8 @@ export class WorldView {
 
   update(now: number, dt: number): void {
     if (this.shownStyle !== this.sim.state.progress.zone && this.revealT0 < 0) this.setRoute(null);
-    for (let i = 0; i < this.sails.length; i++) this.sails[i].rotation.z -= dt * (0.9 + i * 0.15);
+    this.sailAngle -= dt;
+    this.spinSails(this.sailAngle);
     if (this.cloudTex) {
       this.cloudTex.offset.x = now * 0.004;
       this.cloudTex.offset.y = now * 0.0025;

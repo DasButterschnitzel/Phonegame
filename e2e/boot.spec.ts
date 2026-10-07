@@ -41,7 +41,8 @@ test('long caterpillar on a big farm renders within budget', async ({ page }, in
     for (let i = 0; i < 12; i++) g.buy('merge');
     g.fastForward(8, true);
   });
-  await page.waitForTimeout(800);
+  // Let transient effects (shockwaves from the last growth/merges) finish; software GL runs at a few fps.
+  await page.waitForTimeout(1600);
   const perf = await page.evaluate(() => (window as any).__game.perf());
   expect(perf.drawCalls).toBeLessThan(45);
   expect(perf.triangles).toBeLessThan(220_000);
