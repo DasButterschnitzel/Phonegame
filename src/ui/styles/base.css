@@ -83,6 +83,12 @@ body {
   pointer-events: none;
 }
 
+.boot-mascot {
+  width: 160px;
+  height: 160px;
+  animation: press 1.4s ease-in-out infinite;
+}
+
 .boot-logo {
   font-size: 54px;
   font-weight: 700;

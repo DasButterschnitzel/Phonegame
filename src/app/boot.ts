@@ -25,6 +25,7 @@ import { SaveManager } from '../platform/storage/SaveManager.ts';
 import { clock } from '../platform/clock.ts';
 import { exitApp, installLifecycle } from '../platform/lifecycle.ts';
 import { noPortal, type PortalHooks } from '../platform/portal.ts';
+import { hideNativeSplash, hideSystemBars } from '../platform/native.ts';
 import { openOffline } from '../ui/modals/Offline.ts';
 import { button, h } from '../ui/dom.ts';
 import { openCollection, openNewLevel } from '../ui/modals/NewLevel.ts';
@@ -94,7 +95,10 @@ export async function boot(): Promise<App | null> {
 
   const ads = new AdManager(provider, newPolicyState(meta.adPlaytimeSec, meta.adInterstitialWall), {
     onAdStart: () => pause.add('ad'),
-    onAdEnd: () => pause.remove('ad'),
+    onAdEnd: () => {
+      pause.remove('ad');
+      void hideSystemBars();
+    },
     now: clock.mono,
     wallNow: clock.wall,
   });
@@ -229,6 +233,7 @@ export async function boot(): Promise<App | null> {
     },
       onShow: () => {
         pause.remove('background');
+        void hideSystemBars();
         const away = clock.wall() - hiddenAt;
         if (!ads.inAd && hiddenAt > 0) checkOffline(away);
     },
@@ -253,8 +258,10 @@ export async function boot(): Promise<App | null> {
   );
 
   loop.start();
+  void hideSystemBars();
   requestAnimationFrame(() => {
     portal.firstFrame();
+    void hideNativeSplash();
     const splash = document.getElementById('boot-splash');
     splash?.classList.add('hide');
     setTimeout(() => splash?.remove(), 400);

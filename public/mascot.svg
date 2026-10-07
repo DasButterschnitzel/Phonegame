@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Robot caterpillar mascot (no background). Used inside icon / foreground / splash. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9be15d"/><stop offset="1" stop-color="#5cb83a"/></linearGradient>
+    <linearGradient id="seg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#66c3ff"/><stop offset="1" stop-color="#2f8fd8"/></linearGradient>
+    <linearGradient id="seg3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c39bff"/><stop offset="1" stop-color="#8455d6"/></linearGradient>
+  </defs>
+  <!-- trailing segments with loot -->
+  <g>
+    <rect x="148" y="470" width="70" height="56" rx="10" fill="#ff8c3b" stroke="#2b2d42" stroke-width="12"/>
+    <rect x="200" y="430" width="70" height="56" rx="10" fill="#ffd23f" stroke="#2b2d42" stroke-width="12"/>
+    <circle cx="210" cy="610" r="112" fill="url(#seg3)" stroke="#2b2d42" stroke-width="18"/>
+    <rect x="280" y="420" width="76" height="60" rx="10" fill="#c6f25a" stroke="#2b2d42" stroke-width="12"/>
+    <rect x="330" y="372" width="76" height="60" rx="10" fill="#ff8c3b" stroke="#2b2d42" stroke-width="12"/>
+    <circle cx="350" cy="580" r="122" fill="url(#seg2)" stroke="#2b2d42" stroke-width="18"/>
+    <circle cx="212" cy="740" r="34" fill="#3a3f47"/>
+    <circle cx="352" cy="720" r="34" fill="#3a3f47"/>
+  </g>
+  <!-- head -->
+  <g>
+    <path d="M560 330 L520 190" stroke="#2b2d42" stroke-width="20" stroke-linecap="round"/>
+    <path d="M680 330 L750 200" stroke="#2b2d42" stroke-width="20" stroke-linecap="round"/>
+    <circle cx="518" cy="180" r="34" fill="#ffd23f" stroke="#2b2d42" stroke-width="14"/>
+    <circle cx="754" cy="190" r="34" fill="#ffd23f" stroke="#2b2d42" stroke-width="14"/>
+    <circle cx="610" cy="560" r="236" fill="url(#body)" stroke="#2b2d42" stroke-width="22"/>
+    <rect x="455" y="430" width="330" height="150" rx="75" fill="#2b2d42"/>
+    <circle cx="555" cy="505" r="62" fill="#fff"/>
+    <circle cx="700" cy="505" r="62" fill="#fff"/>
+    <circle cx="575" cy="510" r="28" fill="#2b2d42"/>
+    <circle cx="720" cy="510" r="28" fill="#2b2d42"/>
+    <circle cx="586" cy="498" r="9" fill="#fff"/>
+    <circle cx="731" cy="498" r="9" fill="#fff"/>
+    <ellipse cx="500" cy="640" rx="34" ry="22" fill="#ff8fa3"/>
+    <ellipse cx="770" cy="640" rx="34" ry="22" fill="#ff8fa3"/>
+    <path d="M590 660 Q635 700 680 660" stroke="#2b2d42" stroke-width="18" fill="none" stroke-linecap="round"/>
+    <!-- chompers -->
+    <path d="M760 700 L880 690 L790 760 Z" fill="#dfe6ee" stroke="#2b2d42" stroke-width="14" stroke-linejoin="round"/>
+    <path d="M700 760 L800 820 L690 812 Z" fill="#dfe6ee" stroke="#2b2d42" stroke-width="14" stroke-linejoin="round"/>
+  </g>
+</svg>
