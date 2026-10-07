@@ -36,7 +36,10 @@ export function installDebug(app: App): DebugApi {
     lastT = now;
   }, 1000);
   const api: DebugApi = {
-    ready: true,
+    // Playable = the loading screen is gone (taps before that land on the splash).
+    get ready() {
+      return document.documentElement.dataset.ready === '1' && !document.getElementById('boot-splash');
+    },
     sim,
     state: () => sim.state,
     grant: (coins) => sim.execute({ c: 'grantCoins', amount: coins, reason: 'debug' }),

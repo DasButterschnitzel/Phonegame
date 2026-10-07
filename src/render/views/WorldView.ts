@@ -243,6 +243,12 @@ export class WorldView {
     }
   }
 
+  /** Shader warm-up: temporarily show the path with its draw-in material so that program is compiled up front. */
+  useRevealMaterial(on: boolean): void {
+    if (!this.ribbon || this.revealT0 >= 0) return;
+    this.ribbon.material = on ? this.ribbonMat : this.ribbonPlain;
+  }
+
   /** Barn squash-and-stretch when a load arrives. */
   bounceBarn(now: number): void {
     this.barnBounceT = now;

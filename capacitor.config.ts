@@ -30,6 +30,9 @@ const config: CapacitorConfig = {
     },
     SystemBars: {
       insetsHandling: 'css',
+      // index.html uses viewport-fit=cover: tell the plugin up front so the WebView is laid out edge-to-edge
+      // from the first frame instead of being padded until the page is inspected.
+      initialViewportFitValueHint: 'cover',
       hidden: true,
       style: 'DARK',
     },

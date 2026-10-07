@@ -183,17 +183,18 @@ export class GameController {
   travelTo(id: FarmId, run: () => void): void {
     const wipe = h('div', { class: 'travel-wipe', 'data-ui': true }, h('div', { class: 'card outline' }, icon('map', 'ico wipe-ico'), t(`farm.${id}` as I18nKey)));
     this.ui.append(wipe);
-    const reveal = () => {
+    const reveal = async () => {
       run();
-      // Let the new farm render a frame or two behind the curtain before it lifts.
+      // Compile the new farm's shaders behind the curtain (bounded), so the reveal doesn't hitch.
+      await Promise.race([this.d.renderer.warmupAsync().catch(() => undefined), new Promise((r) => setTimeout(r, 1500))]);
       setTimeout(() => {
         wipe.classList.add('out');
         setTimeout(() => wipe.remove(), 600);
         this.toasts.banner(t('banner.newFarm', { farm: t(`farm.${id}` as I18nKey) }), t('hud.stage', { n: this.d.sim.state.progress.stage + 1 }));
       }, 380);
     };
-    if (this.d.settings.reduceMotion) reveal();
-    else setTimeout(reveal, 450);
+    if (this.d.settings.reduceMotion) void reveal();
+    else setTimeout(() => void reveal(), 450);
   }
 
   // Filled in by later modules (map / daily / collection modals).

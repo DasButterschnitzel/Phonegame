@@ -15,9 +15,11 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Draw behind system bars; the web layer reads safe-area insets (SystemBars insetsHandling: 'css').
-        EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
+        // Draw behind system bars; the web layer reads safe-area insets (SystemBars insetsHandling: 'css').
+        // Only after super.onCreate: EdgeToEdge touches the window decor, and creating the decor before
+        // BridgeActivity applies AppTheme.NoActionBar builds the window with the launch theme.
+        EdgeToEdge.enable(this);
         if (bridge == null) return;
         // If the WebView's renderer dies (low memory, GPU driver crash) Android would otherwise kill the app or
         // leave a blank green screen: restart once, then explain.

@@ -80,7 +80,7 @@
   pointer-events: none;
 }
 
-.modal > :not(.rays):not(.close-x) {
+.modal > :not(.rays):not(.close-x):not(.confetti) {
   position: relative;
 }
 

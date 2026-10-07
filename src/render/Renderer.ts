@@ -185,11 +185,16 @@ export class GameRenderer {
 
   /** Compile every material once up front so first-time effects don't hitch. */
   warmup(): void {
-    this.tornado.group.visible = true;
-    this.waves.setAllVisible(true);
+    this.setWarm(true);
     this.renderer.compile(this.scene, this.rig.camera);
-    this.tornado.group.visible = false;
-    this.waves.setAllVisible(false);
+    this.setWarm(false);
+  }
+
+  /** Make every effect that is normally hidden part of the scene for a shader compile pass. */
+  private setWarm(on: boolean): void {
+    this.tornado.group.visible = on;
+    this.waves.setAllVisible(on);
+    this.world.useRevealMaterial(on);
   }
 
   /**
@@ -197,14 +202,11 @@ export class GameRenderer {
    * page, so the loading screen keeps animating on slow mobile GPUs.
    */
   async warmupAsync(): Promise<void> {
-    this.tornado.group.visible = true;
-    this.waves.setAllVisible(true);
-    try {
-      await this.renderer.compileAsync(this.scene, this.rig.camera);
-    } finally {
-      this.tornado.group.visible = false;
-      this.waves.setAllVisible(false);
-    }
+    this.setWarm(true);
+    // compile() runs synchronously inside compileAsync, so the scene can be restored right away.
+    const ready = this.renderer.compileAsync(this.scene, this.rig.camera);
+    this.setWarm(false);
+    await ready;
   }
 
   /** GL context came back: three re-uploads resources lazily; recompile up front to avoid hitches. */

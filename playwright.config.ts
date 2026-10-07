@@ -15,7 +15,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     launchOptions: { args: gpuArgs },
   },
-  testIgnore: /pwa\.spec\.ts/,
+  testIgnore: [/pwa\.spec\.ts/, /android\.spec\.ts/],
   projects: [
     { name: 'pixel7', use: { ...devices['Pixel 7'], launchOptions: { args: gpuArgs } } },
     {
@@ -42,6 +42,13 @@ export default defineConfig({
       testMatch: /pwa\.spec\.ts/,
       use: { ...devices['Pixel 7'], baseURL: 'http://localhost:4174', launchOptions: { args: gpuArgs } },
     },
+    {
+      // Release native flavor inside a simulated Android Capacitor shell (e2e/android-shell.ts).
+      name: 'android',
+      testIgnore: [],
+      testMatch: /android\.spec\.ts/,
+      use: { ...devices['Pixel 7'], baseURL: 'http://localhost:4175', launchOptions: { args: gpuArgs } },
+    },
   ],
   webServer: [
     {
@@ -53,6 +60,12 @@ export default defineConfig({
     {
       command: 'npm run build:web && npx vite preview --mode web --port 4174 --strictPort --outDir dist/web',
       url: 'http://localhost:4174',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+    {
+      command: 'npm run build:native && npx vite preview --mode native --port 4175 --strictPort --outDir dist/native',
+      url: 'http://localhost:4175',
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
     },

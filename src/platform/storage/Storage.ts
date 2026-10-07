@@ -1,3 +1,5 @@
+import { Preferences } from '@capacitor/preferences';
+
 export interface KeyValueStore {
   readonly name: string;
   get(key: string): Promise<string | null>;
@@ -30,21 +32,23 @@ export class LocalStore implements KeyValueStore {
   }
 }
 
-/** Capacitor Preferences (SharedPreferences / UserDefaults) — survives WebView storage eviction. */
+/**
+ * Capacitor Preferences (SharedPreferences / UserDefaults) — survives WebView storage eviction.
+ *
+ * Never let the `Preferences` plugin object pass through promise resolution (return it from an async function,
+ * resolve a promise with it, `await` it): Capacitor plugins are Proxies that answer every property, including
+ * `then`, so the promise machinery calls a native "then" method that doesn't exist and the caller hangs forever.
+ * Only ever await the results of its *methods*.
+ */
 export class PreferencesStore implements KeyValueStore {
   readonly name = 'preferences';
-  private prefs: typeof import('@capacitor/preferences').Preferences | null = null;
-  private async p() {
-    if (!this.prefs) this.prefs = (await import('@capacitor/preferences')).Preferences;
-    return this.prefs;
-  }
   async get(key: string): Promise<string | null> {
-    return (await (await this.p()).get({ key })).value;
+    return (await Preferences.get({ key })).value;
   }
   async set(key: string, value: string): Promise<void> {
-    await (await this.p()).set({ key, value });
+    await Preferences.set({ key, value });
   }
   async remove(key: string): Promise<void> {
-    await (await this.p()).remove({ key });
+    await Preferences.remove({ key });
   }
 }

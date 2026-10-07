@@ -74,10 +74,11 @@
             host.appendChild(box);
             host.appendChild(btn);
           }
-          var ua = navigator.userAgent.match(/(Chrome|Version)\/[\d.]+/);
+          // Android WebView UAs contain both "Version/4.0" and "Chrome/<engine>": report the engine.
+          var ua = navigator.userAgent.match(/Chrome\/[\d.]+/) || navigator.userAgent.match(/Version\/[\d.]+/);
           box.textContent =
-            'Still loading… ' + secs + ' s\nstep: ' + window.__bootStep + '\nengine: ' + (ua ? ua[0] : navigator.userAgent.slice(0, 80)) +
-            (errs.length ? '\n\n' + errs.join('\n') : '');
+            'Crop Crawler is taking longer than usual to start (' + secs + ' s).\n\nstep: ' + window.__bootStep +
+            '\nengine: ' + (ua ? ua[0] : navigator.userAgent.slice(0, 80)) + (errs.length ? '\n' + errs.join('\n') : '');
           setTimeout(check, 1000);
         }
         setTimeout(check, 4000);
