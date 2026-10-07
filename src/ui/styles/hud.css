@@ -756,3 +756,18 @@
     animation: none !important;
   }
 }
+
+/* Short phones: keep the basket bar clear of the boost chips. */
+@media (max-height: 720px) {
+  .basket-bar {
+    height: 20vh;
+  }
+  .side-buttons .round {
+    width: 48px;
+    height: 48px;
+  }
+  .side-buttons .round .ico {
+    width: 32px;
+    height: 32px;
+  }
+}

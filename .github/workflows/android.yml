@@ -2,8 +2,10 @@ name: Android
 
 on:
   push:
-    paths: ['android/**', 'capacitor.config.ts', 'src/**', 'package*.json', '.github/workflows/android.yml']
+    # With a tags filter, branches must be listed explicitly or branch pushes never match.
+    branches: ['**']
     tags: ['v*']
+    paths: ['android/**', 'capacitor.config.ts', 'src/**', 'package*.json', '.github/workflows/android.yml']
   pull_request:
     paths: ['android/**', 'capacitor.config.ts', 'src/**', 'package*.json', '.github/workflows/android.yml']
   workflow_dispatch:
