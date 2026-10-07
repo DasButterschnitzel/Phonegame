@@ -1,4 +1,5 @@
 import { SIM } from '../game/config.ts';
+import { RingStats } from '../shared/frameStats.ts';
 
 /**
  * Fixed-timestep driver: the simulation steps at 30 Hz, rendering interpolates between steps.
@@ -14,6 +15,9 @@ export class Loop {
   frames = 0;
   /** Frame cap: 120 Hz phones would otherwise render twice as often as the art needs (battery, heat). */
   maxFps = 60;
+  /** Rolling timing of the last ~10 s of rendered frames (ms): wall interval between frames and main-thread work. */
+  readonly interval = new RingStats(600);
+  readonly work = new RingStats(600);
   private stepFn: (dt: number) => void;
   private frameFn: (alpha: number, dt: number, now: number, budgetMs: number) => void;
 
@@ -26,6 +30,8 @@ export class Loop {
     if (this.running) return;
     this.running = true;
     this.last = performance.now();
+    // A resume gap is not a hitch: don't let it into the frame statistics.
+    this.interval.clear();
     this.acc = 0;
     this.raf = requestAnimationFrame(this.tick);
   }
@@ -47,7 +53,9 @@ export class Loop {
     // Skip vsyncs that come sooner than the cap allows (2 ms slack absorbs vsync jitter).
     if (t - this.last < 1000 / this.maxFps - 2) return;
     const realDt = Math.min(0.25, Math.max(0, (t - this.last) / 1000));
+    this.interval.push(t - this.last);
     this.last = t;
+    const w0 = performance.now();
     if (!this.simPaused) {
       this.acc += realDt * this.timeScale;
       let steps = 0;
@@ -60,5 +68,6 @@ export class Loop {
     }
     this.frames++;
     this.frameFn(this.simPaused ? 1 : this.acc / SIM.DT, realDt, t / 1000, 1000 / this.maxFps);
+    this.work.push(performance.now() - w0);
   };
 }

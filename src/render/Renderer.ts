@@ -58,6 +58,8 @@ export class GameRenderer {
   private height = 1;
   /** Hook for extra views (stacks, particles) updated after the caterpillar. */
   readonly extras: { update(now: number, dt: number): void }[] = [];
+  /** Debug / capture only: frame this point instead of following the caterpillar. */
+  focus: { x: number; z: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement, sim: Sim, tier?: QualityTier) {
     this.sim = sim;
@@ -187,6 +189,10 @@ export class GameRenderer {
       const b = this.sim.farm.barn;
       tx += (b.bx - tx) * this.depotBias;
       tz += (b.bz - tz) * this.depotBias;
+    }
+    if (this.focus) {
+      tx = this.focus.x;
+      tz = this.focus.z;
     }
     this.rig.update(tx, tz, n * 1.1, st.v / vMax(st.progress.speedLevel), dt, now);
     // Fog follows the camera distance so zooming out never drowns the farm.
