@@ -14,7 +14,7 @@ export function coinFly(
     onArrive();
     return;
   }
-  const count = Math.max(3, Math.min(14, n));
+  const count = Math.max(1, Math.min(14, n));
   let arrived = 0;
   for (let i = 0; i < count; i++) {
     const el = document.createElement('div');

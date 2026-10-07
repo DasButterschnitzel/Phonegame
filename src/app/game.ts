@@ -56,6 +56,7 @@ export class GameController {
   readonly listeners: ((e: SimEvent) => void)[] = [];
   private pendingUnloadBreak = false;
   private unloadCoin = 0;
+  private unloadSegs = 1;
   /** Last HUD purchase/boost tap (an interstitial must never interrupt a tapping spree). */
   private lastActionAt = -Infinity;
   private lastToastAt = 0;
@@ -222,18 +223,21 @@ export class GameController {
         break;
       }
       case 'unloadSeg': {
-        // Rolling payout: the counter above the hopper climbs and a coin flies to the total per segment.
+        // Rolling payout: the counter above the hopper climbs with every segment; coins fly to the total for about
+        // eight of them (a long wave would otherwise spawn ~100 animated DOM coins in a second) and for the last.
         this.unloadCounter.add(e.value, this.d.settings.reduceMotion);
         const h = renderer.depot.hopperTop;
-        if (renderer.project(h.x, h.y + 0.6, h.z, tmpP)) {
+        const every = Math.max(1, Math.ceil(this.unloadSegs / 8));
+        if ((e.last || e.seg % every === 0) && renderer.project(h.x, h.y + 0.6, h.z, tmpP)) {
           const target = this.hud.center(this.hud.coinPill);
           const last = e.last;
-          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, last ? 3 : 1, () => this.hud.bumpCoins(last), this.d.settings.reduceMotion, (i) => this.onCoinLand(this.unloadCoin++ + i));
+          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, last ? 4 : 2, () => this.hud.bumpCoins(last), this.d.settings.reduceMotion, (i) => this.onCoinLand(this.unloadCoin++ + i));
         }
         break;
       }
       case 'unloadStart':
         this.unloadCoin = 0;
+        this.unloadSegs = e.segs;
         this.unloadCounter.start();
         break;
       case 'unload': {

@@ -249,15 +249,41 @@ export class GameRenderer {
   warmup(): void {
     this.setWarm(true);
     this.renderer.compile(this.scene, this.rig.camera);
+    this.renderer.render(this.scene, this.rig.camera);
     this.setWarm(false);
   }
 
-  /** Make every effect that is normally hidden part of the scene for a shader compile pass. */
+  /**
+   * Make everything that is normally hidden part of the scene for a shader compile pass: effects (tornado, waves, the
+   * route reveal) and every mesh that only shows up later (bitten crops, stubble, the depot arrow, fences, empty
+   * dressing...). A material first drawn mid-game compiles synchronously — a 50–300 ms hitch on a phone.
+   */
   private setWarm(on: boolean): void {
     this.tornado.group.visible = on;
     this.waves.setAllVisible(on);
     this.world.useRevealMaterial(on);
+    if (on) {
+      this.warmHidden.length = 0;
+      this.warmCulled.length = 0;
+      this.scene.traverse((o) => {
+        // The warm-up frame may be drawn before the camera has been placed: nothing may be culled away.
+        if (o.frustumCulled) {
+          o.frustumCulled = false;
+          this.warmCulled.push(o);
+        }
+        if (o.visible) return;
+        o.visible = true;
+        this.warmHidden.push(o);
+      });
+    } else {
+      for (const o of this.warmHidden) o.visible = false;
+      for (const o of this.warmCulled) o.frustumCulled = true;
+      this.warmHidden.length = 0;
+      this.warmCulled.length = 0;
+    }
   }
+  private warmHidden: THREE.Object3D[] = [];
+  private warmCulled: THREE.Object3D[] = [];
 
   /**
    * Same as `warmup`, but lets the driver compile in parallel (KHR_parallel_shader_compile) without freezing the
@@ -269,6 +295,12 @@ export class GameRenderer {
     const ready = this.renderer.compileAsync(this.scene, this.rig.camera);
     this.setWarm(false);
     await ready;
+    // Without KHR_parallel_shader_compile, compileAsync resolves before anything is linked (the link then blocks the
+    // first frame that draws with it — measured 0.2–0.8 s mid-game). Draw one frame of everything while the loading
+    // screen still covers the canvas: every program links and every buffer uploads now.
+    this.setWarm(true);
+    this.renderer.render(this.scene, this.rig.camera);
+    this.setWarm(false);
   }
 
   /** GL context came back: three re-uploads resources lazily; recompile up front to avoid hitches. */

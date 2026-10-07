@@ -238,9 +238,20 @@ export class WorldView {
 
   /** Shader warm-up: temporarily show the path with its draw-in material so that program is compiled up front. */
   useRevealMaterial(on: boolean): void {
-    if (!this.ribbon || this.revealT0 >= 0) return;
+    if (this.warmGhost) {
+      this.dynamic.remove(this.warmGhost);
+      this.warmGhost = null;
+    }
+    if (!this.ribbon) return;
+    // The fading ghost of the old ribbon (first route growth) must compile up front too.
+    if (on) {
+      this.warmGhost = new THREE.Mesh(this.ribbon.geometry, this.ghostMat);
+      this.dynamic.add(this.warmGhost);
+    }
+    if (this.revealT0 >= 0) return;
     this.ribbon.material = on ? this.ribbonMat : this.ribbonPlain;
   }
+  private warmGhost: THREE.Mesh | null = null;
 
   update(now: number, dt: number): void {
     if (this.shownStyle !== this.sim.state.progress.zone && this.revealT0 < 0) this.setRoute(null);
