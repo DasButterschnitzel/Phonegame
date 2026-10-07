@@ -25,7 +25,7 @@ import { SaveManager } from '../platform/storage/SaveManager.ts';
 import { clock } from '../platform/clock.ts';
 import { exitApp, installLifecycle } from '../platform/lifecycle.ts';
 import { noPortal, type PortalHooks } from '../platform/portal.ts';
-import { hideNativeSplash, hideSystemBars } from '../platform/native.ts';
+import { hideSystemBars } from '../platform/native.ts';
 import { openOffline } from '../ui/modals/Offline.ts';
 import { button, h } from '../ui/dom.ts';
 import { openCollection, openNewLevel } from '../ui/modals/NewLevel.ts';
@@ -261,7 +261,6 @@ export async function boot(): Promise<App | null> {
   void hideSystemBars();
   requestAnimationFrame(() => {
     portal.firstFrame();
-    void hideNativeSplash();
     const splash = document.getElementById('boot-splash');
     splash?.classList.add('hide');
     setTimeout(() => splash?.remove(), 400);

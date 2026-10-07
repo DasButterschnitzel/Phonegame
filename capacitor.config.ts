@@ -17,8 +17,11 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchAutoHide: false,
-      launchFadeOutDuration: 250,
+      // Auto-hide: the web page shows its own animated loading screen right away. (A manual hide from
+      // requestAnimationFrame deadlocks on Android 12+: the native splash blocks WebView drawing, so rAF never fires.)
+      launchAutoHide: true,
+      launchShowDuration: 300,
+      launchFadeOutDuration: 200,
       backgroundColor: '#7cc56b',
       showSpinner: false,
     },

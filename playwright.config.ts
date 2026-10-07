@@ -15,6 +15,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     launchOptions: { args: gpuArgs },
   },
+  testIgnore: /pwa\.spec\.ts/,
   projects: [
     { name: 'pixel7', use: { ...devices['Pixel 7'], launchOptions: { args: gpuArgs } } },
     {
@@ -34,11 +35,26 @@ export default defineConfig({
       use: { browserName: 'chromium', viewport: { width: 1280, height: 720 }, launchOptions: { args: gpuArgs } },
       grep: /@smoke/,
     },
+    {
+      // Production web flavor (PWA) served separately.
+      name: 'pwa',
+      testIgnore: [],
+      testMatch: /pwa\.spec\.ts/,
+      use: { ...devices['Pixel 7'], baseURL: 'http://localhost:4174', launchOptions: { args: gpuArgs } },
+    },
   ],
-  webServer: {
-    command: 'npm run build:e2e && npx vite preview --mode e2e --port 4173 --strictPort',
-    url: 'http://localhost:4173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  webServer: [
+    {
+      command: 'npm run build:e2e && npx vite preview --mode e2e --port 4173 --strictPort',
+      url: 'http://localhost:4173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+    {
+      command: 'npm run build:web && npx vite preview --mode web --port 4174 --strictPort --outDir dist/web',
+      url: 'http://localhost:4174',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+  ],
 });
