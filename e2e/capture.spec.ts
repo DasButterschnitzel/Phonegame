@@ -27,17 +27,29 @@ async function start(page: Page, query = '') {
   await page.clock.pauseAt(now + 50);
 }
 
+interface ClipOpts {
+  every?: number;
+  before?: (i: number) => Promise<void>;
+  /** Device-resolution square crop around the screen centre (CSS px), for close animation review. */
+  zoom?: number;
+}
+
 /** Advance `frames` frames at 60 fps, saving every `every`-th one. `before(i)` runs ahead of frame i. */
-async function clip(page: Page, name: string, frames: number, opts: { every?: number; before?: (i: number) => Promise<void> } = {}) {
+async function clip(page: Page, name: string, frames: number, opts: ClipOpts = {}) {
   const every = opts.every ?? 1;
   const dir = `capture/${name}`;
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
+  const vp = page.viewportSize()!;
+  const z = opts.zoom;
   let k = 0;
   for (let i = 0; i < frames; i++) {
     await opts.before?.(i);
     await page.clock.runFor(1000 / 60);
-    if (i % every === 0) await page.screenshot({ path: `${dir}/${String(k++).padStart(4, '0')}.png`, scale: 'css' });
+    if (i % every !== 0) continue;
+    const path = `${dir}/${String(k++).padStart(4, '0')}.png`;
+    if (z) await page.screenshot({ path, scale: 'device', clip: { x: vp.width / 2 - z / 2, y: vp.height / 2 - z / 2, width: z, height: z } });
+    else await page.screenshot({ path, scale: 'css' });
   }
   encode(name, 60 / every, k);
 }
@@ -62,6 +74,19 @@ test('harvest: first chomps, close-up', async ({ page }) => {
   await g(page, 'g.setThrottle(true)');
   await clip(page, 'harvest-close', 150, { every: 1 });
   await g(page, 'g.setThrottle(null)');
+});
+
+test('harvest: bite, chunk flight and landing at device resolution', async ({ page }) => {
+  await start(page, '&fresh=1');
+  await page.addStyleTag({ content: '#ui { visibility: hidden !important; }' });
+  await g(page, '(g.state().maxLevelReached = 9, g.grant(400), g.buy("add"), g.buy("add"))');
+  // Locked-off camera on a stretch of route just ahead: the crawler drives through the frame, chewing.
+  await g(page, `(() => { const s = g.sim; const p = { x: 0, z: 0, tx: 0, tz: 0 }; const L = s.path.length; const at = ((s.state.headS + 4.5) % L + L) % L; const i = Math.floor(at / 0.25); g.app.renderer.focus = { x: s.path.x[i], z: s.path.z[i] }; return p; })()`);
+  await closeCam(page, 5.5);
+  await page.clock.runFor(1500);
+  await g(page, 'g.setThrottle(true)');
+  await clip(page, 'bite-device', 150, { zoom: 330 });
+  await g(page, '(g.setThrottle(null), g.app.renderer.focus = null)');
 });
 
 test('harvest: gameplay camera with a longer crawler', async ({ page }) => {

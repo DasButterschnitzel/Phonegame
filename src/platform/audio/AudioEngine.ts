@@ -256,6 +256,14 @@ export class AudioEngine {
     if (golden) this.tone(1568, 0.25, 'sine', 0.12, 0.02);
   }
 
+  /** A chunk lands on a stack: a tiny wooden "tok", a little higher as the stack grows. Kept well under the chomp. */
+  land(height: number): void {
+    if (!this.ctx || !this.can('land', 70)) return;
+    const f = 900 * 2 ** (Math.min(18, height) / 36) * (0.97 + Math.random() * 0.06);
+    this.tone(f, 0.035, 'triangle', 0.022, 0, f * 0.82);
+    this.noiseHit(0.012, 3800, 1.2, 0.035);
+  }
+
   /** A crop collapses: leafy crunch + a small pop (heavier crops sound lower). */
   pop(tier = 0): void {
     if (!this.ctx || !this.can('pop', 60)) return;

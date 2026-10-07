@@ -12,6 +12,8 @@ const LEAF = 0x6cc24a;
 const DUST = 0xc9a27a;
 const PUFF = 0xe6d2ae;
 const cp = { x: 0, y: 0, z: 0 };
+/** Bites handled this frame: when a strong chain chews through a row, debris thins out (the chunks still fly). */
+let bitesThisFrame = 0;
 
 /** Unit vector from body (bx, bz) towards point (x, z), blended with the body's travel direction. */
 const sprayDir = (x: number, z: number, b: { x: number; z: number; tx: number; tz: number }, along: number): [number, number] => {
@@ -39,7 +41,8 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       const c = r.field.contact(e.crop, cp);
       const final = f.dead[e.crop] === 1;
       const [dx, dz] = sprayDir(c.x, c.z, body, 0.9);
-      r.fx.spray(c.x, c.y, c.z, dx, dz, color, final ? 3 : 2, 1.9, 0.085, 0.38, 2.2, 9, 0.3);
+      const busy = ++bitesThisFrame > 6;
+      if (!busy || final) r.fx.spray(c.x, c.y, c.z, dx, dz, color, busy ? 1 : final ? 3 : 2, 1.9, 0.085, 0.38, 2.2, 9, 0.3);
       r.stacks.chunk(c.x, c.y, c.z, color, e.body, now, final);
       r.cat.gulp(e.body, now);
       audio.chomp(e.golden);
@@ -196,6 +199,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
 let approachLevel = 0;
 
 export function juiceFrame(sim: Sim, audio: AudioEngine, held: boolean, r: GameRenderer): void {
+  bitesThisFrame = 0;
   const st = sim.state;
   audio.setSpeed(Math.min(1, st.v / vMax(st.progress.speedLevel)));
   audio.motion(st.odometer, held);
