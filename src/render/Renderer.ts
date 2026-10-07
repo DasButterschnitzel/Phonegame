@@ -192,6 +192,21 @@ export class GameRenderer {
     this.waves.setAllVisible(false);
   }
 
+  /**
+   * Same as `warmup`, but lets the driver compile in parallel (KHR_parallel_shader_compile) without freezing the
+   * page, so the loading screen keeps animating on slow mobile GPUs.
+   */
+  async warmupAsync(): Promise<void> {
+    this.tornado.group.visible = true;
+    this.waves.setAllVisible(true);
+    try {
+      await this.renderer.compileAsync(this.scene, this.rig.camera);
+    } finally {
+      this.tornado.group.visible = false;
+      this.waves.setAllVisible(false);
+    }
+  }
+
   /** GL context came back: three re-uploads resources lazily; recompile up front to avoid hitches. */
   onContextRestored(): void {
     this.warmup();

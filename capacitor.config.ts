@@ -5,9 +5,12 @@ const config: CapacitorConfig = {
   appName: 'Crop Crawler',
   webDir: 'dist/native',
   backgroundColor: '#7cc56b',
+  // Shown instead of the game when the device WebView is too old to run it.
+  server: { errorPath: 'webview-update.html' },
   android: {
     backgroundColor: '#7cc56b',
-    minWebViewVersion: 100,
+    // Matches the bundle's syntax target (vite.config.ts: chrome87); WebGL 2 is checked at runtime.
+    minWebViewVersion: 87,
   },
   ios: {
     contentInset: 'never',

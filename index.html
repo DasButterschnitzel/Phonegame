@@ -19,6 +19,70 @@
         <div class="boot-bar"><div class="boot-bar-fill"></div></div>
       </div>
     </div>
+    <script>
+      // Startup watchdog — deliberately ES5 so it runs on any WebView, even if the game bundle can't.
+      // 1) releases the native launch splash, 2) collects early errors, 3) if the game hasn't started after a
+      // while, shows what is going on (step, errors, browser engine) with a Retry button instead of an endless splash.
+      (function () {
+        var t0 = Date.now();
+        var errs = [];
+        window.__bootStep = 'html';
+        window.__bootErrors = errs;
+        function note(m) {
+          if (errs.length < 6) errs.push(String(m).slice(0, 240));
+        }
+        window.addEventListener('error', function (e) {
+          var t = e.target;
+          if (t && t !== window && (t.src || t.href)) return note('failed to load ' + String(t.src || t.href).split('/').pop());
+          var where = e.filename ? ' @' + String(e.filename).split('/').pop() + ':' + e.lineno : '';
+          note((e.message || 'error') + where);
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e.reason;
+          note('promise: ' + (r && r.message ? r.message : r));
+        });
+        if (!('noModule' in document.createElement('script'))) note('This WebView cannot run modern JavaScript modules.');
+        function hideNative() {
+          try {
+            var c = window.Capacitor;
+            if (c && c.nativePromise) c.nativePromise('SplashScreen', 'hide', { fadeOutDuration: 200 })['catch'](function () {});
+          } catch (e) {}
+        }
+        hideNative();
+        setTimeout(hideNative, 800);
+        setTimeout(hideNative, 3000);
+        function ready() {
+          return document.documentElement.getAttribute('data-ready') === '1';
+        }
+        function check() {
+          if (ready()) return;
+          var host = document.getElementById('boot-splash');
+          if (!host) return;
+          var secs = Math.round((Date.now() - t0) / 1000);
+          if (errs.length === 0 && secs < 12) return setTimeout(check, 1000);
+          var box = document.getElementById('boot-diag');
+          if (!box) {
+            box = document.createElement('div');
+            box.id = 'boot-diag';
+            box.style.cssText = 'max-width:86%;font:600 13px/1.35 system-ui,sans-serif;color:#24402a;background:rgba(255,255,255,.88);border-radius:14px;padding:10px 14px;text-align:left;word-break:break-word;white-space:pre-wrap';
+            var btn = document.createElement('button');
+            btn.textContent = 'Retry';
+            btn.style.cssText = 'display:block;margin:0 auto;font:700 18px system-ui,sans-serif;color:#fff;background:#3d9a24;border:0;border-radius:14px;padding:10px 34px;box-shadow:0 4px 0 #2b6e19';
+            btn.onclick = function () {
+              location.reload();
+            };
+            host.appendChild(box);
+            host.appendChild(btn);
+          }
+          var ua = navigator.userAgent.match(/(Chrome|Version)\/[\d.]+/);
+          box.textContent =
+            'Still loading… ' + secs + ' s\nstep: ' + window.__bootStep + '\nengine: ' + (ua ? ua[0] : navigator.userAgent.slice(0, 80)) +
+            (errs.length ? '\n\n' + errs.join('\n') : '');
+          setTimeout(check, 1000);
+        }
+        setTimeout(check, 4000);
+      })();
+    </script>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

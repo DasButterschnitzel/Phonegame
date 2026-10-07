@@ -60,7 +60,8 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: `dist/${mode}`,
       emptyOutDir: true,
-      target: ['es2022', 'chrome100', 'safari15'],
+      // Older Android System WebViews (Chrome 87+) still parse the bundle; newer syntax is lowered by esbuild.
+      target: ['es2020', 'chrome87', 'safari14'],
       assetsInlineLimit: 0,
       chunkSizeWarningLimit: 900,
     },

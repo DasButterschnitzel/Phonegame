@@ -61,6 +61,9 @@ function hasWebGL(): boolean {
   }
 }
 
+/** Last boot milestone, shown by the loading-screen watchdog in index.html if startup stalls. */
+const step = (s: string) => ((window as unknown as { __bootStep?: string }).__bootStep = s);
+
 const SAVE_EVENTS = new Set<SimEvent['t']>(['segAdded', 'merged', 'upgraded', 'stageChanged', 'farmFinished', 'traveled', 'coins', 'boost']);
 
 export async function boot(): Promise<App | null> {
@@ -70,6 +73,7 @@ export async function boot(): Promise<App | null> {
   // Cheat hooks and URL overrides exist only in dev/e2e builds — never in a store or portal release.
   const debug = import.meta.env.VITE_DEBUG_HOOKS === 'true';
 
+  step('ads');
   const provider = await createAdService();
   const portal: PortalHooks = 'firstFrame' in provider ? (provider as unknown as PortalHooks) : noPortal;
   // CrazyGames' cloud data needs the SDK initialised before the save is read.
@@ -77,12 +81,14 @@ export async function boot(): Promise<App | null> {
   const store: KeyValueStore = portal.store?.() ?? (Capacitor.isNativePlatform() ? new PreferencesStore() : new LocalStore());
   let buildSave: () => string = () => '';
   const saves = new SaveManager(store, () => buildSave());
+  step('save');
   const loaded = debug && params.has('fresh') ? ({ ok: false, reason: 'empty' } as const) : await saves.load(clock.wall());
 
   const settings: Settings = { ...defaultSettings(), ...(loaded.ok ? (loaded.save.settings as Partial<Settings>) : {}) };
   const langParam = params.get('lang');
   if (langParam === 'en' || langParam === 'de') settings.lang = langParam;
   setLang(settings.lang, (await portal.language?.()) ?? undefined);
+  step('webgl');
   if (!hasWebGL()) {
     root.append(h('div', { class: 'fatal' }, t('webgl.missing')));
     return null;
@@ -95,8 +101,11 @@ export async function boot(): Promise<App | null> {
   const qParam = debug ? params.get('quality') : null;
   const quality = qParam === 'low' || qParam === 'med' || qParam === 'high' ? qParam : settings.quality === 'auto' ? undefined : settings.quality;
   // Level badges are drawn into a canvas atlas: make sure the bundled font is ready first (bounded wait).
+  step('fonts');
   await Promise.race([document.fonts?.load('700 64px Fredoka').catch(() => undefined), new Promise((r) => setTimeout(r, 1500))]);
+  step('renderer');
   const renderer = new GameRenderer(canvas, sim, quality);
+  step('game');
   const pause = new PauseController();
   const input = new ThrottleInput(root);
 
@@ -172,6 +181,16 @@ export async function boot(): Promise<App | null> {
     if (SAVE_EVENTS.has(e.t)) saves.saveSoon();
   };
 
+  // A per-frame exception must never fail silently (blank screen): log it and surface it, at most every 10 s.
+  let lastErrAt = -Infinity;
+  const reportError = (where: string, e: unknown) => {
+    console.error(where, e);
+    const now = performance.now();
+    if (now - lastErrAt < 10_000) return;
+    lastErrAt = now;
+    game.toasts.show(`${where}: ${e instanceof Error ? e.message : String(e)}`, 6000);
+  };
+
   const loop = new Loop(
     (dt) => {
       const held = input.effective;
@@ -179,20 +198,28 @@ export async function boot(): Promise<App | null> {
         input.totalHeld += dt;
         input.lastHeldAt = performance.now();
       }
-      sim.step(dt, { throttleHeld: held });
-      ads.addPlaytime(dt);
-      for (const e of sim.drainEvents()) onEvent(e);
+      try {
+        sim.step(dt, { throttleHeld: held });
+        ads.addPlaytime(dt);
+        for (const e of sim.drainEvents()) onEvent(e);
+      } catch (e) {
+        reportError('step', e);
+      }
     },
     (alpha, dt, now, budgetMs) => {
-      for (const e of sim.drainEvents()) onEvent(e);
-      renderer.frame(alpha, dt, now, budgetMs);
-      game.frame(dt);
-      juiceFrame(sim, audio);
-      metaFlows.frame();
-      tutAcc += dt;
-      if (tutAcc > 0.5) {
-        tutAcc = 0;
-        if (!game.modals.open) tutorial.update();
+      try {
+        for (const e of sim.drainEvents()) onEvent(e);
+        renderer.frame(alpha, dt, now, budgetMs);
+        game.frame(dt);
+        juiceFrame(sim, audio);
+        metaFlows.frame();
+        tutAcc += dt;
+        if (tutAcc > 0.5) {
+          tutAcc = 0;
+          if (!game.modals.open) tutorial.update();
+        }
+      } catch (e) {
+        reportError('frame', e);
       }
     },
   );
@@ -234,6 +261,7 @@ export async function boot(): Promise<App | null> {
   };
 
   let hiddenAt = 0;
+  step('lifecycle');
   await installLifecycle(
     {
       onHide: () => {
@@ -295,21 +323,36 @@ export async function boot(): Promise<App | null> {
     pause.remove('gl');
   });
 
+  // Compile every shader behind the loading screen (in parallel where the driver can) so first-time effects
+  // don't stutter — bounded, so a slow driver can never keep the loading screen up.
+  step('shaders');
+  await Promise.race([renderer.warmupAsync().catch((e: unknown) => console.warn('warmup', e)), new Promise((r) => setTimeout(r, 6000))]);
+
+  step('start');
   loop.start();
   void hideSystemBars();
-  requestAnimationFrame(() => {
-    portal.firstFrame();
-    // Compile every shader now (behind the loading screen) so first-time effects don't stutter.
-    renderer.warmup();
+  let revealed = false;
+  const reveal = () => {
+    if (revealed) return;
+    revealed = true;
+    step('running');
+    document.documentElement.dataset.ready = '1';
     const splash = document.getElementById('boot-splash');
     splash?.classList.add('hide');
     setTimeout(() => splash?.remove(), 400);
+    try {
+      portal.firstFrame();
+      portal.gameReady();
+      portal.gameplay(true);
+    } catch (e) {
+      console.warn('portal', e);
+    }
     if (loaded.ok) checkOffline(clock.wall() - loaded.save.savedAtWall);
     setTimeout(() => metaFlows.maybeShowDaily(), 1200);
-    portal.gameReady();
-    portal.gameplay(true);
-    document.documentElement.dataset.ready = '1';
-  });
+  };
+  requestAnimationFrame(reveal);
+  // rAF can stall on Android while the native splash still blocks drawing: never let the loading screen wait on it.
+  setTimeout(reveal, 1200);
   if (provider.name !== 'crazygames') void ads.init();
   saves.startAutosave();
 

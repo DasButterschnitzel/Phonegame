@@ -46,3 +46,14 @@ test('long caterpillar on a big farm renders within budget', async ({ page }, in
   expect(perf.triangles).toBeLessThan(220_000);
   await page.screenshot({ path: `e2e-screens/bigfarm-${info.project.name}.png` });
 });
+
+test('a failed start explains itself instead of an endless loading screen', async ({ page }) => {
+  // Simulate a WebView that cannot load the game bundle.
+  await page.route(/\/assets\/index-[^/]*\.js$/, (r) => r.abort());
+  await page.goto('/');
+  const diag = page.locator('#boot-diag');
+  await expect(diag).toBeVisible({ timeout: 8000 });
+  await expect(diag).toContainText('failed to load index-');
+  await expect(diag).toContainText('engine: Chrome/');
+  await expect(page.locator('#boot-splash button')).toHaveText('Retry');
+});
