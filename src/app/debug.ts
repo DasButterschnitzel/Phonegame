@@ -24,6 +24,8 @@ export interface DebugApi {
 /** window.__game hooks for e2e tests and manual debugging (enabled by VITE_DEBUG_HOOKS or ?debug=1). */
 export function installDebug(app: App): DebugApi {
   const { sim, renderer, loop, input } = app;
+  // Software-GL test runs are slow; keep screenshots at full resolution unless asked otherwise.
+  renderer.dyn.enabled = new URLSearchParams(location.search).has('dynres');
   let fps = 0;
   let lastFrames = loop.frames;
   let lastT = performance.now();

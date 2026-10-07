@@ -1,4 +1,4 @@
-export type PauseReason = 'modal' | 'ad' | 'background' | 'yt' | 'debug';
+export type PauseReason = 'modal' | 'ad' | 'background' | 'yt' | 'gl' | 'debug';
 
 /** Collects pause reasons; the simulation runs only when none are active. */
 export class PauseController {

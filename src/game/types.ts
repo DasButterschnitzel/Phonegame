@@ -119,7 +119,7 @@ export type Command =
   | { c: 'forceGift' }
   | { c: 'forceGolden'; n: number };
 
-export type CoinReason = 'offline' | 'gift' | 'daily' | 'farmComplete' | 'debug';
+export type CoinReason = 'offline' | 'gift' | 'daily' | 'farmComplete' | 'travel' | 'debug';
 
 export type SimEvent =
   | { t: 'chunk'; crop: number; body: number; value: number; golden: boolean; wasted: boolean; tier: number }

@@ -26,7 +26,7 @@ test('upgrade buttons add and merge segments @smoke', async ({ page }, info) => 
 test('German UI', async ({ page }, info) => {
   await ready(page, '&lang=de');
   await expect(page.locator('.up-add .title')).toHaveText('NEU');
-  await expect(page.locator('.up-capacity .title')).toHaveText('KAPAZITÄT');
+  await expect(page.locator('.up-capacity .title')).toHaveText('KORB');
   await shot(page, 'hud-de', info.project.name);
 });
 

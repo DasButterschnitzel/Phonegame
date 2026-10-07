@@ -12,10 +12,12 @@ export class Loop {
   simPaused = false;
   timeScale = 1;
   frames = 0;
+  /** Frame cap: 120 Hz phones would otherwise render twice as often as the art needs (battery, heat). */
+  maxFps = 60;
   private stepFn: (dt: number) => void;
-  private frameFn: (alpha: number, dt: number, now: number, frameMs: number) => void;
+  private frameFn: (alpha: number, dt: number, now: number, budgetMs: number) => void;
 
-  constructor(step: (dt: number) => void, frame: (alpha: number, dt: number, now: number, frameMs: number) => void) {
+  constructor(step: (dt: number) => void, frame: (alpha: number, dt: number, now: number, budgetMs: number) => void) {
     this.stepFn = step;
     this.frameFn = frame;
   }
@@ -42,7 +44,8 @@ export class Loop {
   private tick = (t: number): void => {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.tick);
-    const t0 = performance.now();
+    // Skip vsyncs that come sooner than the cap allows (2 ms slack absorbs vsync jitter).
+    if (t - this.last < 1000 / this.maxFps - 2) return;
     const realDt = Math.min(0.25, Math.max(0, (t - this.last) / 1000));
     this.last = t;
     if (!this.simPaused) {
@@ -56,6 +59,6 @@ export class Loop {
       if (this.acc >= SIM.DT) this.acc = 0;
     }
     this.frames++;
-    this.frameFn(this.simPaused ? 1 : this.acc / SIM.DT, realDt, t / 1000, performance.now() - t0);
+    this.frameFn(this.simPaused ? 1 : this.acc / SIM.DT, realDt, t / 1000, 1000 / this.maxFps);
   };
 }

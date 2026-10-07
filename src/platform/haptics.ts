@@ -21,7 +21,8 @@ export class Haptics {
     this.last = now;
     const n = this.native;
     if (n) {
-      if (kind === 'selection') void n.Haptics.selectionChanged();
+      // selectionChanged() is a no-op without selectionStart(); a light tick is what we want anyway.
+      if (kind === 'selection') void n.Haptics.impact({ style: n.ImpactStyle.Light });
       else if (kind === 'success') void n.Haptics.notification({ type: n.NotificationType.Success });
       else void n.Haptics.impact({ style: kind === 'light' ? n.ImpactStyle.Light : kind === 'medium' ? n.ImpactStyle.Medium : n.ImpactStyle.Heavy });
       return;

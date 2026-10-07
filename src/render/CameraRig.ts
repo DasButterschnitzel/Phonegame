@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { smoothDamp, clamp } from '../shared/math.ts';
+import { smoothDampTo, clamp } from '../shared/math.ts';
+
+const vel = { v: 0 };
 
 /**
  * Fixed-yaw isometric-ish follow camera. Keeps a constant visible width in portrait,
@@ -46,8 +48,10 @@ export class CameraRig {
   }
 
   update(targetX: number, targetZ: number, chainLen: number, speedFrac: number, dt: number, now: number): void {
-    [this.tx, this.vx] = smoothDamp(this.tx, targetX, this.vx, 0.28, dt);
-    [this.tz, this.vz] = smoothDamp(this.tz, targetZ, this.vz, 0.28, dt);
+    this.tx = smoothDampTo(this.tx, targetX, this.vx, 0.28, dt, vel);
+    this.vx = vel.v;
+    this.tz = smoothDampTo(this.tz, targetZ, this.vz, 0.28, dt, vel);
+    this.vz = vel.v;
     const wantZoom = 1 + clamp(chainLen / 40, 0, 0.55) + speedFrac * 0.04;
     this.zoom += (wantZoom - this.zoom) * (1 - Math.exp(-dt / 0.8));
     const cam = this.camera;

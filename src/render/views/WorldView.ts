@@ -17,7 +17,8 @@ import {
   windmillSailsGeometry,
   windmillTowerGeometry,
 } from '../geo/world.ts';
-import { cloudShadowTexture, hullGeometry, outlineMaterial, shared, skyTexture, toon } from '../materials.ts';
+import { cloudShadowTexture, hullGeometry, outlineMaterial, shared, toon } from '../materials.ts';
+import type { QualitySettings } from '../quality.ts';
 import { E, M4, Q, S, V } from '../scratch.ts';
 import { hashFloat } from '../../shared/hash.ts';
 import { easeOutBack, easeOutCubic } from '../../shared/math.ts';
@@ -33,6 +34,10 @@ export class WorldView {
   private mat = toon({ rim: 0.12 });
   private foliageMat = toon({ rim: 0.12, wind: 0.035 });
   private ribbonMat: THREE.MeshToonMaterial;
+  /** Same look without the reveal `discard` (which defeats early-z on mobile GPUs) — used once the path is drawn. */
+  private ribbonPlain = toon({ rim: 0, side: THREE.DoubleSide });
+  /** Per-farm materials disposed on rebuild. */
+  private owned: THREE.Material[] = [];
   private reveal = { value: 1e6 };
   private revealT0 = -1;
   private revealMax = 0;
@@ -44,13 +49,15 @@ export class WorldView {
   private barnBounceT = -1;
   private sim: Sim;
   private scene: THREE.Scene;
-  /** Ambient extras (cloud shadows, flowers) are skipped on the low quality tier. */
+  /** Ambient extras (flowers, dense foliage) are skipped on the low quality tier. */
   lowQuality = false;
+  private cloudShadows: boolean;
 
-  constructor(sim: Sim, scene: THREE.Scene, lowQuality = false) {
+  constructor(sim: Sim, scene: THREE.Scene, quality: Pick<QualitySettings, 'tier' | 'cloudShadows'>) {
     this.sim = sim;
     this.scene = scene;
-    this.lowQuality = lowQuality;
+    this.lowQuality = quality.tier === 'low';
+    this.cloudShadows = quality.cloudShadows;
     this.ribbonMat = toon({ rim: 0, side: THREE.DoubleSide });
     // Path "draws itself": fragments beyond the reveal radius are discarded, the front edge glows.
     const base = this.ribbonMat.onBeforeCompile;
@@ -72,24 +79,31 @@ export class WorldView {
       if (c === this.dynamic) continue;
       this.group.remove(c);
       c.traverse((o) => {
-        if (o instanceof THREE.Mesh && o.geometry !== this.barn?.geometry) o.geometry.dispose();
+        if (o instanceof THREE.Mesh) o.geometry.dispose();
+        // Frees the instance buffers on the GPU too.
+        if (o instanceof THREE.InstancedMesh) o.dispose();
       });
     }
+    for (const m of this.owned) m.dispose();
+    this.owned = [];
     this.sails = [];
     const { farm } = this.sim;
     const biome = BIOMES[farm.id];
-    (this.scene.background as THREE.Texture | null)?.dispose?.();
-    this.scene.background = skyTexture(biome.sky, biome.fog);
+    // The tilted camera never sees the horizon, so a plain clear colour (free) matches the fog.
+    this.scene.background = new THREE.Color(biome.fog);
     this.scene.fog = new THREE.Fog(biome.fog, 38, 80);
     const { x0, z0, x1, z1 } = farm.bounds;
-    const outside = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: biome.outside }));
+    const outsideMat = new THREE.MeshLambertMaterial({ color: biome.outside });
+    const outlineMat = outlineMaterial(0.05);
+    this.owned.push(outsideMat, outlineMat);
+    const outside = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), outsideMat);
     outside.position.y = -0.02;
     this.group.add(outside);
     this.group.add(new THREE.Mesh(fieldGround(x0 - 1, z0 - 1, x1 + 1, z1 + 1, biome.groundA, biome.groundB), this.mat));
 
     // Barn faces the unload point; outlined for the sticker look.
     this.barn = new THREE.Mesh(barnGeometry(), this.mat);
-    this.barn.add(new THREE.Mesh(hullGeometry(this.barn.geometry), outlineMaterial(0.05)));
+    this.barn.add(new THREE.Mesh(hullGeometry(this.barn.geometry), outlineMat));
     this.barn.position.set(farm.barn.bx, 0, farm.barn.bz);
     this.barn.rotation.y = Math.atan2(farm.barn.x - farm.barn.bx, farm.barn.z - farm.barn.bz);
     this.group.add(this.barn);
@@ -146,12 +160,13 @@ export class WorldView {
       this.addInstanced(snowmanGeometry(), this.mat, ring(10, 60, 3, 9), () => 1);
     }
 
-    // Drifting cloud shadows (cheap: one transparent plane, scrolling texture).
+    // Drifting cloud shadows (one transparent full-screen layer: high tier only).
     this.clouds = null;
-    if (!this.lowQuality) {
+    if (this.cloudShadows) {
       this.cloudTex ??= cloudShadowTexture();
       this.cloudTex.repeat.set(5, 5);
       const mat = new THREE.MeshBasicMaterial({ map: this.cloudTex, transparent: true, opacity: 0.35, depthWrite: false });
+      this.owned.push(mat);
       this.clouds = new THREE.Mesh(new THREE.PlaneGeometry(240, 240).rotateX(-Math.PI / 2), mat);
       this.clouds.position.y = 0.06;
       this.clouds.renderOrder = 2;
@@ -183,7 +198,7 @@ export class WorldView {
       this.ribbon.geometry.dispose();
     }
     const headS = wrap(this.sim.state.headS, path.length);
-    this.ribbon = new THREE.Mesh(pathRibbon(path, 1.3, biome.path, biome.pathEdge, 0.02, headS), this.ribbonMat);
+    this.ribbon = new THREE.Mesh(pathRibbon(path, 1.3, biome.path, biome.pathEdge, 0.02, headS), animate ? this.ribbonMat : this.ribbonPlain);
     this.dynamic.add(this.ribbon);
     if (animate) {
       this.revealT0 = shared.uTime.value;
@@ -246,6 +261,7 @@ export class WorldView {
       if (u >= 1) {
         this.revealT0 = -1;
         this.reveal.value = 1e6;
+        if (this.ribbon) this.ribbon.material = this.ribbonPlain;
       }
     }
     if (this.barnBounceT >= 0) {

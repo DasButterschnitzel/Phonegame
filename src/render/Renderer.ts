@@ -8,9 +8,9 @@ import { StackView } from './views/StackView.ts';
 import { Particles } from './fx/Particles.ts';
 import { TornadoView } from './views/TornadoView.ts';
 import { Shockwaves } from './fx/Shockwave.ts';
-import { shared } from './materials.ts';
+import { materialFlags, shared } from './materials.ts';
 import { BIOMES } from './palette.ts';
-import { DynamicResolution, detectTier, settingsFor, type QualitySettings, type QualityTier } from './quality.ts';
+import { DynamicResolution, detectTier, pixelBudgetRatio, settingsFor, type QualitySettings, type QualityTier } from './quality.ts';
 import { sampleAt, type PathSample } from '../game/path.ts';
 import { vMax } from '../game/config.ts';
 
@@ -40,7 +40,7 @@ export class GameRenderer {
   private dustAcc = 0;
   private sparkleAcc = 0;
   quality: QualitySettings;
-  private dyn: DynamicResolution;
+  readonly dyn: DynamicResolution;
   private hemi: THREE.HemisphereLight;
   private sun: THREE.DirectionalLight;
   private sim: Sim;
@@ -52,7 +52,8 @@ export class GameRenderer {
   constructor(canvas: HTMLCanvasElement, sim: Sim, tier?: QualityTier) {
     this.sim = sim;
     this.quality = settingsFor(tier ?? probeTier());
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.quality.antialias, powerPreference: 'high-performance', stencil: false });
+    // 'default' lets Android pick the battery-friendly path; 'high-performance' is mostly ignored there anyway.
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.quality.antialias, powerPreference: 'default', stencil: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.dyn = new DynamicResolution(Math.min(this.quality.dprCap, window.devicePixelRatio || 1));
@@ -64,10 +65,11 @@ export class GameRenderer {
     this.sun.position.set(-4, 12, 7);
     this.scene.add(this.hemi, this.sun, this.sun.target);
 
-    this.world = new WorldView(sim, this.scene, this.quality.tier === 'low');
+    materialFlags.wind = this.quality.wind;
+    this.world = new WorldView(sim, this.scene, this.quality);
     this.field = new FieldView(sim);
     this.cat = new CaterpillarView(sim);
-    this.stacks = new StackView(sim, this.cat);
+    this.stacks = new StackView(sim, this.cat, this.quality.stackOutlines);
     this.fx = new Particles();
     this.fx.budget = this.quality.particleScale;
     this.scene.add(this.world.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group, this.waves.group);
@@ -111,6 +113,9 @@ export class GameRenderer {
   resize(w: number, h: number): void {
     this.width = w;
     this.height = h;
+    // Tablets / foldables: cap the drawing-buffer size instead of rendering 4–6 M pixels.
+    const ratio = this.dyn.setCap(pixelBudgetRatio(Math.min(this.quality.dprCap, window.devicePixelRatio || 1), w, h));
+    if (ratio !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w, h, false);
     this.rig.camera.aspect = w / h;
     this.rig.camera.updateProjectionMatrix();
@@ -122,7 +127,8 @@ export class GameRenderer {
     return st.prevHeadS + (st.headS - st.prevHeadS) * alpha;
   }
 
-  frame(alpha: number, dt: number, now: number, frameMs: number): void {
+  /** `budgetMs`: the frame cap's interval (dynamic resolution compares real frame times against it). */
+  frame(alpha: number, dt: number, now: number, budgetMs: number): void {
     const st = this.sim.state;
     const headS = this.headS(alpha);
     shared.uTime.value = now;
@@ -151,11 +157,9 @@ export class GameRenderer {
       fog.far = d * 2.6;
     }
     this.renderer.render(this.scene, this.rig.camera);
-    const r = this.dyn.sample(frameMs, dt);
-    if (r !== null) {
-      this.renderer.setPixelRatio(r);
-      this.renderer.setSize(this.width, this.height, false);
-    }
+    const r = this.dyn.sample(dt * 1000, budgetMs);
+    // setPixelRatio already resizes the drawing buffer.
+    if (r !== null) this.renderer.setPixelRatio(r);
   }
 
   /** Dust trail at speed and twinkles on golden crops. */
@@ -186,6 +190,11 @@ export class GameRenderer {
     this.renderer.compile(this.scene, this.rig.camera);
     this.tornado.group.visible = false;
     this.waves.setAllVisible(false);
+  }
+
+  /** GL context came back: three re-uploads resources lazily; recompile up front to avoid hitches. */
+  onContextRestored(): void {
+    this.warmup();
   }
 
   /** World → CSS pixel coordinates (for DOM floaters). Returns false when behind the camera. */

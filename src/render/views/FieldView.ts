@@ -25,7 +25,10 @@ export class FieldView {
   private inst!: Uint32Array;
   private lastHp!: Float32Array;
   private anims = new Map<number, Anim>();
-  private dirtyRanges: Set<number>[] = [];
+  /** Per tier: list of dirty instance slots + a mark array (no Set / array allocation per frame). */
+  private dirtyList: Int32Array[] = [];
+  private dirtyN = [0, 0, 0, 0];
+  private dirtyMark: Uint8Array[] = [];
   private sproutDirty = false;
   /** Compact sprout instances: only harvested crops get one (crop → slot, slot → crop). */
   private sproutSlot!: Int32Array;
@@ -48,6 +51,7 @@ export class FieldView {
     if (this.sprouts) {
       this.group.remove(this.sprouts);
       this.sprouts.dispose();
+      this.sprouts.geometry.dispose();
     }
     this.anims.clear();
     const { field, farm } = this.sim;
@@ -74,7 +78,9 @@ export class FieldView {
     this.sprouts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.group.add(this.sprouts);
     this.lastHp = Float32Array.from(field.hp);
-    this.dirtyRanges = [new Set(), new Set(), new Set(), new Set()];
+    this.dirtyList = this.tierMeshes.map((m) => new Int32Array(Math.max(1, m.count)));
+    this.dirtyMark = this.tierMeshes.map((m) => new Uint8Array(Math.max(1, m.count)));
+    this.dirtyN = [0, 0, 0, 0];
     for (let i = 0; i < field.count; i++) {
       this.writeCrop(i, 0);
       this.writeSprout(i);
@@ -84,7 +90,7 @@ export class FieldView {
       m.instanceColor!.needsUpdate = true;
     }
     this.sprouts.instanceMatrix.needsUpdate = true;
-    for (const s of this.dirtyRanges) s.clear();
+    for (let t = 0; t < 4; t++) this.clearDirty(t);
     this.sproutDirty = false;
   }
 
@@ -125,7 +131,10 @@ export class FieldView {
     const t = f.tier[i];
     const mesh = this.tierMeshes[t];
     const k = this.inst[i];
-    this.dirtyRanges[t].add(k);
+    if (!this.dirtyMark[t][k]) {
+      this.dirtyMark[t][k] = 1;
+      this.dirtyList[t][this.dirtyN[t]++] = k;
+    }
     if (f.paved[i] || f.regrowAt[i] !== 0) {
       mesh.setMatrixAt(k, ZERO_SCALE);
       return;
@@ -179,34 +188,38 @@ export class FieldView {
     this.flush();
   }
 
+  private clearDirty(t: number): void {
+    const list = this.dirtyList[t];
+    const mark = this.dirtyMark[t];
+    for (let j = 0; j < this.dirtyN[t]; j++) mark[list[j]] = 0;
+    this.dirtyN[t] = 0;
+  }
+
   private flush(): void {
     for (let t = 0; t < 4; t++) {
-      const set = this.dirtyRanges[t];
-      if (set.size === 0) continue;
+      const n = this.dirtyN[t];
+      if (n === 0) continue;
       const mesh = this.tierMeshes[t];
-      const idx = [...set].sort((a, b) => a - b);
+      // Sort the dirty slots in place (typed-array sort is numeric) and merge near neighbours into upload ranges.
+      const idx = this.dirtyList[t].subarray(0, n).sort();
+      mesh.instanceMatrix.clearUpdateRanges();
+      mesh.instanceColor!.clearUpdateRanges();
       let start = idx[0];
       let prev = idx[0];
-      const ranges: [number, number][] = [];
-      for (let j = 1; j <= idx.length; j++) {
-        const v = idx[j];
-        if (v !== undefined && v - prev <= 6) {
+      for (let j = 1; j <= n; j++) {
+        const v = j < n ? idx[j] : -1;
+        if (j < n && v - prev <= 6) {
           prev = v;
           continue;
         }
-        ranges.push([start, prev - start + 1]);
+        mesh.instanceMatrix.addUpdateRange(start * 16, (prev - start + 1) * 16);
+        mesh.instanceColor!.addUpdateRange(start * 3, (prev - start + 1) * 3);
         start = v;
         prev = v;
       }
-      mesh.instanceMatrix.clearUpdateRanges();
-      mesh.instanceColor!.clearUpdateRanges();
-      for (const [s, n] of ranges) {
-        mesh.instanceMatrix.addUpdateRange(s * 16, n * 16);
-        mesh.instanceColor!.addUpdateRange(s * 3, n * 3);
-      }
       mesh.instanceMatrix.needsUpdate = true;
       mesh.instanceColor!.needsUpdate = true;
-      set.clear();
+      this.clearDirty(t);
     }
     if (this.sproutDirty) {
       this.sprouts.count = this.sproutCount;

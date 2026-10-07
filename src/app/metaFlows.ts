@@ -11,9 +11,10 @@ import { openMap } from '../ui/modals/Map.ts';
 import { openFarmComplete } from '../ui/modals/FarmComplete.ts';
 import { openDaily } from '../ui/modals/Daily.ts';
 import { Gift } from '../ui/Gift.ts';
-import { button, h } from '../ui/dom.ts';
+import { button, h, showWhen } from '../ui/dom.ts';
 import { icon } from '../ui/icons.ts';
 import { fmt, t } from '../platform/i18n/i18n.ts';
+import { FARM_ORDER } from '../game/types.ts';
 
 /** Map / travel, farm completion, daily calendar and lucky-bug gifts. */
 export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta, saves: SaveManager): { frame: () => void; maybeShowDaily: () => void } {
@@ -27,10 +28,11 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
       completed: sim.state.completedFarms,
       passive: sim.state.economy.passive,
       stageOf: (id) => (id === sim.state.farmId ? sim.state.progress.stage : (sim.state.farmsProgress[id]?.stage ?? null)),
-      travel: (id) => {
-        sim.execute({ c: 'travel', farm: id });
-        void saves.saveNow();
-      },
+      travel: (id) =>
+        game.travelTo(id, () => {
+          sim.execute({ c: 'travel', farm: id });
+          void saves.saveNow();
+        }),
     });
 
   const dailyCoins = (r: DailyReward) =>
@@ -41,7 +43,7 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
       day: meta.daily.day,
       canClaim: canClaimDaily(meta.daily, clock.dateKey()),
       coinsFor: dailyCoins,
-      adAvailable: ads.rewardedAvailable,
+      adAvailable: () => ads.rewardedAvailable,
       claim: async (mult) => {
         if (mult > 1 && !(await game.rewarded('daily_x2'))) return false;
         const idx = claimDaily(meta.daily, clock.dateKey());
@@ -69,14 +71,14 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
           close();
         }
       }, icon('ad'), t('gift.collectX3'));
-      if (!ads.rewardedAvailable) x3.style.display = 'none';
+      showWhen(x3, () => ads.rewardedAvailable);
       return [
         h('h2', {}, t('gift.title', { kind: t(kind === 'ladybug' ? 'gift.ladybug' : 'gift.butterfly') })),
         h('div', { class: 'reward-big' }, icon('coin'), h('span', {}, fmt(amount))),
         h(
           'div',
           { class: 'btn-row' },
-          button('btn-big', () => {
+          button('btn-big soft', () => {
             sim.execute({ c: 'claimGift', mult: 1 });
             close();
           }, t('common.collect')),
@@ -93,7 +95,8 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
         reward: e.reward,
         passive: sim.state.economy.passive[e.farm] ?? 0,
         next: e.next,
-        adAvailable: ads.rewardedAvailable,
+        allDone: sim.state.completedFarms.length >= FARM_ORDER.length,
+        adAvailable: () => ads.rewardedAvailable,
         double: async () => {
           if (!(await game.rewarded('farm_complete_x2'))) return false;
           sim.execute({ c: 'grantCoins', amount: e.reward, reason: 'farmComplete' });
@@ -105,20 +108,35 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
     }
   });
 
+  // The daily calendar waits for the welcome-back dialog instead of being skipped for the session.
+  let dailyPending = false;
+  const maybeShowDaily = () => {
+    if (meta.sessions <= 1 || !canClaimDaily(meta.daily, clock.dateKey())) return;
+    if (game.modals.open) dailyPending = true;
+    else game.openDaily();
+  };
+  game.modals.onClosed(() => {
+    if (!dailyPending) return;
+    setTimeout(() => {
+      if (game.modals.open) return;
+      dailyPending = false;
+      game.openDaily();
+    }, 250);
+  });
+
   // Natural break after closing a reward dialog → maybe an interstitial (policy decides).
   game.modals.onClosed((name) => {
-    if (!['offline', 'daily', 'farmcomplete', 'map', 'gift'].includes(name)) return;
+    if (!['offline', 'daily', 'farmcomplete', 'gift'].includes(name)) return;
     setTimeout(() => {
       if (game.modals.open) return;
       void ads.maybeInterstitial({ kind: 'dialog_closed', sinceThrottle: 99, tutorialActive: game.tutorialActive(), modalOpen: false });
     }, 350);
   });
 
-  const root = document.getElementById('app')!;
   return {
-    frame: () => gift.update(root.clientWidth, root.clientHeight),
-    maybeShowDaily: () => {
-      if (meta.sessions > 1 && canClaimDaily(meta.daily, clock.dateKey()) && !game.modals.open) game.openDaily();
+    frame: () => {
+      if (gift.visible) gift.update(game.modals.open || game.d.pause.has('ad'));
     },
+    maybeShowDaily,
   };
 }

@@ -3,7 +3,7 @@ import type { SimEvent } from '../game/types.ts';
 import type { Toasts } from '../ui/Toasts.ts';
 import { t, type I18nKey } from '../platform/i18n/i18n.ts';
 
-type Step = 'add' | 'merge' | 'full' | 'expand' | 'tornado';
+type Step = 'add' | 'merge' | 'full' | 'capacity' | 'expand' | 'tornado';
 
 /** First-time-user hints, one at a time, remembered in the save. */
 export class Tutorial {
@@ -13,13 +13,16 @@ export class Tutorial {
   private current: Step | null = null;
   private shownAt = 0;
   private fullPending = false;
+  private capacityPending = false;
   private save: () => void;
+  private target: (step: string) => HTMLElement | null;
 
-  constructor(sim: Sim, toasts: Toasts, flags: Record<string, boolean>, save: () => void) {
+  constructor(sim: Sim, toasts: Toasts, flags: Record<string, boolean>, save: () => void, target: (step: string) => HTMLElement | null = () => null) {
     this.sim = sim;
     this.toasts = toasts;
     this.flags = flags;
     this.save = save;
+    this.target = target;
   }
 
   get active(): boolean {
@@ -36,7 +39,7 @@ export class Tutorial {
   private show(step: Step | null): void {
     this.current = step;
     this.shownAt = this.sim.state.simTime;
-    this.toasts.hint(step ? t(`tut.${step}` as I18nKey) : null);
+    this.toasts.hint(step ? t(`tut.${step}` as I18nKey) : null, step ? this.target(step) : null);
   }
 
   onEvent(e: SimEvent): void {
@@ -45,6 +48,8 @@ export class Tutorial {
     if (e.t === 'stageChanged') this.done('expand');
     if (e.t === 'tornado') this.done('tornado');
     if (e.t === 'basketFull' && !this.flags.full) this.fullPending = true;
+    else if (e.t === 'basketFull' && !this.flags.capacity) this.capacityPending = true;
+    if (e.t === 'upgraded' && e.id === 'capacity') this.done('capacity');
   }
 
   update(): void {
@@ -54,6 +59,7 @@ export class Tutorial {
     // A step can be completed elsewhere (another device's save, debug) — never leave its hint hanging.
     if (this.current && f[this.current]) this.show(null);
     if (this.current === 'full' && age > 5) this.done('full');
+    if (this.current === 'capacity' && age > 8) this.done('capacity');
     if (this.current === 'tornado' && age > 12) this.done('tornado');
     if (this.current) return;
     if (!f.add && this.sim.check('add').ok) return this.show('add');
@@ -61,6 +67,10 @@ export class Tutorial {
     if (this.fullPending && !f.full) {
       this.fullPending = false;
       return this.show('full');
+    }
+    if (this.capacityPending && f.full && !f.capacity && this.sim.check('capacity').ok) {
+      this.capacityPending = false;
+      return this.show('capacity');
     }
     if (!f.expand && this.sim.check('expand').ok) return this.show('expand');
     if (f.add && !f.tornado && st.simTime > 100 && st.tornadoes > 0) return this.show('tornado');

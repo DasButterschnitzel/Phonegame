@@ -52,7 +52,10 @@ export interface App {
 function hasWebGL(): boolean {
   try {
     const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') || c.getContext('webgl'));
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    // Release the probe context right away (Android WebViews share a small live-context budget with ad SDKs).
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return !!gl;
   } catch {
     return false;
   }
@@ -64,7 +67,8 @@ export async function boot(): Promise<App | null> {
   const root = document.getElementById('app')!;
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
   const params = new URLSearchParams(location.search);
-  const debug = import.meta.env.VITE_DEBUG_HOOKS === 'true' || params.has('debug');
+  // Cheat hooks and URL overrides exist only in dev/e2e builds — never in a store or portal release.
+  const debug = import.meta.env.VITE_DEBUG_HOOKS === 'true';
 
   const provider = await createAdService();
   const portal: PortalHooks = 'firstFrame' in provider ? (provider as unknown as PortalHooks) : noPortal;
@@ -73,7 +77,7 @@ export async function boot(): Promise<App | null> {
   const store: KeyValueStore = portal.store?.() ?? (Capacitor.isNativePlatform() ? new PreferencesStore() : new LocalStore());
   let buildSave: () => string = () => '';
   const saves = new SaveManager(store, () => buildSave());
-  const loaded = params.has('fresh') ? ({ ok: false, reason: 'empty' } as const) : await saves.load(clock.wall());
+  const loaded = debug && params.has('fresh') ? ({ ok: false, reason: 'empty' } as const) : await saves.load(clock.wall());
 
   const settings: Settings = { ...defaultSettings(), ...(loaded.ok ? (loaded.save.settings as Partial<Settings>) : {}) };
   const langParam = params.get('lang');
@@ -88,7 +92,10 @@ export async function boot(): Promise<App | null> {
   meta.sessions++;
   const sim = new Sim(loaded.ok ? loaded.save.game : newGameState(Number(params.get('seed')) || (Date.now() & 0xffff)));
   if (loaded.ok) applyCrops(sim, loaded.save.crops);
-  const quality = (params.get('quality') as 'low' | 'med' | 'high' | null) ?? (settings.quality === 'auto' ? undefined : settings.quality);
+  const qParam = debug ? params.get('quality') : null;
+  const quality = qParam === 'low' || qParam === 'med' || qParam === 'high' ? qParam : settings.quality === 'auto' ? undefined : settings.quality;
+  // Level badges are drawn into a canvas atlas: make sure the bundled font is ready first (bounded wait).
+  await Promise.race([document.fonts?.load('700 64px Fredoka').catch(() => undefined), new Promise((r) => setTimeout(r, 1500))]);
   const renderer = new GameRenderer(canvas, sim, quality);
   const pause = new PauseController();
   const input = new ThrottleInput(root);
@@ -116,7 +123,7 @@ export async function boot(): Promise<App | null> {
     input,
     ads,
     settings,
-    saveSettings: () => saves.saveSoon(300),
+    saveSettings: () => saves.saveNow(),
     resetProgress: async () => {
       await saves.wipe();
       location.reload();
@@ -143,7 +150,7 @@ export async function boot(): Promise<App | null> {
   };
   game.settingsListeners.push(applyAudio);
   applyAudio(settings);
-  const tutorial = new Tutorial(sim, game.toasts, meta.tutorial, () => saves.saveSoon());
+  const tutorial = new Tutorial(sim, game.toasts, meta.tutorial, () => saves.saveSoon(), (step) => game.hud.target(step));
   game.tutorialActive = () => tutorial.active;
   game.openCollection = () => openCollection(game.modals, sim.state.maxLevelReached);
   game.listeners.push((e) => {
@@ -176,9 +183,9 @@ export async function boot(): Promise<App | null> {
       ads.addPlaytime(dt);
       for (const e of sim.drainEvents()) onEvent(e);
     },
-    (alpha, dt, now, frameMs) => {
+    (alpha, dt, now, budgetMs) => {
       for (const e of sim.drainEvents()) onEvent(e);
-      renderer.frame(alpha, dt, now, frameMs);
+      renderer.frame(alpha, dt, now, budgetMs);
       game.frame(dt);
       juiceFrame(sim, audio);
       metaFlows.frame();
@@ -195,8 +202,11 @@ export async function boot(): Promise<App | null> {
     audio.setMuted(portalMuted || pause.has('ad') || pause.has('background') || pause.has('yt'));
   });
   portal.onPause?.((p) => (p ? pause.add('yt') : pause.remove('yt')));
+  ads.isPaused = () => pause.has('background') || pause.has('yt');
   pause.onChange((paused, reasons) => {
     loop.simPaused = paused;
+    // Under a modal the scene only needs a gentle idle animation: halve the frame rate to save battery.
+    loop.maxFps = reasons.has('modal') ? 30 : 60;
     portal.gameplay(!paused);
     audio.setMuted(portalMuted || reasons.has('ad') || reasons.has('background') || reasons.has('yt'));
     if (reasons.has('background')) loop.stop();
@@ -213,7 +223,7 @@ export async function boot(): Promise<App | null> {
     if (r.coins <= 0 || game.modals.has('offline')) return;
     openOffline(game.modals, {
       ...r,
-      adAvailable: ads.rewardedAvailable,
+      adAvailable: () => ads.rewardedAvailable,
       collect: async (mult) => {
         if (mult > 1 && !(await game.rewarded('offline_x3'))) return false;
         sim.execute({ c: 'grantCoins', amount: r.coins * mult, reason: 'offline' });
@@ -227,16 +237,23 @@ export async function boot(): Promise<App | null> {
   await installLifecycle(
     {
       onHide: () => {
-        hiddenAt = clock.wall();
+        // An ad pausing the activity is not "time away" — no offline earnings for it.
+        hiddenAt = ads.inAd ? 0 : clock.wall();
+        input.reset();
         pause.add('background');
         void saves.saveNow();
-    },
+        saves.suspended = true;
+      },
       onShow: () => {
+        saves.suspended = false;
         pause.remove('background');
         void hideSystemBars();
-        const away = clock.wall() - hiddenAt;
-        if (!ads.inAd && hiddenAt > 0) checkOffline(away);
-    },
+        const away = hiddenAt > 0 ? clock.wall() - hiddenAt : 0;
+        hiddenAt = 0;
+        // A long break is a fresh session: the interstitial warm-up applies again.
+        if (away > 300) ads.newSession();
+        if (!ads.inAd && away > 0) checkOffline(away);
+      },
       onBack: () => game.modals.back(),
       onExitRequest: () => {
         game.modals.push('quit', (close) => [
@@ -257,6 +274,27 @@ export async function boot(): Promise<App | null> {
     { pageVisibility: provider.name !== 'youtube' },
   );
 
+  // WebGL context loss (GPU process killed, driver reset): pause behind a notice; reload if it never comes back.
+  let glTimer: ReturnType<typeof setTimeout> | null = null;
+  let glNotice: HTMLElement | null = null;
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    pause.add('gl');
+    glNotice ??= h('div', { class: 'gl-lost', 'data-ui': true }, h('div', { class: 'spinner' }), t('restore.title'));
+    root.append(glNotice);
+    glTimer = setTimeout(async () => {
+      await saves.saveNow();
+      location.reload();
+    }, 5000);
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    if (glTimer) clearTimeout(glTimer);
+    glTimer = null;
+    renderer.onContextRestored();
+    glNotice?.remove();
+    pause.remove('gl');
+  });
+
   loop.start();
   void hideSystemBars();
   requestAnimationFrame(() => {
@@ -270,6 +308,7 @@ export async function boot(): Promise<App | null> {
     setTimeout(() => metaFlows.maybeShowDaily(), 1200);
     portal.gameReady();
     portal.gameplay(true);
+    document.documentElement.dataset.ready = '1';
   });
   if (provider.name !== 'crazygames') void ads.init();
   saves.startAutosave();

@@ -1,5 +1,6 @@
 import type { Sim } from '../game/sim.ts';
-import type { UpgradeId } from '../game/types.ts';
+import type { FarmId, UpgradeId } from '../game/types.ts';
+import { FARM_ORDER } from '../game/types.ts';
 import { capacityOf, MOVE } from '../game/config.ts';
 import { maxSegments } from '../game/upgrades.ts';
 import { findMergePair } from '../game/caterpillar.ts';
@@ -28,7 +29,7 @@ export interface HudVM {
   stage: number;
   farmId: Sim['farm']['id'];
   upgrades: Record<'add' | 'merge' | 'speed' | 'capacity', UpgradeVM>;
-  goal: { id: 'expand' | 'finish'; cost: number; ok: boolean } | null;
+  goal: { id: 'expand' | 'finish'; cost: number; ok: boolean } | { id: 'travel'; farm: FarmId; cost: 0; ok: true } | null;
   tornadoes: number;
   incomeX2: number;
   autopilot: number;
@@ -53,6 +54,10 @@ export function buildHud(sim: Sim): HudVM {
   } else if (!p.finished) {
     const c = sim.check('finish');
     goal = { id: 'finish', cost: c.cost, ok: c.ok };
+  } else {
+    // Farm done: point at the next unfinished farm so there's always a "what next".
+    const next = FARM_ORDER.find((f) => f !== st.farmId && st.unlockedFarms.includes(f) && !st.completedFarms.includes(f));
+    if (next) goal = { id: 'travel', farm: next, cost: 0, ok: true };
   }
   return {
     coins: st.coins,

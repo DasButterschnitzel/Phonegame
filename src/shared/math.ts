@@ -21,6 +21,18 @@ export const easeOutBack = (t: number): number => {
 export const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 
 /** Critically damped spring (Unity-style SmoothDamp) on a scalar. Returns [value, velocity]. */
+/** Allocation-free smoothDamp: returns the new value and writes the new velocity into `out.v`. */
+export function smoothDampTo(cur: number, target: number, vel: number, smoothTime: number, dt: number, out: { v: number }): number {
+  const st = Math.max(0.0001, smoothTime);
+  const omega = 2 / st;
+  const x = omega * dt;
+  const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = cur - target;
+  const temp = (vel + omega * change) * dt;
+  out.v = (vel - omega * temp) * exp;
+  return target + (change + temp) * exp;
+}
+
 export function smoothDamp(cur: number, target: number, vel: number, smoothTime: number, dt: number): [number, number] {
   const st = Math.max(0.0001, smoothTime);
   const omega = 2 / st;

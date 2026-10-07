@@ -2,9 +2,12 @@ import type { UpgradeId } from '../game/types.ts';
 import type { HudVM } from '../ui/viewModel.ts';
 
 /**
- * Decides which upgrade shows a "FREE (watch ad)" badge: the cheapest unaffordable core upgrade, offered only after
- * the player has been unable to afford anything for a while (so the offer feels helpful, not naggy).
+ * Decides which upgrade shows a "FREE (watch ad)" badge, offered only after the player has been unable to afford
+ * anything for a while (so it feels helpful, not naggy). It picks the most valuable upgrade within ~2.5 minutes of
+ * income — worth an ad — falling back to the cheapest one.
  */
+const REACH_S = 150;
+
 export class Offers {
   private poorSince = Infinity;
   current: UpgradeId | null = null;
@@ -28,8 +31,9 @@ export class Offers {
       return null;
     }
     if (!this.current || !core.some((u) => u.id === this.current)) {
-      core.sort((a, b) => a.cost - b.cost);
-      this.current = core[0].id;
+      const reach = vm.coins + vm.rate * REACH_S;
+      const within = core.filter((u) => u.cost <= reach).sort((a, b) => b.cost - a.cost);
+      this.current = within[0]?.id ?? core.sort((a, b) => a.cost - b.cost)[0].id;
     }
     return this.current;
   }

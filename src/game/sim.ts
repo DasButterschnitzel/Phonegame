@@ -325,7 +325,14 @@ export class Sim {
     if (!st.farmsProgress[id]) st.nextSegId += MISC.START_SEGMENTS;
     delete st.farmsProgress[id];
     st.farmId = id;
+    // Sell whatever is still in the basket instead of silently discarding it.
+    const carried = st.basket.value * (st.boosts.incomeX2 > 0 ? 2 : 1);
     st.basket = { mass: 0, value: 0, massByTier: [0, 0, 0, 0, 0] };
+    this.grant(carried, 'travel');
+    // The rolling income estimate belongs to the farm we left; restart it from the passive baseline.
+    st.economy.ema = passiveRate(st);
+    st.economy.winTime = 0;
+    st.economy.winCoins = 0;
     st.headS = Number.NaN;
     st.v = 0;
     this.loadFarm(id);

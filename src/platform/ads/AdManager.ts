@@ -9,7 +9,21 @@ export interface AdHooks {
   wallNow: () => number;
 }
 
+/** Give up on a provider that never answers — counted in *visible* time, so a click-through to the store doesn't forfeit the reward. */
 const TIMEOUT_MS = 90_000;
+
+function visibleTimeout(ms: number): Promise<false> {
+  return new Promise((resolve) => {
+    let left = ms;
+    const id = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') left -= 1000;
+      if (left <= 0) {
+        clearInterval(id);
+        resolve(false);
+      }
+    }, 1000);
+  });
+}
 
 /** Facade over the active ad provider: policy, pause/mute, timeouts, never throws. */
 export class AdManager {
@@ -18,6 +32,10 @@ export class AdManager {
   private hooks: AdHooks;
   private busy = false;
   inAd = false;
+  /** Why the last rewarded ad gave nothing: the player closed it early, or it never showed. */
+  lastFailure: 'skipped' | 'failed' | null = null;
+  /** Set by the app while backgrounded / portal-paused. */
+  isPaused: () => boolean = () => false;
   /** Last interstitial policy decision (debug/tests). */
   lastCheck: { ok: boolean; reason?: string; kind?: string } | null = null;
 
@@ -46,16 +64,28 @@ export class AdManager {
   }
 
   async rewarded(p: Placement): Promise<boolean> {
-    if (this.busy) return false;
+    if (this.busy) {
+      this.lastFailure = 'failed';
+      return false;
+    }
     this.busy = true;
     this.inAd = true;
+    this.lastFailure = null;
     this.hooks.onAdStart();
     let earned = false;
     try {
+      let failed = false;
       earned = await Promise.race([
-        this.provider.showRewarded(p).catch(() => false),
-        new Promise<boolean>((r) => setTimeout(() => r(false), TIMEOUT_MS)),
+        this.provider.showRewarded(p).catch(() => {
+          failed = true;
+          return false;
+        }),
+        visibleTimeout(TIMEOUT_MS).then(() => {
+          failed = true;
+          return false as const;
+        }),
       ]);
+      if (!earned) this.lastFailure = failed ? 'failed' : 'skipped';
     } finally {
       onRewardedShown(this.policy, this.hooks.now(), p);
       this.inAd = false;
@@ -63,6 +93,11 @@ export class AdManager {
       this.hooks.onAdEnd();
     }
     return earned;
+  }
+
+  /** A long time away counts as a new session (warm-up applies again before any interstitial). */
+  newSession(): void {
+    this.policy.sessionStart = this.hooks.now();
   }
 
   noteUnload(): void {
@@ -80,7 +115,7 @@ export class AdManager {
       return false;
     }
     const now = this.hooks.now();
-    const chk = canShowInterstitial(this.policy, DEFAULT_POLICY, now, { ...ctx, wallNow: this.hooks.wallNow() });
+    const chk = canShowInterstitial(this.policy, DEFAULT_POLICY, now, { ...ctx, paused: ctx.paused || this.isPaused(), wallNow: this.hooks.wallNow() });
     this.lastCheck = { ...chk, kind: ctx.kind };
     if (!chk.ok) return false;
     this.busy = true;

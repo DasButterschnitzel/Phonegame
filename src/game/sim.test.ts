@@ -210,7 +210,7 @@ describe('economy', () => {
     expect(offlineReward(st, 3600).coins).toBe(18000);
     expect(offlineReward(st, 99999).seconds).toBe(7200);
     st.economy.passive.meadow = 1;
-    expect(offlineReward(st, 100).coins).toBe(600);
+    expect(offlineReward(st, 100).coins).toBe(550);
   });
   it('power grows 2.4× per level', () => {
     expect(power(2) / power(1)).toBeCloseTo(2.4);

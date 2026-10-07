@@ -25,11 +25,16 @@ export function passiveRate(st: GameState): number {
   return r;
 }
 
-/** Coins earned while away: half the recent income rate plus finished farms' passive income, capped at 2 h. */
+/**
+ * Coins earned while away: half the recent *active* income rate plus finished farms' full passive income, capped at 2 h.
+ * (The EMA already contains passive income, so it is split out to avoid counting it 1.5×.)
+ */
 export function offlineReward(st: GameState, elapsedSec: number): { seconds: number; coins: number } {
   if (!(elapsedSec >= MISC.OFFLINE_MIN_S)) return { seconds: 0, coins: 0 };
   const seconds = Math.min(elapsedSec, MISC.OFFLINE_CAP_S);
-  const coins = Math.floor((st.economy.ema * MISC.OFFLINE_EFF + passiveRate(st)) * seconds);
+  const passive = passiveRate(st);
+  const active = Math.max(0, st.economy.ema - passive);
+  const coins = Math.floor((active * MISC.OFFLINE_EFF + passive) * seconds);
   return { seconds, coins };
 }
 

@@ -14,6 +14,20 @@ const LAYER_H = 0.21;
 const BASE_Y = 1.08;
 const FLIERS = 480;
 
+/** Mark only the first `n` instances (matrix + colour) for upload. */
+function uploadRange(m: THREE.InstancedMesh, n: number): void {
+  const im = m.instanceMatrix;
+  im.clearUpdateRanges();
+  if (n > 0) im.addUpdateRange(0, n * 16);
+  im.needsUpdate = true;
+  const ic = m.instanceColor;
+  if (ic) {
+    ic.clearUpdateRanges();
+    if (n > 0) ic.addUpdateRange(0, n * 3);
+    ic.needsUpdate = true;
+  }
+}
+
 interface Spring {
   ox: number;
   oz: number;
@@ -53,7 +67,7 @@ interface Flier {
 export class StackView {
   readonly group = new THREE.Group();
   private blocks: THREE.InstancedMesh;
-  private blockOutline: THREE.InstancedMesh;
+  private blockOutline: THREE.InstancedMesh | null;
   private fliers: THREE.InstancedMesh;
   private springs = new Map<number, Spring>();
   private snaps = new Map<number, Snapshot>();
@@ -67,15 +81,18 @@ export class StackView {
   onLand: (count: number) => void = () => {};
   private landed = 0;
   private lastLandCall = 0;
+  private liveTiers = new Uint8Array(MAX_BLOCKS);
+  private prevBlocks = -1;
+  private prevFliers = -1;
 
-  constructor(sim: Sim, cat: CaterpillarView) {
+  constructor(sim: Sim, cat: CaterpillarView, outlines = true) {
     this.sim = sim;
     this.cat = cat;
     const mat = toon({ rim: 0.3 });
     this.blocks = new THREE.InstancedMesh(blockGeometry(), mat, MAX_SEGS * MAX_BLOCKS);
     this.blocks.setColorAt(0, C.set(0xffffff));
-    this.blockOutline = instancedOutline(this.blocks, 0.025);
-    this.group.add(this.blockOutline);
+    this.blockOutline = outlines ? instancedOutline(this.blocks, 0.025) : null;
+    if (this.blockOutline) this.group.add(this.blockOutline);
     this.fliers = new THREE.InstancedMesh(blockGeometry(), mat, FLIERS);
     this.fliers.setColorAt(0, C.set(0xffffff));
     for (const m of [this.blocks, this.fliers]) {
@@ -111,8 +128,7 @@ export class StackView {
     return Math.min(MAX_BLOCKS, mass > 0 ? Math.max(1, n) : 0);
   }
 
-  private layerTiers(massByTier: number[], mass: number, n: number): Uint8Array {
-    const out = new Uint8Array(n);
+  private layerTiers(massByTier: number[], mass: number, n: number, out = new Uint8Array(n)): Uint8Array {
     let acc = 0;
     let tier = 0;
     for (let k = 0; k < n; k++) {
@@ -130,7 +146,7 @@ export class StackView {
     const st = this.sim.state;
     const segs = st.progress.segments;
     const live = this.stackHeight(st.basket.mass);
-    const liveTiers = this.layerTiers(st.basket.massByTier, st.basket.mass, live);
+    const liveTiers = this.layerTiers(st.basket.massByTier, st.basket.mass, live, this.liveTiers);
     const k = 70;
     const c = 7;
     let idx = 0;
@@ -214,13 +230,19 @@ export class StackView {
       }
     }
     this.blocks.count = idx;
-    this.blockOutline.count = idx;
-    this.blocks.instanceMatrix.needsUpdate = true;
-    if (this.blocks.instanceColor) this.blocks.instanceColor.needsUpdate = true;
-    // Forget springs of merged-away segments.
+    if (this.blockOutline) this.blockOutline.count = idx;
+    // Upload only the instances in use (the full buffers are ~90 KB).
+    if (idx > 0 || this.prevBlocks !== 0) uploadRange(this.blocks, idx);
+    this.prevBlocks = idx;
+    // Forget springs / pop state of merged-away segments.
     if (this.springs.size > segs.length + 8) {
       const ids = new Set(segs.map((s) => s.id));
-      for (const id of [...this.springs.keys()]) if (!ids.has(id)) this.springs.delete(id);
+      for (const id of [...this.springs.keys()]) {
+        if (ids.has(id)) continue;
+        this.springs.delete(id);
+        this.shown.delete(id);
+        this.popAt.delete(id);
+      }
     }
     this.updateFliers(now);
   }
@@ -233,7 +255,7 @@ export class StackView {
     const ex = bx - (dx / L) * 1.2;
     const ez = bz - (dz / L) * 1.2;
     for (let b = 0; b < snap.n; b++) {
-      if (this.flying.length >= FLIERS) this.flying.shift();
+      if (this.flying.length >= FLIERS) continue;
       const layer = Math.floor(b / PER_LAYER);
       this.flying.push({
         sx: x + ((b % 2) - 0.5) * 0.3,
@@ -251,17 +273,21 @@ export class StackView {
   }
 
   private updateFliers(now: number): void {
+    if (this.flying.length === 0 && this.prevFliers === 0) return;
     let idx = 0;
+    // Compact landed fliers in place (no per-frame array allocation).
+    let w = 0;
     let landedNow = 0;
-    for (const f of this.flying) if (now - f.t0 >= f.dur) landedNow++;
-    if (landedNow) {
-      this.landed += landedNow;
-      if (now - this.lastLandCall > 0.12) {
-        this.lastLandCall = now;
-        this.onLand(this.landed);
-        this.landed = 0;
-      }
-      this.flying = this.flying.filter((f) => now - f.t0 < f.dur);
+    for (const f of this.flying) {
+      if (now - f.t0 >= f.dur) landedNow++;
+      else this.flying[w++] = f;
+    }
+    this.flying.length = w;
+    if (landedNow) this.landed += landedNow;
+    if (this.landed && now - this.lastLandCall > 0.12) {
+      this.lastLandCall = now;
+      this.onLand(this.landed);
+      this.landed = 0;
     }
     for (const f of this.flying) {
       const u = Math.max(0, (now - f.t0) / f.dur);
@@ -278,8 +304,8 @@ export class StackView {
       idx++;
     }
     this.fliers.count = idx;
-    this.fliers.instanceMatrix.needsUpdate = true;
-    if (this.fliers.instanceColor) this.fliers.instanceColor.needsUpdate = true;
+    uploadRange(this.fliers, idx);
+    this.prevFliers = idx;
   }
 
   /** Number of blocks currently drawn (tests / debug). */

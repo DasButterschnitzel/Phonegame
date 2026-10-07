@@ -58,7 +58,7 @@ test('free upgrade offer appears when stuck and grants the upgrade', async ({ pa
   // Spend everything and wait past the offer delay.
   await g(page, '(g.state().coins = 0, g.app.game.offers.poorSince = performance.now() / 1000 - 60)');
   await expect(page.locator('.free-badge:visible')).toHaveCount(1, { timeout: 3000 });
-  const btn = page.locator('.up:has(.free-badge:visible)');
+  const btn = page.locator('.up-wrap:has(.free-badge:visible) .up');
   const cls = (await btn.getAttribute('class')) ?? '';
   await btn.click();
   await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });

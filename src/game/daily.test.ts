@@ -11,7 +11,13 @@ describe('daily calendar', () => {
   });
   it('loops after 7 days', () => {
     const d = newDaily();
-    for (let i = 0; i < DAILY_REWARDS.length; i++) claimDaily(d, `k${i}`);
-    expect(claimDaily(d, 'k-next')).toBe(0);
+    for (let i = 0; i < DAILY_REWARDS.length; i++) claimDaily(d, `2026-10-0${i + 1}`);
+    expect(claimDaily(d, '2026-10-08')).toBe(0);
+  });
+  it('winding the clock back never re-opens a claim', () => {
+    const d = newDaily();
+    claimDaily(d, '2026-10-08');
+    expect(canClaimDaily(d, '2026-10-07')).toBe(false);
+    expect(canClaimDaily(d, '2026-10-09')).toBe(true);
   });
 });

@@ -31,7 +31,8 @@ export class Particles {
     this.mesh.frustumCulled = false;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.setColorAt(0, C.set(0xffffff));
-    this.mesh.count = MAX;
+    // Nothing is drawn while idle; bursts switch the full pool on until every particle has died.
+    this.mesh.count = 0;
     for (let i = 0; i < MAX; i++) this.mesh.setMatrixAt(i, M4.makeScale(0, 0, 0));
   }
 
@@ -63,6 +64,7 @@ export class Particles {
       this.mesh.setColorAt(i, C);
     }
     this.active = MAX;
+    this.mesh.count = MAX;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
@@ -105,6 +107,9 @@ export class Particles {
       this.mesh.setMatrixAt(i, M4);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
-    if (alive === 0) this.active = 0;
+    if (alive === 0) {
+      this.active = 0;
+      this.mesh.count = 0;
+    }
   }
 }

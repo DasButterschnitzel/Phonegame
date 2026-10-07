@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test('installable PWA works offline after the first visit', async ({ page, context }) => {
-  await page.goto('/?debug=1');
-  await page.waitForFunction(() => (window as any).__game?.ready);
+  await page.goto('/');
+  await page.waitForFunction(() => document.documentElement.dataset.ready === '1');
+  // Release builds never expose the debug hooks.
+  expect(await page.evaluate(() => typeof (window as any).__game)).toBe('undefined');
   const manifest = await page.evaluate(async () => {
     const href = document.querySelector('link[rel="manifest"]')?.getAttribute('href');
     return href ? (await fetch(href)).json() : null;
@@ -14,7 +16,7 @@ test('installable PWA works offline after the first visit', async ({ page, conte
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
   await context.setOffline(true);
   await page.reload();
-  await page.waitForFunction(() => (window as any).__game?.ready, null, { timeout: 20000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ready === '1', null, { timeout: 20000 });
   await expect(page.locator('.up-add')).toBeVisible();
   // No ad network on the plain web build: ad-only offers are hidden.
   await expect(page.locator('.chip-incomeX2')).toBeHidden();

@@ -7,6 +7,8 @@ export type LangSetting = Lang | 'auto';
 const TABLES: Record<Lang, Record<I18nKey, string>> = { en, de };
 
 let current: Lang = 'en';
+/** Language reported by the portal SDK (YouTube / CrazyGames) — wins over the browser for 'auto'. */
+let portalHint: string | null = null;
 const listeners: (() => void)[] = [];
 
 export function detectLang(hint?: string | null): Lang {
@@ -15,7 +17,8 @@ export function detectLang(hint?: string | null): Lang {
 }
 
 export function setLang(setting: LangSetting, hint?: string | null): void {
-  const next = setting === 'auto' ? detectLang(hint) : setting;
+  if (hint) portalHint = hint;
+  const next = setting === 'auto' ? detectLang(hint ?? portalHint) : setting;
   if (next === current) return;
   current = next;
   if (typeof document !== 'undefined') document.documentElement.lang = current;

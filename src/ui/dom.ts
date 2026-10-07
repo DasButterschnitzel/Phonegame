@@ -29,6 +29,22 @@ export function toggleClass(el: Element, cls: string, on: boolean): void {
   if (el.classList.contains(cls) !== on) el.classList.toggle(cls, on);
 }
 
+/**
+ * Shows `el` only while `available()` holds, re-checking twice a second for as long as it is in the DOM
+ * (reward dialogs often open before the first ad has finished loading).
+ */
+export function showWhen(el: HTMLElement, available: () => boolean): void {
+  const sync = () => {
+    el.style.display = available() ? '' : 'none';
+  };
+  sync();
+  const id = setInterval(() => {
+    if (!el.isConnected && el.dataset.mounted) return clearInterval(id);
+    if (el.isConnected) el.dataset.mounted = '1';
+    sync();
+  }, 500);
+}
+
 /** Button helper: pointerdown feedback + click handler; swallows game input. */
 export function button(cls: string, onClick: (e: Event) => void, ...children: Child[]): HTMLButtonElement {
   const b = h('button', { class: `btn ${cls}`, 'data-ui': true, type: 'button' }, ...children);

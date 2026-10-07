@@ -12,6 +12,8 @@ export class SaveManager {
   private interval: ReturnType<typeof setInterval> | null = null;
   readOnly = false;
   lastSavedAt = 0;
+  /** While the app is backgrounded the periodic autosave pauses (it would move savedAt and shrink offline time). */
+  suspended = false;
 
   constructor(store: KeyValueStore, build: () => string) {
     this.store = store;
@@ -25,13 +27,15 @@ export class SaveManager {
       this.readOnly = true;
       return res;
     }
-    if (!res.ok && res.reason === 'corrupt') {
+    // Keep the last known-good save as a backup — only when the main slot itself parsed.
+    if (res.ok && raw) await this.store.set(BAK, raw);
+    else if (!res.ok && res.reason === 'corrupt') {
       await this.store.set(`${MAIN}.corrupt.${Math.floor(wallNow)}`, raw ?? '');
       const bak = await this.store.get(BAK);
       res = parseSave(bak, wallNow);
+      // Restore the good backup into the main slot so the next crash can't lose it.
+      if (res.ok && bak) await this.store.set(MAIN, bak);
     }
-    // Keep the last known-good save as a backup.
-    if (res.ok && raw) await this.store.set(BAK, raw);
     return res;
   }
 
@@ -55,7 +59,9 @@ export class SaveManager {
   }
 
   startAutosave(everyMs = 15000): void {
-    this.interval ??= setInterval(() => void this.saveNow(), everyMs);
+    this.interval ??= setInterval(() => {
+      if (!this.suspended) void this.saveNow();
+    }, everyMs);
   }
 
   async wipe(): Promise<void> {

@@ -23,6 +23,8 @@ export class AudioEngine {
   private beat = 0;
   private nextBeat = 0;
   private sched: ReturnType<typeof setInterval> | null = null;
+  private sentSpeed = -1;
+  private sentAt = 0;
 
   /** Must be called from a user gesture (iOS/Chrome autoplay rules). */
   unlock(): void {
@@ -55,10 +57,26 @@ export class AudioEngine {
       this.motorOsc.frequency.value = 55;
       this.motorOsc.connect(this.motorFilter);
       this.motorOsc.start();
-      this.sched = setInterval(() => this.scheduleMusic(), 90);
       this.applyGain();
     }
-    if (this.ctx.state === 'suspended' && !this.muted) void this.ctx.resume();
+    this.syncRunning();
+  }
+
+  /**
+   * The audio graph (motor oscillator, compressor) and the music timer run only while something can be heard:
+   * suspended when muted (ads, background, portal) or when both sound and music are off.
+   */
+  private syncRunning(): void {
+    if (!this.ctx) return;
+    const run = !this.muted && (this.soundOn || this.musicOn);
+    if (run && this.ctx.state === 'suspended') void this.ctx.resume();
+    if (!run && this.ctx.state === 'running') void this.ctx.suspend();
+    const wantMusic = run && this.musicOn;
+    if (wantMusic && !this.sched) this.sched = setInterval(() => this.scheduleMusic(), 90);
+    if (!wantMusic && this.sched) {
+      clearInterval(this.sched);
+      this.sched = null;
+    }
   }
 
   get ready(): boolean {
@@ -69,14 +87,13 @@ export class AudioEngine {
     this.soundOn = sound;
     this.musicOn = music;
     this.applyGain();
+    this.syncRunning();
   }
 
   /** Mute while ads play / app is backgrounded. */
   setMuted(m: boolean): void {
     this.muted = m;
-    if (!this.ctx) return;
-    if (m) void this.ctx.suspend();
-    else void this.ctx.resume();
+    this.syncRunning();
   }
 
   private applyGain(): void {
@@ -88,7 +105,12 @@ export class AudioEngine {
   /** 0..1 speed fraction; drives motor hum and music tempo. */
   setSpeed(frac: number): void {
     this.speed = frac;
-    if (!this.ctx || !this.motorOsc) return;
+    if (!this.ctx || !this.motorOsc || this.ctx.state !== 'running') return;
+    // Automation events cross to the audio thread: send only real changes, at most ~15 Hz.
+    const now = performance.now();
+    if (Math.abs(frac - this.sentSpeed) < 0.02 || now - this.sentAt < 66) return;
+    this.sentSpeed = frac;
+    this.sentAt = now;
     const t = this.ctx.currentTime;
     this.motorOsc.frequency.setTargetAtTime(45 + 40 * frac, t, 0.1);
     this.motorFilter.frequency.setTargetAtTime(120 + 500 * frac, t, 0.1);

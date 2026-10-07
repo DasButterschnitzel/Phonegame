@@ -13,7 +13,7 @@ const devStub = () => new DevStubAds(() => t('ad.simulated'), () => t('ad.skip')
  */
 export async function createAdService(): Promise<AdService> {
   const q = new URLSearchParams(location.search);
-  if (q.get('ads') && (import.meta.env.VITE_DEBUG_HOOKS === 'true' || q.has('debug'))) return devStub();
+  if (q.get('ads') && import.meta.env.VITE_DEBUG_HOOKS === 'true') return devStub();
   if (import.meta.env.VITE_AD_PROVIDER === 'admob') {
     const { AdMobAds } = await import('./providers/AdMob.ts');
     return new AdMobAds();

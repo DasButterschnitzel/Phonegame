@@ -1,22 +1,29 @@
 import { button, h } from '../dom.ts';
-import { t } from '../../platform/i18n/i18n.ts';
+import { fmt, t } from '../../platform/i18n/i18n.ts';
 import { levelColor } from '../../render/palette.ts';
 import { power } from '../../game/config.ts';
 import { BODY } from '../../game/config.ts';
 import type { ModalStack } from './ModalStack.ts';
+import { confetti } from '../Confetti.ts';
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
 export function openNewLevel(modals: ModalStack, level: number): void {
-  modals.push('newlevel', (close) => {
-    const x = power(level) / power(1);
-    return [
-      h('h2', {}, t('newLevel.title')),
-      h('div', { class: 'seg-preview outline', style: `background:${hex(levelColor(level))}` }, String(level)),
-      h('p', {}, t('newLevel.body', { n: level, x: x >= 100 ? Math.round(x) : x.toFixed(1) })),
-      h('div', { class: 'btn-row' }, button('btn-big', () => close(), t('common.go'))),
-    ];
-  });
+  const m = modals.push(
+    'newlevel',
+    (close) => {
+      const x = power(level) / power(1);
+      return [
+        h('div', { class: 'rays' }),
+        h('h2', {}, t('newLevel.title')),
+        h('div', { class: 'seg-preview outline', style: `background:${hex(levelColor(level))}` }, String(level)),
+        h('p', {}, t('newLevel.body', { n: level, x: x >= 100 ? fmt(x) : x.toFixed(1) })),
+        h('div', { class: 'btn-row' }, button('btn-big go', () => close(), t('common.go'))),
+      ];
+    },
+    { closeX: false },
+  );
+  confetti(m.el);
 }
 
 export function openCollection(modals: ModalStack, maxLevel: number): void {

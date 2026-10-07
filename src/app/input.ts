@@ -63,6 +63,14 @@ export class ThrottleInput {
     return this.force ?? this.held;
   }
 
+  /** Forget every held pointer/key (app backgrounded mid-hold: pointerup may never arrive). */
+  reset(): void {
+    this.pointers.clear();
+    this.key = false;
+    this.toggled = false;
+    this.emit();
+  }
+
   onChange(fn: (held: boolean) => void): void {
     this.listeners.push(fn);
   }

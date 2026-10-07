@@ -7,6 +7,9 @@ export const shared = {
   uWind: { value: 1 },
 };
 
+/** Global feature switches set once from the quality tier, before any material is created. */
+export const materialFlags = { wind: true };
+
 let gradient: THREE.DataTexture | null = null;
 
 /** 4-band toon ramp: crisp light/shadow steps give the "sticker" look. */
@@ -35,7 +38,8 @@ export interface ToonOpts {
 /** Vertex-coloured toon material with a soft rim light and optional wind sway. */
 export function toon(opts: ToonOpts = {}): THREE.MeshToonMaterial {
   const rim = opts.rim ?? 0.22;
-  const wind = opts.wind ?? 0;
+  // Wind is compiled out entirely on the low tier (not just zeroed) to save vertex work.
+  const wind = materialFlags.wind ? (opts.wind ?? 0) : 0;
   const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), side: opts.side ?? THREE.FrontSide });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = shared.uTime;

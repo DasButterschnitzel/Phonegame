@@ -19,8 +19,13 @@ test('expand all stages, finish the farm and travel @smoke', async ({ page }, in
   await expect(page.locator('.modal-map')).toBeVisible();
   await page.locator('.farm-pumpkin').click();
   await expect(page.locator('.modal-map')).toBeHidden();
-  expect(await g<string>(page, 'g.state().farmId')).toBe('pumpkin');
-  await page.waitForTimeout(600);
+  // The farm swaps behind a cloud wipe, then a welcome banner.
+  await expect(page.locator('.travel-wipe')).toBeVisible();
+  await expect.poll(() => g<string>(page, 'g.state().farmId')).toBe('pumpkin');
+  await expect(page.locator('.travel-wipe')).toHaveCount(0, { timeout: 5000 });
+  await expect(page.locator('.banner')).toContainText('Pumpkin Patch');
+  // Back on a finished farm the goal button points onwards.
+  await page.waitForTimeout(400);
   await shot(page, 'pumpkin', info.project.name);
   // Every farm renders.
   for (const id of ['sunflower', 'snowyberry', 'desert']) {

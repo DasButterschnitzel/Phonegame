@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /** 8×8 atlas of round level badges "1".."64". */
 export function numberAtlas(): THREE.CanvasTexture {
-  const size = 1024;
+  const size = 512;
   const cell = size / 8;
   const c = document.createElement('canvas');
   c.width = c.height = size;
@@ -21,7 +21,7 @@ export function numberAtlas(): THREE.CanvasTexture {
     g.stroke();
     g.fillStyle = '#2b2d42';
     const label = String(i + 1);
-    g.font = `800 ${label.length > 1 ? cell * 0.5 : cell * 0.62}px Fredoka, "Arial Rounded MT Bold", system-ui, sans-serif`;
+    g.font = `700 ${label.length > 1 ? cell * 0.5 : cell * 0.62}px Fredoka, "Arial Rounded MT Bold", system-ui, sans-serif`;
     g.fillText(label, cx, cy + cell * 0.03);
   }
   const t = new THREE.CanvasTexture(c);

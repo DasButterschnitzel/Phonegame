@@ -53,9 +53,12 @@ export interface BreakCtx {
   tutorialActive: boolean;
   modalOpen: boolean;
   wallNow: number;
+  /** App backgrounded / portal-paused: never show an ad the player can't see coming. */
+  paused?: boolean;
 }
 
 export function canShowInterstitial(st: AdPolicyState, cfg: AdPolicyCfg, now: number, ctx: BreakCtx): { ok: boolean; reason?: string } {
+  if (ctx.paused) return { ok: false, reason: 'paused' };
   if (st.playtimeSec < cfg.firstPlayGraceSec) return { ok: false, reason: 'grace' };
   if (now - st.sessionStart < cfg.sessionWarmupSec) return { ok: false, reason: 'warmup' };
   if (now - st.lastInterstitial < cfg.interstitialCooldownSec) return { ok: false, reason: 'cooldown' };

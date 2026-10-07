@@ -21,7 +21,8 @@ export const DAILY_REWARDS: readonly DailyReward[] = [
 
 export const newDaily = (): DailyState => ({ lastClaimKey: '', day: 0 });
 
-export const canClaimDaily = (d: DailyState, todayKey: string): boolean => d.lastClaimKey !== todayKey;
+/** ISO date keys sort lexicographically, so winding the device clock back never re-opens a claimed day. */
+export const canClaimDaily = (d: DailyState, todayKey: string): boolean => todayKey > d.lastClaimKey;
 
 /** Returns the reward index claimed and advances the calendar. */
 export function claimDaily(d: DailyState, todayKey: string): number | null {

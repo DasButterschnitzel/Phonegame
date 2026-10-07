@@ -2,17 +2,15 @@ import { h } from './dom.ts';
 
 interface F {
   el: HTMLElement;
+  anim: Animation | null;
   t0: number;
-  dur: number;
-  x: number;
-  y: number;
-  busy: boolean;
 }
 
-/** Pooled DOM "+N" texts animated with compositor-only transforms. */
+/** Pooled DOM "+N" texts; each runs a single WAAPI animation on the compositor (no per-frame JS). */
 export class Floaters {
   private pool: F[] = [];
   private layer: HTMLElement;
+  private next = 0;
 
   constructor(root: HTMLElement, size = 28) {
     this.layer = h('div', { style: 'position:absolute;inset:0;pointer-events:none;overflow:hidden' });
@@ -20,36 +18,35 @@ export class Floaters {
     for (let i = 0; i < size; i++) {
       const el = h('div', { class: 'floater outline', style: 'display:none' });
       this.layer.append(el);
-      this.pool.push({ el, t0: 0, dur: 0.9, x: 0, y: 0, busy: false });
+      this.pool.push({ el, anim: null, t0: 0 });
     }
   }
 
   spawn(x: number, y: number, text: string, cls = '', dur = 0.9): void {
-    const f = this.pool.find((p) => !p.busy) ?? this.pool.reduce((a, b) => (a.t0 < b.t0 ? a : b));
-    f.busy = true;
-    f.t0 = performance.now() / 1000;
-    f.dur = dur;
-    f.x = x + (Math.random() - 0.5) * 16;
-    f.y = y;
+    // Round-robin: the oldest floater is recycled when all are busy.
+    const f = this.pool[this.next];
+    this.next = (this.next + 1) % this.pool.length;
+    f.anim?.cancel();
+    const px = x + (Math.random() - 0.5) * 16;
     f.el.className = `floater outline ${cls}`;
     f.el.textContent = text;
     f.el.style.display = '';
+    const at = (dy: number, s: number) => `translate3d(${px.toFixed(1)}px, ${(y - dy).toFixed(1)}px, 0) translate(-50%, -50%) scale(${s})`;
+    f.anim = f.el.animate(
+      [
+        { transform: at(0, 0.5), opacity: 1 },
+        { transform: at(22, 1.15), opacity: 1, offset: 0.15 },
+        { transform: at(46, 1), opacity: 1, offset: 0.7 },
+        { transform: at(60, 0.95), opacity: 0 },
+      ],
+      { duration: dur * 1000, easing: 'cubic-bezier(.2,.7,.4,1)', fill: 'forwards' },
+    );
+    f.anim.onfinish = () => {
+      f.el.style.display = 'none';
+      f.anim = null;
+    };
   }
 
-  update(): void {
-    const now = performance.now() / 1000;
-    for (const f of this.pool) {
-      if (!f.busy) continue;
-      const u = (now - f.t0) / f.dur;
-      if (u >= 1) {
-        f.busy = false;
-        f.el.style.display = 'none';
-        continue;
-      }
-      const rise = 60 * (1 - (1 - u) ** 2);
-      const s = u < 0.15 ? 0.6 + (u / 0.15) * 0.5 : 1.1 - Math.min(0.1, (u - 0.15) * 0.3);
-      f.el.style.transform = `translate3d(${f.x}px, ${f.y - rise}px, 0) translate(-50%, -50%) scale(${s.toFixed(3)})`;
-      f.el.style.opacity = u > 0.7 ? String(1 - (u - 0.7) / 0.3) : '1';
-    }
-  }
+  /** Kept for API compatibility; animations run on their own. */
+  update(): void {}
 }

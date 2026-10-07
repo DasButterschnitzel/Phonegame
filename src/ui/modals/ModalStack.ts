@@ -5,6 +5,8 @@ export interface ModalHandle {
   el: HTMLElement;
   close: () => void;
   onClose?: () => void;
+  /** Reward dialogs (offline earnings, farm complete) must be answered with a button, never dismissed. */
+  closable: boolean;
 }
 
 /** Stack of modal dialogs. Back button pops the top one. Notifies when the stack empties (resume sim). */
@@ -31,7 +33,7 @@ export class ModalStack {
     this.closedListeners.push(fn);
   }
 
-  push(name: string, content: (close: () => void) => (HTMLElement | null)[], opts: { closable?: boolean; onClose?: () => void } = {}): ModalHandle {
+  push(name: string, content: (close: () => void) => (HTMLElement | null)[], opts: { closable?: boolean; closeX?: boolean; onClose?: () => void } = {}): ModalHandle {
     const closable = opts.closable ?? true;
     const modal = h('div', { class: `modal modal-${name}`, 'data-ui': true, role: 'dialog', 'aria-modal': 'true' });
     const layer = h('div', { class: 'modal-layer', 'data-ui': true }, modal);
@@ -47,8 +49,9 @@ export class ModalStack {
         if (this.stack.length === 0) for (const l of this.listeners) l(false);
       },
       onClose: opts.onClose,
+      closable,
     };
-    if (closable) modal.append(button('close-x', () => handle.close(), icon('close')));
+    if (closable && opts.closeX !== false) modal.append(button('close-x', () => handle.close(), icon('close')));
     for (const c of content(handle.close)) if (c) modal.append(c);
     layer.addEventListener('pointerdown', (e) => {
       if (e.target === layer && closable) handle.close();
@@ -59,11 +62,11 @@ export class ModalStack {
     return handle;
   }
 
-  /** Back button: close the top modal. Returns false if nothing was open. */
+  /** Back button: close the top modal (unless it must be answered). Returns false if nothing was open. */
   back(): boolean {
     const top = this.stack[this.stack.length - 1];
     if (!top) return false;
-    top.close();
+    if (top.closable) top.close();
     return true;
   }
 

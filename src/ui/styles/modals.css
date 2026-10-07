@@ -33,6 +33,7 @@
 
 .modal h2 {
   margin: 0;
+  padding: 0 40px;
   font-size: 26px;
   line-height: 1.1;
   color: var(--ink);
@@ -48,13 +49,61 @@
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  border: 0;
-  background: var(--red);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: linear-gradient(180deg, #ff8080, var(--red));
   box-shadow: 0 3px 0 #c43c3c;
-  padding: 6px;
+  padding: 7px;
+  z-index: 2;
+}
+
+.modal .close-x:active {
+  transform: translateY(2px) scale(0.94);
+  box-shadow: 0 1px 0 #c43c3c;
+}
+
+/* Celebration rays behind level-up / farm-complete content. */
+.modal .rays {
+  position: absolute;
+  left: 50%;
+  top: -40px;
+  width: 360px;
+  height: 360px;
+  margin-left: -180px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 210, 63, 0.32) 0deg 9deg, rgba(255, 210, 63, 0) 9deg 22.5deg);
+  -webkit-mask-image: radial-gradient(circle, #000 25%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 25%, transparent 70%);
+  animation: spin-slow 14s linear infinite;
+  pointer-events: none;
+}
+
+.modal > :not(.rays):not(.close-x) {
+  position: relative;
+}
+
+.modal-newlevel,
+.modal-farmcomplete {
+  overflow: hidden;
+}
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.confetti i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 9px;
+  height: 13px;
+  border-radius: 2px;
+  will-change: transform, opacity;
 }
 
 .modal .close-x .ico {
@@ -101,7 +150,41 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: transform 0.08s;
+  position: relative;
+  overflow: hidden;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Glossy top highlight shared by all big buttons. */
+.btn-big::before {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 3px;
+  height: 42%;
+  border-radius: 999px;
+  background: linear-gradient(rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.btn-big:active {
+  transform: translateY(4px) scale(0.98);
+  box-shadow:
+    0 1px 0 var(--cd, var(--green-d)),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.btn-big.go {
+  --c: var(--gold);
+  --cd: #c98a00;
+  color: var(--ink);
+  font-size: 22px;
+  text-shadow: none;
 }
 
 .btn-big .ico {
@@ -109,9 +192,26 @@
   height: 28px;
 }
 
+/* The ad multiplier is the hero action: first, full width, bigger. Plain "Collect" sits below it. */
 .btn-big.ad {
   --c: #ff9f1c;
   --cd: #c97400;
+  order: -1;
+  flex-basis: 100%;
+  font-size: 22px;
+  padding: 15px 14px;
+}
+
+.btn-big.ad .ico {
+  width: 34px;
+  height: 34px;
+}
+
+.btn-big.soft {
+  --c: #8fcf6a;
+  --cd: #5f9e3d;
+  font-size: 17px;
+  padding: 10px 14px;
 }
 
 .btn-big.grey {
@@ -147,6 +247,7 @@
   font-weight: 600;
   font-size: 16px;
   text-align: left;
+  flex-wrap: wrap;
 }
 
 .seg {
@@ -160,7 +261,8 @@
 .seg button {
   border: 0;
   border-radius: 9px;
-  padding: 6px 10px;
+  min-height: 40px;
+  padding: 8px 11px;
   background: transparent;
   font-family: var(--font);
   font-weight: 700;
@@ -182,7 +284,10 @@
   font-weight: 600;
   font-size: 15px;
   text-decoration: underline;
-  padding: 4px;
+  padding: 4px 12px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .version {
@@ -221,7 +326,27 @@
 }
 
 .day.done {
-  opacity: 0.45;
+  background: #eef7e8;
+  color: #5f9e3d;
+  position: relative;
+}
+
+.day.done::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(95, 158, 61, 0.55);
+  border-radius: 11px;
+}
+
+.day.today {
+  animation: pulse 1.1s ease-in-out infinite;
 }
 
 .day.big {

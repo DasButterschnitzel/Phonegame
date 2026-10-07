@@ -11,6 +11,9 @@ export class Gift {
   private active = false;
   private fromLeft = true;
   private y0 = 0.3;
+  private last = 0;
+  private w = 0;
+  private hgt = 0;
   onTap: () => void = () => {};
 
   constructor(root: HTMLElement) {
@@ -21,11 +24,18 @@ export class Gift {
       this.onTap();
     });
     root.append(this.el);
+    const measure = () => {
+      this.w = root.clientWidth;
+      this.hgt = root.clientHeight;
+    };
+    new ResizeObserver(measure).observe(root);
+    measure();
   }
 
   show(kind: 'ladybug' | 'butterfly', duration: number): void {
     this.el.innerHTML = kind === 'ladybug' ? LADYBUG : BUTTERFLY;
     this.t0 = performance.now() / 1000;
+    this.last = this.t0;
     this.dur = duration;
     this.active = true;
     this.fromLeft = Math.random() < 0.5;
@@ -42,9 +52,15 @@ export class Gift {
     return this.active;
   }
 
-  update(w: number, hgt: number): void {
+  /** Per frame while visible. While a dialog/ad pauses the game the bug hovers in place instead of escaping. */
+  update(paused: boolean): void {
     if (!this.active) return;
-    const u = (performance.now() / 1000 - this.t0) / this.dur;
+    const now = performance.now() / 1000;
+    if (paused) this.t0 += now - this.last;
+    this.last = now;
+    const w = this.w;
+    const hgt = this.hgt;
+    const u = (now - this.t0) / this.dur;
     if (u >= 1) return this.hide();
     const x = (this.fromLeft ? u : 1 - u) * (w + 80) - 70;
     const y = (this.y0 + Math.sin(u * Math.PI * 4) * 0.05) * hgt;

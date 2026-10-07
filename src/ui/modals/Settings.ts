@@ -70,8 +70,18 @@ export function openSettings(modals: ModalStack, d: SettingsDeps): void {
     if (d.privacyOptionsAvailable) extras.append(button('btn-big grey', () => d.showPrivacyOptions(), t('settings.privacy')));
     // Web portals forbid outbound links; their own pages cover privacy.
     const policy = d.privacyUrl ? h('a', { class: 'link', href: d.privacyUrl, target: '_blank', rel: 'noopener', 'data-ui': true }, t('settings.privacyPolicy')) : null;
+    // In-game confirmation (window.confirm is blocked in portal iframes and looks off-brand on Android).
     const reset = button('link', () => {
-      if (confirm(t('settings.resetConfirm'))) d.resetProgress();
+      modals.push('confirm-reset', (closeConfirm) => [
+        h('h2', {}, t('settings.reset')),
+        h('p', {}, t('settings.resetConfirm')),
+        h(
+          'div',
+          { class: 'btn-row' },
+          button('btn-big grey', () => closeConfirm(), t('common.no')),
+          button('btn-big danger', () => d.resetProgress(), t('common.yes')),
+        ),
+      ]);
     }, t('settings.reset'));
     return [h('h2', {}, t('settings.title')), list, extras, policy, reset, h('div', { class: 'version' }, `Crop Crawler v${d.version}`)];
   });
