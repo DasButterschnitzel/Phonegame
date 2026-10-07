@@ -427,6 +427,8 @@ export class StackView {
       const layerH = LAYER_H * (1 - squash);
       const layers = Math.ceil(n / PER_LAYER);
       const sway = Math.sin(now * 2.3 + i) * 0.015 * Math.min(1, st.v);
+      // Secondary motion: the load bounces a beat behind the body's stride, more when it is heavy.
+      const bounce = Math.sin(this.cat.bobPhase - (i + 1) * 0.8 - 1.3) * (0.015 + 0.03 * Math.min(1, segMass / cap)) * Math.min(1, st.v);
       const cy = Math.cos(pose.yaw);
       const sy = Math.sin(pose.yaw);
       for (let b = 0; b < n && idx < MAX_SEGS * MAX_BLOCKS; b++) {
@@ -444,7 +446,7 @@ export class StackView {
         }
         V.set(
           pose.x + lx * cy + lz * sy + (sp.ox + sway * -sy) * bend,
-          pose.y + BASE_Y + layer * layerH,
+          pose.y + BASE_Y + layer * layerH + bounce * h,
           pose.z - lx * sy + lz * cy + (sp.oz + sway * -cy) * bend,
         );
         E.set(sp.oz * bend * 0.6, pose.yaw + (layer % 2) * 0.12, -sp.ox * bend * 0.6);

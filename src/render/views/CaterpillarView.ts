@@ -16,6 +16,12 @@ const GHOSTS = 4;
 /** Merge choreography (s): ghosts travel, then the new segment pops out with overshoot. */
 export const MERGE_TRAVEL = 0.26;
 const MERGE_POP = 0.34;
+/** Gait: each foot plants for STANCE of every STRIDE world units travelled (feet don't skate), then swings forward. */
+const STRIDE = 0.7;
+const STANCE = 0.62;
+/** The acceleration strain reaches each next gap this much later (head first, tail last). */
+const STRAIN_DELAY = 0.03;
+const HIST = 64;
 
 interface Ghost {
   fromSlot: number;
@@ -25,6 +31,8 @@ interface Ghost {
 }
 const ps: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
 const ps2: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
+const psA: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
+const psB: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
 
 export interface BodyPose {
   x: number;
@@ -33,6 +41,8 @@ export interface BodyPose {
   yaw: number;
   tx: number;
   tz: number;
+  /** Path curvature under the body (rad per world unit, + = turning left). */
+  curv: number;
 }
 
 interface Spring {
@@ -74,17 +84,27 @@ export class CaterpillarView {
     { a: 0, v: 0 },
   ];
   private prevV = 0;
-  /** Smoothed acceleration, chain compression (+ bunches up when braking) and cargo load (0..1). */
+  /** Smoothed acceleration and cargo load (0..1). */
   private accelS = 0;
-  private compress = 0;
   private load = 0;
+  /** Recent smoothed acceleration (ring): each gap of the chain strains with the head's acceleration a moment ago. */
+  private histT = new Float64Array(HIST);
+  private histA = new Float64Array(HIST);
+  private histI = 0;
+  /** Cumulative arc offset of each body slot behind the head (strained), rebuilt per frame. */
+  private offs = new Float32Array(MAX + 2);
+  /** Stride phase (distance based; a loaded body bobs a little slower). */
+  bobPhase = 0;
+  /** Head pitch spring: leans into acceleration, nods with braking, then settles. */
+  private pitchA = 0;
+  private pitchV = 0;
   /** Blades grinding against crops that won't fit in a full basket. */
   private grindUntil = -1;
   private lastNow = 0;
   private prevYaw = 0;
   private turn = 0;
   /** Latest world pose of each body (0 = head) for other views (stacks, particles). */
-  readonly poses: BodyPose[] = Array.from({ length: MAX + 1 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, tx: 1, tz: 0 }));
+  readonly poses: BodyPose[] = Array.from({ length: MAX + 1 }, () => ({ x: 0, y: 0, z: 0, yaw: 0, tx: 1, tz: 0, curv: 0 }));
   private sim: Sim;
   private ghosts: Ghost[] = [];
   /** New merged segments: time their pop-out starts. */
@@ -215,16 +235,21 @@ export class CaterpillarView {
     }
     if (this.slot.size > n) for (const id of this.slot.keys()) if (!this.alive.has(id)) this.slot.delete(id);
 
-    // ——— Head rig ———
-    this.pose(0, headS, path, odo);
-    const hp = this.poses[0];
+    // ——— Weight ———
     const accel = dt > 0 ? (st.v - this.prevV) / dt : 0;
     this.prevV = st.v;
     this.accelS += (accel - this.accelS) * Math.min(1, dt * 8);
-    // Weight: braking bunches the chain up, accelerating stretches it a touch; cargo makes everything heavier.
-    const wantCompress = Math.max(-0.05, Math.min(0.12, -this.accelS * 0.035));
-    this.compress += (wantCompress - this.compress) * Math.min(1, dt * 5);
+    this.histI = (this.histI + 1) % HIST;
+    this.histT[this.histI] = now;
+    this.histA[this.histI] = this.accelS;
     this.load += (Math.min(1, st.basket.mass / Math.max(1, capacityOf(st))) - this.load) * Math.min(1, dt * 3);
+    this.bobPhase += st.v * dt * 3 * (1 - 0.22 * this.load);
+    this.buildOffsets(n, now);
+
+    // ——— Head rig ———
+    // The head reads the path a little ahead: it turns into a bend before its body gets there.
+    this.pose(0, headS, path, 0.75, 0.2);
+    const hp = this.poses[0];
     const grinding = now < this.grindUntil;
     this.lastNow = now;
     let dyaw = hp.yaw - this.prevYaw;
@@ -234,11 +259,15 @@ export class CaterpillarView {
     this.turn += ((dt > 0 ? dyaw / dt : 0) - this.turn) * Math.min(1, dt * 6);
     const breathe = 1 + Math.sin(now * 2.2) * 0.02 * (1 - speedFrac);
     this.head.position.set(hp.x, hp.y - 0.04 * this.load, hp.z);
-    // Pitch: nod with the stride, dip forward when accelerating, rear back when braking. Roll: lean into turns.
+    // Pitch: leans into acceleration (the head leads), nods forward when braking, then settles on a spring.
+    const pitchTarget = Math.max(-0.12, Math.min(0.12, this.accelS > 0 ? -this.accelS * 0.03 : this.accelS * 0.018));
+    this.pitchV += (-110 * (this.pitchA - pitchTarget) - 9 * this.pitchV) * dt;
+    this.pitchA += this.pitchV * dt;
+    // Roll: lean into turns (more at speed).
     this.head.rotation.set(
-      Math.max(-0.14, Math.min(0.14, -this.turn * 0.09)),
+      Math.max(-0.14, Math.min(0.14, -hp.curv * st.v * 0.07)),
       hp.yaw + (grinding ? Math.sin(now * 60) * 0.03 : 0),
-      Math.sin(odo * 2.2) * 0.04 - Math.max(-0.1, Math.min(0.1, this.accelS * 0.025)) - 0.04 * this.load,
+      Math.sin(this.bobPhase * 0.73) * 0.04 + this.pitchA - 0.04 * this.load,
       'YXZ',
     );
     const hg = Math.max(0, 1 - (now - this.gulps[0]) / 0.18);
@@ -257,10 +286,11 @@ export class CaterpillarView {
     this.eyes.scale.set(1, eyeY, 1);
     // Pupils look into turns and up when idle.
     this.pupils.position.set(0.16, (1 - speedFrac) * 0.03, Math.max(-0.06, Math.min(0.06, this.turn * 0.05)));
-    // Antennae: damped springs kicked by acceleration and turning.
+    // Antennae: damped springs. Inertia: they trail backwards when the head speeds up and swing forward when it
+    // brakes; turns fling them outward; the stride bobs them.
     for (let i = 0; i < 2; i++) {
       const s = this.antSpring[i];
-      const force = -accel * 0.08 - this.turn * 0.25 * (i === 0 ? 1 : 0.8) + Math.sin(odo * 3 + i) * 0.4 * speedFrac;
+      const force = this.accelS * 0.09 - this.turn * 0.25 * (i === 0 ? 1 : 0.8) + Math.sin(this.bobPhase + i) * 0.4 * speedFrac;
       s.v += (-90 * s.a - 7 * s.v + force * 20) * dt;
       s.a += s.v * dt;
       s.a = Math.max(-0.6, Math.min(0.6, s.a));
@@ -273,7 +303,7 @@ export class CaterpillarView {
     this.mandibles[1].rotation.y = open;
 
     this.setShadow(0, hp, 1.2);
-    this.setLegs(0, hp, odo, 0);
+    this.setLegs(0, hp, odo, 0, 1.15);
     this.setBlade(0, hp, 0.62, 0.62, 0.28);
     this.setBlade(1, hp, -0.62, 0.62, 0.28);
 
@@ -287,8 +317,7 @@ export class CaterpillarView {
     for (let i = 0; i < n; i++) {
       const seg = segs[i];
       const slot = this.slot.get(seg.id) ?? i;
-      const s = headS - (BODY.HEAD_GAP + slot * BODY.SEG_SPACING) * (1 - this.compress);
-      this.pose(i + 1, s, path, odo, i + 1);
+      this.pose(i + 1, headS - this.offsetOf(slot), path, 0.45, 0.45);
       const p = this.poses[i + 1];
       let scale = 1 + Math.min(0.15, 0.015 * (seg.level - 1));
       const pt = this.pulses.get(seg.id);
@@ -313,11 +342,11 @@ export class CaterpillarView {
       const heave = tu >= 0 && tu < 1 ? Math.sin(tu * Math.PI) * (1 - tu * 0.6) : 0;
       // Loaded segments sit lower, squat wider and jiggle heavier with each step.
       const L = this.load;
-      const squash = (1 + Math.sin(odo * 3 - (i + 1) * 0.8) * (0.04 + 0.03 * L)) * (1 + g * 0.08 + dip * 0.1 - heave * 0.1) * (1 + Math.sin(now * 2.2 - i * 0.6) * 0.015 * (1 - speedFrac));
+      const squash = (1 + Math.sin(this.bobPhase - (i + 1) * 0.8) * (0.04 + 0.03 * L)) * (1 + g * 0.08 + dip * 0.1 - heave * 0.1) * (1 + Math.sin(now * 2.2 - i * 0.6) * 0.015 * (1 - speedFrac));
       p.y = p.y * (1 - 0.6 * L) - 0.05 * L - dip * 0.06 + heave * 0.16;
       V.set(p.x, p.y, p.z);
-      // Lean into turns (roll) — the chain follows the head's lean.
-      E.set(Math.max(-0.12, Math.min(0.12, -this.turn * 0.07)), p.yaw, 0, 'YXZ');
+      // Lean into turns by the bend under this segment: the front leans first, the tail when it gets there.
+      E.set(Math.max(-0.13, Math.min(0.13, -p.curv * st.v * 0.07)), p.yaw, 0, 'YXZ');
       Q.setFromEuler(E);
       S.set(scale * squash * (1 + 0.05 * L), (scale / squash) * (1 - 0.07 * L), scale * (1 + g * 0.05) * (1 + 0.05 * L));
       M4.compose(V, Q, S);
@@ -347,7 +376,7 @@ export class CaterpillarView {
         this.halos.setMatrixAt(na++, M4.compose(V, Q, S));
       }
       this.setShadow(i + 1, p, scale);
-      this.setLegs(i + 1, p, odo, i + 1);
+      this.setLegs(i + 1, p, odo, i + 1, scale);
       this.setBlade(2 + i * 2, p, 0.56 * scale, 0.45 * scale, 0.3 * scale);
       this.setBlade(3 + i * 2, p, -0.56 * scale, 0.45 * scale, 0.3 * scale);
       // Badge: billboard on the camera-facing side of the body.
@@ -371,7 +400,7 @@ export class CaterpillarView {
       const target = this.slot.get(gh.into) ?? gh.fromSlot;
       const e = u * u * u;
       const slot = gh.fromSlot + (target - gh.fromSlot) * e;
-      this.pose(MAX, headS - BODY.HEAD_GAP - slot * BODY.SEG_SPACING, path, odo, MAX);
+      this.pose(MAX, headS - this.offsetOf(slot), path, 0.45, 0.45);
       const p = this.poses[MAX];
       const sc = (1 + Math.min(0.15, 0.015 * (gh.level - 1))) * (1 - 0.45 * e);
       // Stretch along the direction of travel as it speeds up.
@@ -411,15 +440,68 @@ export class CaterpillarView {
     return ps2;
   }
 
-  private pose(b: number, s: number, path: Sim['path'], odo: number, wave = b): void {
-    sampleAt(path, wrap(s, path.length), ps);
+  /** Acceleration the head had at time t (from the recent history ring). */
+  private accelAt(t: number): number {
+    let i = this.histI;
+    for (let k = 0; k < HIST - 1; k++) {
+      const j = (i - 1 + HIST) % HIST;
+      if (this.histT[i] <= t || this.histT[j] > this.histT[i]) return this.histA[i];
+      i = j;
+    }
+    return this.histA[i];
+  }
+
+  /**
+   * Arc offsets of every body slot behind the head. Each gap stretches a touch when the head accelerates and bunches
+   * up when it brakes, using the head's acceleration from a moment ago — so the strain runs down the body as a wave
+   * (head first, tail last) instead of the whole chain changing at once. Kept small: the tail never drifts far from
+   * where the simulation's body chews.
+   */
+  private buildOffsets(n: number, now: number): void {
+    const strain = (k: number) => Math.max(-0.035, Math.min(0.07, -this.accelAt(now - k * STRAIN_DELAY) * 0.022));
+    this.offs[0] = BODY.HEAD_GAP * (1 - strain(0.5));
+    for (let k = 1; k <= Math.min(MAX + 1, n + 2); k++) this.offs[k] = this.offs[k - 1] + BODY.SEG_SPACING * (1 - strain(k + 0.5));
+  }
+
+  /** Arc offset behind the head of a (fractional) segment slot. */
+  private offsetOf(slot: number): number {
+    const k = Math.max(0, Math.min(MAX, Math.floor(slot)));
+    const f = slot - k;
+    const a = this.offs[k];
+    const b = this.offs[k + 1] || a + BODY.SEG_SPACING;
+    return a + (b - a) * f;
+  }
+
+  /**
+   * Places body b at arc s. Its heading is the chord from `behind` to `ahead` along the path (smooth through
+   * bends, so segments swing round a corner instead of snapping like rigid cars); curvature comes from the same span.
+   */
+  private pose(b: number, s: number, path: Sim['path'], ahead: number, behind: number): void {
+    const L = path.length;
+    sampleAt(path, wrap(s, L), ps);
+    sampleAt(path, wrap(s + ahead, L), psA);
+    sampleAt(path, wrap(s - behind, L), psB);
     const p = this.poses[b];
     p.x = ps.x;
     p.z = ps.z;
-    p.tx = ps.tx;
-    p.tz = ps.tz;
-    p.y = Math.max(0, Math.sin(odo * 3 - wave * 0.8)) * 0.08;
-    p.yaw = Math.atan2(-ps.tz, ps.tx);
+    let tx = psA.x - psB.x;
+    let tz = psA.z - psB.z;
+    const l = Math.hypot(tx, tz);
+    if (l > 1e-4) {
+      tx /= l;
+      tz /= l;
+    } else {
+      tx = ps.tx;
+      tz = ps.tz;
+    }
+    p.tx = tx;
+    p.tz = tz;
+    let da = Math.atan2(psA.tz, psA.tx) - Math.atan2(psB.tz, psB.tx);
+    if (da > Math.PI) da -= Math.PI * 2;
+    if (da < -Math.PI) da += Math.PI * 2;
+    p.curv = da / (ahead + behind);
+    p.y = Math.max(0, Math.sin(this.bobPhase - b * 0.8)) * 0.08 * (1 - 0.25 * this.load);
+    p.yaw = Math.atan2(-tz, tx);
   }
 
   private setShadow(i: number, p: BodyPose, scale: number): void {
@@ -431,17 +513,32 @@ export class CaterpillarView {
     this.shadows.setMatrixAt(i, M4);
   }
 
-  private setLegs(b: number, p: BodyPose, odo: number, phase: number): void {
+  /**
+   * Feet plant and push: during the stance part of each stride a foot slides back under the body exactly as fast as
+   * the body moves forward, so it stays put on the ground; then it lifts and swings forward to plant again. Driven by
+   * distance travelled, so slow crawling steps slowly and nothing skates.
+   */
+  private setLegs(b: number, p: BodyPose, odo: number, phase: number, scale: number): void {
     const c = Math.cos(p.yaw);
     const sn = Math.sin(p.yaw);
     for (let side = 0; side < 2; side++) {
       const sgn = side === 0 ? 1 : -1;
-      const lift = Math.max(0, Math.sin(odo * 5 + phase * 1.3 + side * Math.PI)) * 0.12;
-      const lz = 0.36 * sgn;
-      V.set(p.x + lz * sn, lift, p.z + lz * c);
+      let ph = odo / STRIDE + phase * 0.31 + side * 0.5;
+      ph -= Math.floor(ph);
+      let fx: number;
+      let lift = 0;
+      if (ph < STANCE) fx = STRIDE * (STANCE / 2 - ph);
+      else {
+        const u = (ph - STANCE) / (1 - STANCE);
+        fx = STRIDE * STANCE * (u * u * (3 - 2 * u) - 0.5);
+        lift = Math.sin(u * Math.PI) * 0.13;
+      }
+      const lz = 0.36 * sgn * scale;
+      V.set(p.x + fx * c + lz * sn, lift, p.z - fx * sn + lz * c);
       E.set(0, p.yaw, 0);
       Q.setFromEuler(E);
-      S.setScalar(1);
+      // A planted foot squashes flat under the load; a lifted one is round.
+      S.set(scale, scale * (lift > 0 ? 1 : 0.85 - 0.1 * this.load), scale);
       M4.compose(V, Q, S);
       this.legs.setMatrixAt(b * 2 + side, M4);
     }

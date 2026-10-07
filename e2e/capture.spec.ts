@@ -105,7 +105,7 @@ test('motion: accelerate, cruise, brake', async ({ page }) => {
   await closeCam(page, 9);
   await g(page, 'g.setThrottle(false)');
   await page.clock.runFor(1500);
-  await clip(page, 'motion-accel-brake', 180, {
+  await clip(page, "motion-accel-brake", 180, {
     every: 2,
     before: async (i) => {
       if (i === 10) await g(page, 'g.setThrottle(true)');
@@ -123,6 +123,35 @@ async function depotClip(page: Page, name: string, adds: number) {
   await clip(page, name, 150, { every: 2 });
   await g(page, 'g.setThrottle(null)');
 }
+
+test('motion: accelerate into a bend, corner, brake (device resolution)', async ({ page }) => {
+  await start(page);
+  await page.addStyleTag({ content: '#ui { visibility: hidden !important; }' });
+  await g(page, '(g.state().maxLevelReached = 9, g.grant(5000), [0,1,2,3,4,5].forEach(() => g.buy("add")))');
+  // Lock the camera on the first sharp bend a few units ahead of the head.
+  await g(page, `(() => {
+    const s = g.sim; const p = s.path; const n = p.n; const h = Math.floor((((s.state.headS) % p.length) + p.length) % p.length / p.ds);
+    for (let k = 8; k < n; k++) {
+      const i = (h + k) % n; const j = (i + 6) % n;
+      let d = Math.atan2(p.tz[j], p.tx[j]) - Math.atan2(p.tz[i], p.tx[i]);
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      if (Math.abs(d) > 0.6) { g.app.renderer.focus = { x: p.x[(i + 3) % n], z: p.z[(i + 3) % n] }; return k; }
+    }
+    return -1;
+  })()`);
+  await closeCam(page, 6.5);
+  await g(page, 'g.setThrottle(false)');
+  await page.clock.runFor(1500);
+  await clip(page, 'motion-close', 200, {
+    every: 2,
+    zoom: 400,
+    before: async (i) => {
+      if (i === 6) await g(page, 'g.setThrottle(true)');
+      if (i === 120) await g(page, 'g.setThrottle(false)');
+    },
+  });
+  await g(page, '(g.setThrottle(null), g.app.renderer.focus = null)');
+});
 
 test('depot: a loaded crawler rolls through the unload', async ({ page }) => {
   await depotClip(page, 'depot-unload', 6);
