@@ -14,7 +14,7 @@ describe('i18n', () => {
   });
   it('interpolates and switches language', () => {
     setLang('en');
-    expect(t('hud.stage', { n: 2 })).toBe('Stage 2/4');
+    expect(t('hud.cleared', { n: 42 })).toBe('42% cleared');
     setLang('de');
     expect(t('up.add')).toBe('NEU');
     setLang('en');

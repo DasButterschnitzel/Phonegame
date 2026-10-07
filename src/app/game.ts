@@ -8,6 +8,7 @@ import { Offers } from './offers.ts';
 import { Hud } from '../ui/Hud.ts';
 import { Floaters } from '../ui/Floaters.ts';
 import { Toasts } from '../ui/Toasts.ts';
+import { UnloadCounter } from '../ui/UnloadCounter.ts';
 import { coinFly } from '../ui/CoinFly.ts';
 import { ModalStack } from '../ui/modals/ModalStack.ts';
 import { openSettings } from '../ui/modals/Settings.ts';
@@ -44,6 +45,7 @@ export class GameController {
   readonly floaters: Floaters;
   readonly toasts: Toasts;
   readonly modals: ModalStack;
+  private unloadCounter: UnloadCounter;
   readonly offers = new Offers();
   private fxLayer: HTMLElement;
   private ui: HTMLElement;
@@ -53,6 +55,7 @@ export class GameController {
   /** Event subscribers added by later modules (audio, haptics, tutorial…). */
   readonly listeners: ((e: SimEvent) => void)[] = [];
   private pendingUnloadBreak = false;
+  private unloadCoin = 0;
   /** Last HUD purchase/boost tap (an interstitial must never interrupt a tapping spree). */
   private lastActionAt = -Infinity;
   private lastToastAt = 0;
@@ -73,6 +76,7 @@ export class GameController {
       openSettings: () => this.openSettings(),
     });
     ui.append(this.fxLayer);
+    this.unloadCounter = new UnloadCounter(this.fxLayer);
     this.toasts = new Toasts(ui);
     this.modals = new ModalStack(ui);
     this.modals.onChange((open) => (open ? d.pause.add('modal') : d.pause.remove('modal')));
@@ -124,7 +128,8 @@ export class GameController {
     const chk = sim.check(id);
     if (!chk.ok) {
       this.hud.shake(id);
-      if (chk.reason === 'maxSegments') this.nag(sim.state.progress.stage >= 3 ? 'up.reason.mergeRoom' : 'up.reason.maxSegments');
+      if (chk.reason === 'maxSegments') this.nag(sim.state.progress.zone >= 3 ? 'up.reason.mergeRoom' : 'up.reason.maxSegments');
+      else if (chk.reason === 'notCleared') this.nag('up.reason.notCleared');
       else if (chk.reason === 'noPair') this.nag('up.reason.noPair');
       else if (chk.reason === 'maxLevel') this.nag('up.max');
       else this.nag('up.reason.coins');
@@ -190,7 +195,7 @@ export class GameController {
       setTimeout(() => {
         wipe.classList.add('out');
         setTimeout(() => wipe.remove(), 600);
-        this.toasts.banner(t('banner.newFarm', { farm: t(`farm.${id}` as I18nKey) }), t('hud.stage', { n: this.d.sim.state.progress.stage + 1 }));
+        this.toasts.banner(t('banner.newFarm', { farm: t(`farm.${id}` as I18nKey) }), t('hud.cleared', { n: Math.floor(this.d.sim.cleared * 100) }));
       }, 380);
     };
     if (this.d.settings.reduceMotion) void reveal();
@@ -208,7 +213,6 @@ export class GameController {
     const { renderer, sim } = this.d;
     switch (e.t) {
       case 'chunk': {
-        if (e.wasted) break;
         const a = this.agg.get(e.body);
         if (a) {
           a.value += e.value;
@@ -217,13 +221,22 @@ export class GameController {
         } else this.agg.set(e.body, { value: e.value, golden: e.golden, tier: e.tier, t: performance.now() });
         break;
       }
-      case 'unload': {
-        const barn = sim.farm.barn;
-        if (renderer.project(barn.bx, 2.6, barn.bz, tmpP)) {
-          this.floaters.spawn(tmpP.x, tmpP.y - 20, `+${fmt(e.value)}`, 'big', 1.3);
+      case 'unloadSeg': {
+        // Rolling payout: the counter above the hopper climbs and a coin flies to the total per segment.
+        this.unloadCounter.add(e.value, this.d.settings.reduceMotion);
+        const h = renderer.depot.hopperTop;
+        if (renderer.project(h.x, h.y + 0.6, h.z, tmpP)) {
           const target = this.hud.center(this.hud.coinPill);
-          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, Math.ceil(Math.log2(1 + e.mass)), () => this.hud.bumpCoins(), this.d.settings.reduceMotion, (i) => this.onCoinLand(i));
+          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, e.last ? 3 : 1, () => this.hud.bumpCoins(), this.d.settings.reduceMotion, (i) => this.onCoinLand(this.unloadCoin++ + i));
         }
+        break;
+      }
+      case 'unloadStart':
+        this.unloadCoin = 0;
+        this.unloadCounter.start();
+        break;
+      case 'unload': {
+        this.unloadCounter.end(performance.now() / 1000);
         this.hud.bumpBasket();
         this.d.ads.noteUnload();
         this.pendingUnloadBreak = true;
@@ -232,10 +245,11 @@ export class GameController {
       case 'segAdded':
         renderer.cat.pulse(e.id, performance.now() / 1000);
         break;
-      case 'stageChanged': {
+      case 'zoneOpened': {
         renderer.rig.addShake(0.25);
-        const crop = sim.farm.crops[Math.min(3, e.stage)];
-        this.toasts.banner(t('banner.stage', { n: e.stage + 1 }), t('banner.newCrop', { crop: t(`crop.${crop}` as I18nKey) }));
+        renderer.onZoneOpened();
+        const crop = sim.farm.crops[Math.min(3, e.zone)];
+        this.toasts.banner(t('banner.zone'), t('banner.newCrop', { crop: t(`crop.${crop}` as I18nKey) }));
         break;
       }
       case 'tornadoGranted':
@@ -260,6 +274,8 @@ export class GameController {
       if (renderer.project(tmpS.x, 1.3, tmpS.z, tmpP)) this.floaters.spawn(tmpP.x, tmpP.y, `+${fmt(a.value)}`, a.golden ? 'gold' : `t${a.tier}`);
     }
     this.floaters.update();
+    const hop = renderer.depot.hopperTop;
+    this.unloadCounter.frame(now / 1000, dt, renderer.project(hop.x, hop.y + 1.1, hop.z, tmpP) ? tmpP : null);
     this.hud.tickCoins(sim.state.coins, dt);
     this.hudAcc += dt;
     if (this.hudAcc >= 0.1) {

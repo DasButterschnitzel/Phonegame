@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { ready, g } from './helpers.ts';
 
 /** Tutorial hints suppress interstitials — mark them all seen for policy tests. */
-const skipTutorial = "Object.assign(g.meta().tutorial, { add: true, merge: true, full: true, expand: true, tornado: true })";
+const skipTutorial = "Object.assign(g.meta().tutorial, { add: true, merge: true, full: true, expand: true, tornado: true, grow: true })";
 
 async function unloadWithoutThrottle(page: import('@playwright/test').Page) {
   const before = await g<number>(page, 'g.state().stats.unloads');

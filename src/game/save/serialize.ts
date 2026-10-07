@@ -1,40 +1,44 @@
 import type { Sim } from '../sim.ts';
-import { newGameState } from '../sim.ts';
-import type { GameState } from '../types.ts';
+import { newDepotPass, newFarmProgress, newGameState } from '../sim.ts';
+import type { FarmProgress, FieldSnapshot, GameState } from '../types.ts';
 import { FARM_ORDER } from '../types.ts';
-import { markDirty } from '../field.ts';
-import { SAVE_VERSION, newMeta, type CropRecord, type SaveMeta, type SaveV1 } from './schema.ts';
+import { SAVE_VERSION, newMeta, type SaveData, type SaveMeta } from './schema.ts';
 
-export function serialize(sim: Sim, meta: SaveMeta, settings: Record<string, unknown>, wallNow: number): SaveV1 {
-  const f = sim.field;
-  const crops: CropRecord[] = [];
-  for (let i = 0; i < f.count; i++) {
-    const remaining = f.regrowAt[i] !== 0 ? Math.max(0, f.regrowAt[i] - sim.state.simTime) : 0;
-    if (f.hp[i] < f.maxHp[i] || remaining > 0 || f.golden[i]) crops.push([f.key[i], Math.round(f.hp[i] * 100) / 100, Math.round(remaining * 10) / 10, f.golden[i]]);
-  }
-  return { v: SAVE_VERSION, savedAtWall: wallNow, game: JSON.parse(JSON.stringify(sim.state)) as typeof sim.state, crops, meta, settings };
-}
-
-/** Restores crop damage/regrowth for the current farm (keys that no longer exist are ignored). */
-export function applyCrops(sim: Sim, crops: CropRecord[]): void {
-  const f = sim.field;
-  const idx = new Map<number, number>();
-  for (let i = 0; i < f.count; i++) idx.set(f.key[i], i);
-  f.deadCount = 0;
-  for (const [key, hp, remaining, golden] of crops) {
-    const i = idx.get(key);
-    if (i === undefined) continue;
-    f.golden[i] = golden ? 1 : 0;
-    if (remaining > 0) {
-      f.hp[i] = 0;
-      f.regrowAt[i] = sim.state.simTime + remaining;
-      f.dead[f.deadCount++] = i;
-    } else f.hp[i] = Math.min(f.maxHp[i], Math.max(1e-3, hp));
-    markDirty(f, i);
-  }
+export function serialize(sim: Sim, meta: SaveMeta, settings: Record<string, unknown>, wallNow: number): SaveData {
+  sim.syncField();
+  return { v: SAVE_VERSION, savedAtWall: wallNow, game: JSON.parse(JSON.stringify(sim.state)) as GameState, meta, settings };
 }
 
 const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+
+function validateField(f: unknown): FieldSnapshot | undefined {
+  if (!f || typeof f !== 'object') return undefined;
+  const o = f as Partial<FieldSnapshot>;
+  if (!isNum(o.ver) || typeof o.claimed !== 'string' || typeof o.dead !== 'string') return undefined;
+  return {
+    ver: o.ver,
+    claimed: o.claimed,
+    dead: o.dead,
+    hp: Array.isArray(o.hp) ? o.hp.filter(isNum) : [],
+    ready: Array.isArray(o.ready) ? o.ready.filter(isNum) : [],
+  };
+}
+
+function validateProgress(p: Partial<FarmProgress> | undefined): FarmProgress {
+  const d = newFarmProgress(1);
+  if (!p || typeof p !== 'object') return d;
+  const out: FarmProgress = { ...d, ...p };
+  if (!Array.isArray(out.segments) || out.segments.length === 0) out.segments = d.segments;
+  out.segments = out.segments.filter((s) => s && isNum(s.id) && isNum(s.level) && s.level >= 1);
+  if (out.segments.length === 0) out.segments = d.segments;
+  out.zone = Math.max(0, Math.min(3, Math.floor(isNum(out.zone) ? out.zone : 0)));
+  for (const k of ['addCount', 'mergeCount'] as const) if (!isNum(out[k]) || out[k] < 0) out[k] = 0;
+  for (const k of ['speedLevel', 'capacityLevel'] as const) if (!isNum(out[k]) || out[k] < 1) out[k] = 1;
+  out.finished = out.finished === true;
+  out.field = validateField(p.field);
+  if (!out.field) delete out.field;
+  return out;
+}
 
 /** Fill any missing/invalid fields from a fresh state so older or partially corrupt saves still load. */
 export function validateGame(g: Partial<GameState> | undefined): GameState {
@@ -45,18 +49,25 @@ export function validateGame(g: Partial<GameState> | undefined): GameState {
     if (!isNum(out[k])) (out as unknown as Record<string, number>)[k] = d[k] as number;
   }
   if (!FARM_ORDER.includes(out.farmId)) out.farmId = 'meadow';
-  out.progress = { ...d.progress, ...(g.progress ?? {}) };
-  if (!Array.isArray(out.progress.segments) || out.progress.segments.length === 0) out.progress.segments = d.progress.segments;
-  out.progress.stage = Math.max(0, Math.min(3, Math.floor(out.progress.stage || 0)));
+  out.progress = validateProgress(g.progress);
   out.basket = { ...d.basket, ...(g.basket ?? {}) };
-  if (!Array.isArray(out.basket.massByTier) || out.basket.massByTier.length !== 5) out.basket.massByTier = [0, 0, 0, 0, 0];
+  if (!isNum(out.basket.mass) || out.basket.mass < 0) out.basket.mass = 0;
+  if (!isNum(out.basket.value) || out.basket.value < 0) out.basket.value = 0;
+  if (!Array.isArray(out.basket.massByTier) || out.basket.massByTier.length !== 5 || !out.basket.massByTier.every(isNum)) out.basket.massByTier = [out.basket.mass, 0, 0, 0, 0];
+  const dp = { ...newDepotPass(), ...(g.depot ?? {}) };
+  out.depot = Object.values(dp).every((x) => typeof x === 'boolean' || isNum(x)) && (!dp.active || dp.segs >= 1) ? dp : newDepotPass();
   out.boosts = { ...d.boosts, ...(g.boosts ?? {}) };
   out.economy = { ...d.economy, ...(g.economy ?? {}), passive: { ...(g.economy?.passive ?? {}) } };
   out.gift = { ...d.gift, ...(g.gift ?? {}) };
   out.stats = { ...d.stats, ...(g.stats ?? {}) };
   out.unlockedFarms = Array.isArray(g.unlockedFarms) && g.unlockedFarms.length ? g.unlockedFarms.filter((f) => FARM_ORDER.includes(f)) : ['meadow'];
+  if (!out.unlockedFarms.includes('meadow')) out.unlockedFarms.unshift('meadow');
+  if (!out.unlockedFarms.includes(out.farmId)) out.farmId = 'meadow';
   out.completedFarms = Array.isArray(g.completedFarms) ? g.completedFarms.filter((f) => FARM_ORDER.includes(f)) : [];
-  out.farmsProgress = g.farmsProgress && typeof g.farmsProgress === 'object' ? g.farmsProgress : {};
+  const fp: GameState['farmsProgress'] = {};
+  if (g.farmsProgress && typeof g.farmsProgress === 'object')
+    for (const [k, v] of Object.entries(g.farmsProgress)) if (FARM_ORDER.includes(k as never) && k !== out.farmId) fp[k as keyof typeof fp] = validateProgress(v);
+  out.farmsProgress = fp;
   // headS is re-derived on load when invalid (JSON turns NaN into null).
   if (!isNum(out.headS)) out.headS = Number.NaN;
   out.prevHeadS = out.headS;

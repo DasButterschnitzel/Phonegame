@@ -12,8 +12,8 @@ export const bodyPower = (st: GameState, b: number): number =>
 export const chainLength = (n: number): number => BODY.HEAD_GAP + Math.max(0, n - 1) * BODY.SEG_SPACING + 2;
 
 /** Hold-to-crawl: full speed while held (or autopilot), slow idle crawl otherwise; heavy baskets accelerate slower. */
-export function updateSpeed(st: GameState, held: boolean, fill: number, dt: number): void {
-  const vm = vMax(st.progress.speedLevel);
+export function updateSpeed(st: GameState, held: boolean, fill: number, dt: number, factor = 1): void {
+  const vm = vMax(st.progress.speedLevel) * factor;
   const on = held || st.boosts.autopilot > 0;
   const target = on ? vm : MOVE.IDLE_FRAC * vm;
   const tau = target > st.v ? MOVE.TAU_UP * (1 + MOVE.LOAD_K * fill) : MOVE.TAU_DOWN;

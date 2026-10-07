@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
-import { BODY, capacityOf, maxBlocks } from '../../game/config.ts';
+import { capacityPerSegment, maxBlocks } from '../../game/config.ts';
 import { blockGeometry } from '../geo/caterpillar.ts';
 import { instancedOutline, toon } from '../materials.ts';
 import { TIER_BLOCK_COLORS } from '../palette.ts';
@@ -40,13 +40,6 @@ interface Spring {
   init: boolean;
 }
 
-interface Snapshot {
-  n: number;
-  tiers: Uint8Array;
-  /** Head arc position at which this segment passes the barn. */
-  untilHeadS: number;
-}
-
 interface Flier {
   sx: number;
   sy: number;
@@ -58,11 +51,17 @@ interface Flier {
   dur: number;
   color: number;
   spin: number;
+  /** Body pose index to home in on (chunks flying into a stack), −1 = fixed end point. */
+  track: number;
+  /** Counts towards the landing callback (unloads only). */
+  land: boolean;
+  arc: number;
 }
 
 /**
  * The loot stack on every segment — the game's key "look how much I'm hauling" reward.
- * Wobbles on a damped spring driven by the segment's acceleration; unloads into the barn segment by segment.
+ * Wobbles on a damped spring driven by the segment's acceleration. Chunks arc from the bitten crop into the stack;
+ * at the depot each segment tips its stack into the hopper as it rolls past (the simulation's rolling unload).
  */
 export class StackView {
   readonly group = new THREE.Group();
@@ -70,14 +69,15 @@ export class StackView {
   private blockOutline: THREE.InstancedMesh | null;
   private fliers: THREE.InstancedMesh;
   private springs = new Map<number, Spring>();
-  private snaps = new Map<number, Snapshot>();
   private shown = new Map<number, number>();
   private popAt = new Map<number, number>();
   private flying: Flier[] = [];
   private sim: Sim;
   private cat: CaterpillarView;
   private tierColors: number[] = [];
-  /** Called (throttled) when unloaded blocks land in the barn. */
+  /** Where unloaded blocks fly (the depot hopper). */
+  readonly target = new THREE.Vector3();
+  /** Called (throttled) when unloaded blocks land in the hopper. */
   onLand: (count: number) => void = () => {};
   private landed = 0;
   private lastLandCall = 0;
@@ -106,26 +106,61 @@ export class StackView {
 
   onFarmChanged(): void {
     this.tierColors = TIER_BLOCK_COLORS[this.sim.farm.id];
-    this.snaps.clear();
+    this.flying.length = 0;
   }
 
-  /** Called on the unload event: each segment keeps showing its load until it passes the barn. */
-  onUnload(massByTier: number[], mass: number): void {
+  /** Segment k just tipped `mass` of cargo into the hopper (its stack is already empty in the simulation). */
+  onUnloadSeg(k: number, mass: number, now: number): void {
+    const pose = this.cat.poses[k + 1];
+    if (!pose) return;
+    const n = this.blocksFor(mass);
     const st = this.sim.state;
-    const segs = st.progress.segments;
-    const n = this.stackHeight(mass);
-    const tiers = this.layerTiers(massByTier, mass, n);
-    segs.forEach((seg, i) => {
-      const slot = this.cat.slotOf(seg.id) ?? i;
-      this.snaps.set(seg.id, { n, tiers, untilHeadS: st.headS + BODY.HEAD_GAP + slot * BODY.SEG_SPACING });
-    });
+    const tiers = this.layerTiers(st.basket.massByTier, Math.max(1e-6, st.basket.mass), n);
+    for (let b = 0; b < n; b++) {
+      if (this.flying.length >= FLIERS) break;
+      const layer = Math.floor(b / PER_LAYER);
+      this.flying.push({
+        sx: pose.x + ((b % 2) - 0.5) * 0.3,
+        sy: pose.y + BASE_Y + layer * LAYER_H,
+        sz: pose.z,
+        ex: this.target.x + (Math.random() - 0.5) * 0.3,
+        ey: this.target.y,
+        ez: this.target.z + (Math.random() - 0.5) * 0.3,
+        t0: now + (n - 1 - b) * 0.018,
+        dur: 0.32 + Math.random() * 0.08,
+        color: this.tierColors[st.basket.mass > 0 ? tiers[b] : 0] ?? 0xffffff,
+        spin: (Math.random() - 0.5) * 12,
+        track: -1,
+        land: true,
+        arc: 1.1,
+      });
+    }
   }
 
-  private stackHeight(mass: number): number {
-    const cap = capacityOf(this.sim.state);
+  /** A chunk bitten off crop (x, z) flies into body b's stack (the head feeds the first segment). */
+  chunk(x: number, z: number, color: number, body: number, now: number): void {
+    if (this.flying.length >= FLIERS) return;
+    const nSegs = this.sim.state.progress.segments.length;
+    const track = Math.max(1, Math.min(nSegs, body));
+    this.flying.push({ sx: x, sy: 0.45, sz: z, ex: 0, ey: 0, ez: 0, t0: now, dur: 0.3, color, spin: (Math.random() - 0.5) * 16, track, land: false, arc: 0.9 });
+  }
+
+  /** Cargo carried by segment i (index in the chain), honouring a rolling unload in progress. */
+  private segMass(i: number, nSegs: number): number {
+    const st = this.sim.state;
+    const d = st.depot;
+    if (!d.active) return st.basket.mass / Math.max(1, nSegs);
+    const pending = Math.max(0, d.mass - d.paidMass);
+    const fresh = Math.max(0, st.basket.mass - pending);
+    if (i < d.done) return fresh / Math.max(1, d.done);
+    return i < d.segs ? pending / Math.max(1, d.segs - d.done) : 0;
+  }
+
+  private blocksFor(mass: number): number {
+    const cap = capacityPerSegment(this.sim.state.progress.capacityLevel);
     const fill = Math.min(2, mass / Math.max(1, cap));
     const n = Math.round(fill * maxBlocks(this.sim.state.progress.capacityLevel));
-    return Math.min(MAX_BLOCKS, mass > 0 ? Math.max(1, n) : 0);
+    return Math.min(MAX_BLOCKS, mass > 0.01 ? Math.max(1, n) : 0);
   }
 
   private layerTiers(massByTier: number[], mass: number, n: number, out = new Uint8Array(n)): Uint8Array {
@@ -142,15 +177,13 @@ export class StackView {
     return out;
   }
 
-  update(now: number, dt: number, headS: number): void {
+  update(now: number, dt: number): void {
     const st = this.sim.state;
     const segs = st.progress.segments;
-    const live = this.stackHeight(st.basket.mass);
-    const liveTiers = this.layerTiers(st.basket.massByTier, st.basket.mass, live, this.liveTiers);
+    const liveTiers = this.layerTiers(st.basket.massByTier, st.basket.mass, MAX_BLOCKS, this.liveTiers);
     const k = 70;
     const c = 7;
     let idx = 0;
-    const barn = this.sim.farm.barn;
     for (let i = 0; i < segs.length; i++) {
       const seg = segs[i];
       const pose = this.cat.poses[i + 1];
@@ -182,19 +215,8 @@ export class StackView {
       sp.ox = Math.max(-lim, Math.min(lim, sp.ox));
       sp.oz = Math.max(-lim, Math.min(lim, sp.oz));
 
-      // Which load does this segment show? Its pre-unload snapshot until it reaches the barn.
-      let n = live;
-      let tiers = liveTiers;
-      const snap = this.snaps.get(seg.id);
-      if (snap) {
-        if (headS >= snap.untilHeadS) {
-          this.launch(snap, pose.x, pose.z, barn.bx, barn.bz, now);
-          this.snaps.delete(seg.id);
-        } else {
-          n = snap.n;
-          tiers = snap.tiers;
-        }
-      }
+      const n = this.blocksFor(this.segMass(i, segs.length));
+      const tiers = liveTiers;
       const prevShown = this.shown.get(seg.id) ?? 0;
       if (n > prevShown) this.popAt.set(seg.id, now);
       this.shown.set(seg.id, n);
@@ -247,31 +269,6 @@ export class StackView {
     this.updateFliers(now);
   }
 
-  private launch(snap: Snapshot, x: number, z: number, bx: number, bz: number, now: number): void {
-    const dx = bx - x;
-    const dz = bz - z;
-    const L = Math.hypot(dx, dz) || 1;
-    // Aim at the barn door (the side facing the path).
-    const ex = bx - (dx / L) * 1.2;
-    const ez = bz - (dz / L) * 1.2;
-    for (let b = 0; b < snap.n; b++) {
-      if (this.flying.length >= FLIERS) continue;
-      const layer = Math.floor(b / PER_LAYER);
-      this.flying.push({
-        sx: x + ((b % 2) - 0.5) * 0.3,
-        sy: BASE_Y + layer * LAYER_H,
-        sz: z,
-        ex,
-        ey: 0.8,
-        ez,
-        t0: now + b * 0.025,
-        dur: 0.45 + Math.random() * 0.1,
-        color: this.tierColors[snap.tiers[b]] ?? 0xffffff,
-        spin: (Math.random() - 0.5) * 12,
-      });
-    }
-  }
-
   private updateFliers(now: number): void {
     if (this.flying.length === 0 && this.prevFliers === 0) return;
     let idx = 0;
@@ -279,8 +276,9 @@ export class StackView {
     let w = 0;
     let landedNow = 0;
     for (const f of this.flying) {
-      if (now - f.t0 >= f.dur) landedNow++;
-      else this.flying[w++] = f;
+      if (now - f.t0 >= f.dur) {
+        if (f.land) landedNow++;
+      } else this.flying[w++] = f;
     }
     this.flying.length = w;
     if (landedNow) this.landed += landedNow;
@@ -291,13 +289,21 @@ export class StackView {
     }
     for (const f of this.flying) {
       const u = Math.max(0, (now - f.t0) / f.dur);
-      const x = f.sx + (f.ex - f.sx) * u;
-      const z = f.sz + (f.ez - f.sz) * u;
-      const y = f.sy + (f.ey - f.sy) * u + Math.sin(u * Math.PI) * 1.6;
+      if (f.track >= 0) {
+        // Home in on the (moving) stack top.
+        const p = this.cat.poses[f.track];
+        f.ex = p.x;
+        f.ez = p.z;
+        f.ey = p.y + BASE_Y + Math.ceil((this.shown.get(this.sim.state.progress.segments[f.track - 1]?.id ?? -1) ?? 0) / PER_LAYER) * LAYER_H;
+      }
+      const e = f.track >= 0 ? u * u * (3 - 2 * u) : u;
+      const x = f.sx + (f.ex - f.sx) * e;
+      const z = f.sz + (f.ez - f.sz) * e;
+      const y = f.sy + (f.ey - f.sy) * e + Math.sin(u * Math.PI) * f.arc;
       V.set(x, y, z);
       E.set(f.spin * u, f.spin * u * 0.7, 0);
       Q.setFromEuler(E);
-      S.setScalar(u > 0.85 ? (1 - u) / 0.15 : 1);
+      S.setScalar((f.track >= 0 ? 0.7 : 1) * (u > 0.85 ? (1 - u) / 0.15 : u < 0 ? 0 : 1));
       M4.compose(V, Q, S);
       this.fliers.setMatrixAt(idx, M4);
       this.fliers.setColorAt(idx, C.setHex(f.color));

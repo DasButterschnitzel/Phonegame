@@ -15,6 +15,7 @@ import { button, countUp, h, showWhen } from '../ui/dom.ts';
 import { icon } from '../ui/icons.ts';
 import { fmt, t } from '../platform/i18n/i18n.ts';
 import { FARM_ORDER } from '../game/types.ts';
+import { clearedOfSnapshot } from '../game/sim.ts';
 
 /** Map / travel, farm completion, daily calendar and lucky-bug gifts. */
 export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta, saves: SaveManager): { frame: () => void; maybeShowDaily: () => void } {
@@ -27,7 +28,7 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
       unlocked: sim.state.unlockedFarms,
       completed: sim.state.completedFarms,
       passive: sim.state.economy.passive,
-      stageOf: (id) => (id === sim.state.farmId ? sim.state.progress.stage : (sim.state.farmsProgress[id]?.stage ?? null)),
+      clearedOf: (id) => (id === sim.state.farmId ? sim.cleared : clearedOfSnapshot(id, sim.state.farmsProgress[id]?.field)),
       travel: (id) =>
         game.travelTo(id, () => {
           sim.execute({ c: 'travel', farm: id });

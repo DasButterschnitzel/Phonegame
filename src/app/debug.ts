@@ -3,6 +3,7 @@ import type { UpgradeId } from '../game/types.ts';
 import type { App } from './boot.ts';
 import { clock } from '../platform/clock.ts';
 import { BIOMES } from '../render/palette.ts';
+import { DebugView } from '../render/views/DebugView.ts';
 
 export interface DebugApi {
   ready: boolean;
@@ -81,8 +82,37 @@ export function installDebug(app: App): DebugApi {
       return { uniqueColors: colors.size, nonSkyFrac: nonSky / (px.length / (4 * 7)) };
     },
   };
+  // Route / plot / reach overlay (off unless asked for: never ship overlays enabled).
+  const overlay = new DebugView(sim);
+  overlay.group.visible = new URLSearchParams(location.search).has('overlay');
+  renderer.debug = overlay;
+  renderer.scene.add(overlay.group);
   Object.assign(api, {
     app,
+    overlay: (on: boolean) => {
+      overlay.group.visible = on;
+      if (on) overlay.reset();
+    },
+    clearFrontier: (n: number) => sim.execute({ c: 'clearFrontier', n }),
+    clearAll: () => sim.execute({ c: 'clearAll' }),
+    /** Advance the simulation in fixed steps (throttle held) until `cond(state)` holds; returns whether it did. */
+    runUntil: (cond: (st: Sim['state']) => boolean, maxSec = 60) => {
+      const prev = input.force;
+      input.force = true;
+      let ok = false;
+      for (let t = 0; t < maxSec && !(ok = cond(sim.state)); t += 1 / 30) loop.fastForward(1 / 30);
+      input.force = prev;
+      return ok;
+    },
+    /** Grow the territory to at least `plots` claimed plots (clears frontier plots and lets the route catch up). */
+    growTerritory: (plots: number) => {
+      for (let k = 0; k < 200 && sim.terr.claimedCount < plots; k++) {
+        sim.execute({ c: 'clearFrontier', n: 3 });
+        loop.fastForward(1.2);
+      }
+      return sim.terr.claimedCount;
+    },
+    territory: () => ({ claimed: sim.terr.claimedCount, ready: Array.from(sim.terr.readySince).filter((t) => t >= 0).length, cleared: sim.cleared, routeLength: sim.path.length }),
     advanceWall: (sec: number) => clock.advance(sec),
     simulateOffline: (sec: number) => app.checkOffline(sec),
     saveNow: () => app.saves.saveNow(),

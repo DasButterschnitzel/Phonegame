@@ -1,10 +1,12 @@
 import type { GameState } from '../types.ts';
 import type { DailyState } from '../daily.ts';
 
-export const SAVE_VERSION = 1;
-
-/** Per-crop state that differs from "fully grown": [cellKey, hp, regrowRemainingSec, golden]. */
-export type CropRecord = [number, number, number, number];
+/**
+ * v1: stage-based farms with regrowing crops (+ a per-crop regrowth list).
+ * v2: persistent clearing — each farm's cleared territory, destroyed crops and crop damage live in
+ *     `progress.field` (bitsets); stages became zones; rolling depot pass state.
+ */
+export const SAVE_VERSION = 2;
 
 export interface SaveMeta {
   daily: DailyState;
@@ -16,11 +18,10 @@ export interface SaveMeta {
   firstSeenWall: number;
 }
 
-export interface SaveV1 {
-  v: 1;
+export interface SaveData {
+  v: 2;
   savedAtWall: number;
   game: GameState;
-  crops: CropRecord[];
   meta: SaveMeta;
   settings: Record<string, unknown>;
 }

@@ -36,6 +36,7 @@ test('long caterpillar on a big farm renders within budget', async ({ page }, in
     const g = (window as any).__game;
     g.grant(1e9);
     for (let i = 0; i < 3; i++) g.buy('expand');
+    g.growTerritory(70);
     for (let i = 0; i < 31; i++) g.buy('add');
     for (let i = 0; i < 12; i++) g.buy('merge');
     g.fastForward(8, true);

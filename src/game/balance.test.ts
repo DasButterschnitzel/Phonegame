@@ -10,6 +10,7 @@ describe('balance smoke', () => {
     let firstAdd = Infinity;
     let firstMerge = Infinity;
     let stage2 = Infinity;
+    let firstGrowth = Infinity;
     const dt = 1 / 15;
     let acc = 0;
     while (st.simTime < 12 * 60) {
@@ -17,7 +18,8 @@ describe('balance smoke', () => {
       for (const e of sim.drainEvents()) {
         if (e.t === 'segAdded') firstAdd = Math.min(firstAdd, st.simTime);
         if (e.t === 'merged') firstMerge = Math.min(firstMerge, st.simTime);
-        if (e.t === 'stageChanged') stage2 = Math.min(stage2, st.simTime);
+        if (e.t === 'zoneOpened') stage2 = Math.min(stage2, st.simTime);
+        if (e.t === 'routeGrew') firstGrowth = Math.min(firstGrowth, st.simTime);
       }
       acc += dt;
       if (acc < 1) continue;
@@ -35,7 +37,8 @@ describe('balance smoke', () => {
       else if (opts[0] && sim.check('expand').cost > st.coins * 4) sim.execute({ c: 'buy', id: opts[0].id });
     }
     expect(firstAdd).toBeLessThan(60);
-    expect(firstMerge).toBeLessThan(240);
-    expect(stage2).toBeLessThan(11 * 60);
+    expect(firstGrowth).toBeLessThan(120);
+    expect(firstMerge).toBeLessThan(360);
+    expect(stage2).toBeLessThan(8 * 60);
   });
 });

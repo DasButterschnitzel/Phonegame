@@ -19,6 +19,9 @@ export class CameraRig {
   private shake = 0;
   private kick = 0;
   private zoomP = 0;
+  private zoomHoldUntil = 0;
+  private zoomShown = 0;
+  private now = 0;
   reduceMotion = false;
   /** Visible world width at the target in portrait. */
   baseWidth = 10;
@@ -38,9 +41,11 @@ export class CameraRig {
     if (!this.reduceMotion) this.shake = Math.min(0.4, this.shake + amount);
   }
 
-  /** Temporary zoom-out (e.g. to reveal a freshly expanded path); eases back on its own. */
-  zoomPulse(amount: number): void {
-    if (!this.reduceMotion) this.zoomP = Math.max(this.zoomP, amount);
+  /** Temporary zoom-out (e.g. to reveal a freshly grown route); held for `hold` seconds, then eases back. */
+  zoomPulse(amount: number, hold = 0): void {
+    if (this.reduceMotion) return;
+    this.zoomP = Math.max(this.zoomP, amount);
+    this.zoomHoldUntil = Math.max(this.zoomHoldUntil, this.now + hold);
   }
 
   addKick(amount: number): void {
@@ -48,6 +53,7 @@ export class CameraRig {
   }
 
   update(targetX: number, targetZ: number, chainLen: number, speedFrac: number, dt: number, now: number): void {
+    this.now = now;
     this.tx = smoothDampTo(this.tx, targetX, this.vx, 0.28, dt, vel);
     this.vx = vel.v;
     this.tz = smoothDampTo(this.tz, targetZ, this.vz, 0.28, dt, vel);
@@ -58,8 +64,10 @@ export class CameraRig {
     const aspect = cam.aspect;
     const halfV = THREE.MathUtils.degToRad(cam.fov / 2);
     // Portrait: fit width; landscape: fit an equivalent height so tablets/desktop see a similar area.
-    const width = this.baseWidth * this.zoom * (1 + this.zoomP);
-    this.zoomP *= Math.exp(-dt / 1.1);
+    // Pull-backs ease out (not snap) and hold before easing back in.
+    this.zoomShown += (this.zoomP - this.zoomShown) * (1 - Math.exp(-dt / (this.zoomP > this.zoomShown ? 0.22 : 0.5)));
+    const width = this.baseWidth * this.zoom * (1 + this.zoomShown);
+    if (now >= this.zoomHoldUntil) this.zoomP *= Math.exp(-dt / 0.9);
     const dist = aspect < 1 ? width / (2 * Math.tan(halfV) * aspect) : (width * 1.25) / (2 * Math.tan(halfV));
     const d = dist * (1 - this.kick);
     this.kick *= Math.exp(-dt / 0.15);

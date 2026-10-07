@@ -7,12 +7,17 @@ import { CaterpillarView } from './views/CaterpillarView.ts';
 import { StackView } from './views/StackView.ts';
 import { Particles } from './fx/Particles.ts';
 import { TornadoView } from './views/TornadoView.ts';
+import { TerritoryView } from './views/TerritoryView.ts';
+import { DepotView } from './views/DepotView.ts';
+import type { DebugView } from './views/DebugView.ts';
 import { Shockwaves } from './fx/Shockwave.ts';
 import { materialFlags, shared } from './materials.ts';
 import { BIOMES } from './palette.ts';
 import { DynamicResolution, detectTier, pixelBudgetRatio, settingsFor, type QualitySettings, type QualityTier } from './quality.ts';
 import { sampleAt, type PathSample } from '../game/path.ts';
+import type { PathTable } from '../game/types.ts';
 import { vMax } from '../game/config.ts';
+import { clamp, wrap } from '../shared/math.ts';
 
 /** Detect GPU class on a throwaway context so the real one can be created with the right antialias setting. */
 function probeTier(): QualityTier {
@@ -31,13 +36,18 @@ export class GameRenderer {
   readonly scene = new THREE.Scene();
   readonly rig = new CameraRig();
   world: WorldView;
+  territory: TerritoryView;
+  depot: DepotView;
   field: FieldView;
+  debug: DebugView | null = null;
   cat: CaterpillarView;
   stacks: StackView;
   fx: Particles;
   tornado = new TornadoView();
   waves = new Shockwaves();
   private dustAcc = 0;
+  private depotBias = 0;
+  private bodies = { poses: [] as { x: number; z: number }[], count: 0 };
   private sparkleAcc = 0;
   quality: QualitySettings;
   readonly dyn: DynamicResolution;
@@ -67,19 +77,23 @@ export class GameRenderer {
 
     materialFlags.wind = this.quality.wind;
     this.world = new WorldView(sim, this.scene, this.quality);
+    this.territory = new TerritoryView(sim, this.quality.tier === 'low');
+    this.depot = new DepotView(sim);
     this.field = new FieldView(sim);
     this.cat = new CaterpillarView(sim);
+    this.bodies.poses = this.cat.poses;
     this.stacks = new StackView(sim, this.cat, this.quality.stackOutlines);
     this.fx = new Particles();
     this.fx.budget = this.quality.particleScale;
-    this.scene.add(this.world.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group, this.waves.group);
-    // Loads landing in the barn: barn squash, coin spray, ring.
+    this.scene.add(this.world.group, this.territory.group, this.depot.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group, this.waves.group);
+    // Cargo landing in the hopper: coin spray, ring, barn squash.
+    this.stacks.target.copy(this.depot.hopperTop);
     this.stacks.onLand = (n) => {
       const t = shared.uTime.value;
-      const b = this.sim.farm.barn;
-      this.world.bounceBarn(t);
-      this.fx.burst(b.bx, 2.4, b.bz, 0xffd23f, Math.min(10, 2 + n), 3.2, 0.16, 0.9, 6, 12);
-      this.waves.spawn(b.x, b.z, 0xffe680, 2.2, t, 0.45);
+      const h = this.depot.hopperTop;
+      this.depot.bounce(t);
+      this.fx.burst(h.x, h.y + 0.4, h.z, 0xffd23f, Math.min(8, 2 + n), 2.6, 0.15, 0.8, 5, 12);
+      this.waves.spawn(h.x, h.z, 0xffe680, 1.8, t, 0.4);
     };
     this.applyBiome();
     const h = sim.headPosition(hs);
@@ -97,17 +111,31 @@ export class GameRenderer {
   /** Call after travel: rebuild everything for the new farm. */
   onFarmChanged(): void {
     this.world.rebuild();
+    this.territory.rebuild();
+    this.depot.rebuild();
     this.field.rebuild();
     this.stacks.onFarmChanged();
+    this.stacks.target.copy(this.depot.hopperTop);
+    this.debug?.reset();
     this.applyBiome();
     const h = this.sim.headPosition(hs);
     this.rig.snap(h.x, h.z);
   }
 
-  onStageChanged(): void {
-    this.world.setStage(true);
-    this.rig.zoomPulse(0.45);
-    this.stacks.onFarmChanged();
+  /** The route grew around freshly claimed plots: draw the new stretch, green the plots, pull the camera back. */
+  onRouteGrew(plots: number[], prev: PathTable): void {
+    const now = shared.uTime.value;
+    this.world.setRoute(prev);
+    this.territory.onClaimed(plots, now);
+    this.field.onPlotsClaimed(plots);
+    this.depot.rebuild();
+    this.stacks.target.copy(this.depot.hopperTop);
+    this.rig.zoomPulse(0.16 + Math.min(0.2, plots.length * 0.05), 0.55);
+  }
+
+  /** A zone fence opened: bigger reveal. */
+  onZoneOpened(): void {
+    this.rig.zoomPulse(0.6, 1.0);
   }
 
   resize(w: number, h: number): void {
@@ -132,23 +160,36 @@ export class GameRenderer {
     const st = this.sim.state;
     const headS = this.headS(alpha);
     shared.uTime.value = now;
-    this.field.update(now);
     this.cat.update(headS, this.rig.camera, dt, now);
-    this.stacks.update(now, dt, headS);
+    this.bodies.count = st.progress.segments.length + 1;
+    this.field.update(now, this.bodies);
+    this.territory.update(now);
+    this.depot.update(now, dt);
+    this.stacks.update(now, dt);
     this.fx.update(dt);
     this.tornado.update(now);
     this.waves.update(now);
     this.ambientFx(dt);
     this.world.update(now, dt);
+    this.debug?.update(now, this.cat.poses);
     for (const x of this.extras) x.update(now, dt);
     sampleAt(this.sim.path, headS, hs);
     const n = st.progress.segments.length;
     // Look ahead along the path and towards the middle of the chain.
     const look = 2.2;
     const mid = this.cat.poses[Math.min(n, Math.ceil(n / 3))];
-    const tx = hs.x + hs.tx * look;
-    const tz = hs.z + hs.tz * look;
-    this.rig.update(tx * 0.75 + mid.x * 0.25, tz * 0.75 + mid.z * 0.25, n * 1.1, st.v / vMax(st.progress.speedLevel), dt, now);
+    let tx = (hs.x + hs.tx * look) * 0.75 + mid.x * 0.25;
+    let tz = (hs.z + hs.tz * look) * 0.75 + mid.z * 0.25;
+    // Carrying cargo towards the depot: lean the framing towards the barn so the drop-off is in view.
+    const ahead = wrap(this.sim.path.barnS - headS, this.sim.path.length);
+    const want = st.basket.mass > 0 ? clamp(1 - ahead / 12, 0, 1) * 0.22 : 0;
+    this.depotBias += (want - this.depotBias) * Math.min(1, dt * 2.5);
+    if (this.depotBias > 0.001) {
+      const b = this.sim.farm.barn;
+      tx += (b.bx - tx) * this.depotBias;
+      tz += (b.bz - tz) * this.depotBias;
+    }
+    this.rig.update(tx, tz, n * 1.1, st.v / vMax(st.progress.speedLevel), dt, now);
     // Fog follows the camera distance so zooming out never drowns the farm.
     const fog = this.scene.fog as THREE.Fog | null;
     if (fog) {
@@ -178,7 +219,7 @@ export class GameRenderer {
       this.sparkleAcc = 0;
       const f = this.sim.field;
       for (let i = 0; i < f.count; i++) {
-        if (f.golden[i] && f.regrowAt[i] === 0 && !f.paved[i]) this.fx.burst(f.x[i], 0.9, f.z[i], 0xfff3a0, 1, 0.4, 0.08, 0.7, 1.5, 0.5);
+        if (f.golden[i] && !f.dead[i] && f.tier[i] <= st.progress.zone) this.fx.burst(f.x[i], 0.9, f.z[i], 0xfff3a0, 1, 0.4, 0.08, 0.7, 1.5, 0.5);
       }
     }
   }

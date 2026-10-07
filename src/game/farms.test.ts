@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { FARMS } from './farms/index.ts';
-import { farmPaths, buildField } from './field.ts';
-import { BODY } from './config.ts';
+import { FARMS, type FarmDef } from './farms/index.ts';
+import { buildField, buildRoute } from './field.ts';
+import { BODY, FIELD } from './config.ts';
 import { chainLength } from './caterpillar.ts';
 import { sampleAt } from './path.ts';
+import { isFrontier, isSimple, keepsRouteTidy, keepsSimpleLoop, newTerritory, type Territory } from './territory.ts';
 import type { PathTable } from './types.ts';
 
 function minTurnRadius(p: PathTable): number {
@@ -18,6 +19,7 @@ function minTurnRadius(p: PathTable): number {
   return min;
 }
 
+/** Closest approach of two stretches of the loop that are more than `window` apart along it. */
 function minNonAdjacentGap(p: PathTable, window: number): number {
   let min = Infinity;
   const w = Math.ceil(window / p.ds);
@@ -32,39 +34,91 @@ function minNonAdjacentGap(p: PathTable, window: number): number {
   return min;
 }
 
+function checkRoute(farm: FarmDef, t: Territory): void {
+  expect(isSimple(t)).toBe(true);
+  const p = buildRoute(farm, t);
+  // Smooth (fillets), no self-overlap of the caterpillar's width, passes the depot.
+  expect(minTurnRadius(p)).toBeGreaterThan(FIELD.CORNER_R - 0.15);
+  expect(minNonAdjacentGap(p, 7)).toBeGreaterThan(2.4);
+  const b = sampleAt(p, p.barnS, { x: 0, z: 0, tx: 0, tz: 0 });
+  expect(Math.hypot(b.x - farm.barn.x, b.z - farm.barn.z)).toBeLessThan(0.3);
+}
+
+/** Seeded LCG for claim-order fuzzing (test-only). */
+function lcg(seed: number) {
+  let s = seed >>> 0;
+  return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+}
+
+/**
+ * Claims plots in a random order under the game's rules (zone by zone; tidy rules honoured when possible, as the grace
+ * period would eventually waive them). Returns the share of each zone's plots that could be claimed.
+ */
+function claimAll(farm: FarmDef, rnd: () => number, onClaim?: (t: Territory) => void): number[] {
+  const t = newTerritory(farm.layout);
+  const l = farm.layout;
+  const got = [0, 0, 0, 0];
+  for (let zone = 0; zone < 4; zone++) {
+    for (;;) {
+      const cands: number[] = [];
+      for (let p = 0; p < t.claimed.length; p++) if (isFrontier(t, p, zone) && keepsSimpleLoop(t, p)) cands.push(p);
+      if (!cands.length) break;
+      const tidy = cands.filter((p) => keepsRouteTidy(t, p, zone));
+      const pool = tidy.length ? tidy : cands;
+      const p = pool[Math.floor(rnd() * pool.length)];
+      t.claimed[p] = 1;
+      t.claimedCount++;
+      got[l.zone[p]]++;
+      onClaim?.(t);
+    }
+  }
+  return got.map((g, z) => g / l.zonePlots[z]);
+}
+
 describe.each(Object.values(FARMS))('farm $id', (farm) => {
-  const paths = farmPaths(farm);
-  it('stages grow, are smooth, simple, pass the barn and fit their segment cap', () => {
-    let prev = 0;
-    paths.forEach((p, k) => {
-      expect(p.length).toBeGreaterThan(prev);
-      prev = p.length;
-      expect(minTurnRadius(p)).toBeGreaterThan(2.0);
-      // Non-adjacent stretches never closer than the caterpillar's width (no self-intersection / overlap).
-      expect(minNonAdjacentGap(p, 8)).toBeGreaterThan(2.4);
-      const b = sampleAt(p, p.barnS, { x: 0, z: 0, tx: 0, tz: 0 });
-      expect(Math.hypot(b.x - farm.barn.x, b.z - farm.barn.z)).toBeLessThan(0.3);
-      expect(chainLength(farm.stages[k].maxSegments)).toBeLessThan(p.length - 4);
-    });
+  const l = farm.layout;
+  it('layout: depot on the outer edge, zones sized as designed, start route fits the first caterpillar', () => {
+    expect(l.start[l.depotPlot]).toBe(1);
+    const total = l.zonePlots.reduce((a, b) => a + b, 0);
+    l.zonePlots.forEach((n, z) => expect(Math.abs(n / total - farm.zoneShare[z])).toBeLessThan(0.03));
+    const t = newTerritory(l);
+    checkRoute(farm, t);
+    const p = buildRoute(farm, t);
+    expect(p.length).toBeGreaterThan(28);
+    expect(p.length).toBeLessThan(50);
+    expect(chainLength(farm.maxSegments[0])).toBeLessThan(p.length + 30);
   });
-  it('generates a reasonable field with every tier reachable', () => {
-    const f = buildField(farm, 0);
-    expect(f.count).toBeGreaterThan(400);
-    expect(f.count).toBeLessThan(3000);
-    for (let k = 0; k < 4; k++) {
-      // Stage k must have crops of tier k within reach of its loop.
-      const p = paths[k];
-      let n = 0;
-      for (let i = 0; i < f.count; i++) {
-        if (f.tier[i] !== k || f.pavedAt[k][i]) continue;
-        for (let s = 0; s < p.n; s += 2) {
-          if ((p.x[s] - f.x[i]) ** 2 + (p.z[s] - f.z[i]) ** 2 < BODY.REACH ** 2) {
-            n++;
-            break;
-          }
+  it('every crop of the start ring is in reach and the field is a sensible size', () => {
+    const f = buildField(farm);
+    expect(f.count).toBeGreaterThan(800);
+    expect(f.count).toBeLessThan(1500);
+    const p = buildRoute(farm, newTerritory(l));
+    // The first lap must have plenty to chomp.
+    let reach = 0;
+    for (let i = 0; i < f.count; i++) {
+      for (let s = 0; s < p.n; s += 2) {
+        if ((p.x[s] - f.x[i]) ** 2 + (p.z[s] - f.z[i]) ** 2 < BODY.REACH ** 2) {
+          reach++;
+          break;
         }
       }
-      expect(n).toBeGreaterThan(20);
     }
+    expect(reach).toBeGreaterThan(30);
+  });
+  it('no softlock: in any claim order every zone can be (almost) fully claimed and every route is valid', () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      let k = 0;
+      const shares = claimAll(farm, lcg(seed * 7919 + farm.index), (t) => {
+        // Validating every route is slow; sample them (always the first few).
+        if (k++ < 6 || k % 9 === 0) checkRoute(farm, t);
+      });
+      for (const s of shares) expect(s).toBeGreaterThanOrEqual(0.97);
+    }
+  });
+  it('the fully cleared farm is one valid loop that fits the longest caterpillar', () => {
+    let last: Territory | null = null;
+    claimAll(farm, lcg(5), (tt) => (last = tt));
+    checkRoute(farm, last!);
+    expect(chainLength(farm.maxSegments[3])).toBeLessThan(buildRoute(farm, last!).length - 4);
   });
 });

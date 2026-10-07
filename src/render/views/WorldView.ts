@@ -1,38 +1,27 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
-import { farmPaths } from '../../game/field.ts';
-import { wrap } from '../../shared/math.ts';
+import type { PathTable } from '../../game/types.ts';
 import { BIOMES } from '../palette.ts';
-import {
-  arrowGeometry,
-  barnGeometry,
-  dashGeometry,
-  decorGeometry,
-  fencePostGeometry,
-  fieldGround,
-  flowerGeometry,
-  pathRibbon,
-  rockGeometry,
-  snowmanGeometry,
-  tuftGeometry,
-  windmillSailsGeometry,
-  windmillTowerGeometry,
-} from '../geo/world.ts';
-import { cloudShadowTexture, hullGeometry, outlineMaterial, shared, toon } from '../materials.ts';
+import { decorGeometry, flowerClusterGeometry, pathRibbon, rockGeometry, snowmanGeometry, tuftGeometry, windmillSailsGeometry, windmillTowerGeometry } from '../geo/world.ts';
+import { cloudShadowTexture, shared, toon } from '../materials.ts';
 import type { QualitySettings } from '../quality.ts';
 import { E, M4, Q, S, V } from '../scratch.ts';
-import { capacityOf } from '../../game/config.ts';
 import { hashFloat } from '../../shared/hash.ts';
-import { easeOutBack, easeOutCubic } from '../../shared/math.ts';
+import { easeOutCubic } from '../../shared/math.ts';
 
 const FLOWER_COLORS = [0xff6fb5, 0xffffff, 0xffd23f, 0x9b5de5, 0xff5d5d];
+const RIBBON_W = 1.3;
+/** Seconds for a new stretch of route to draw itself. */
+const REVEAL_S = 0.85;
 
-/** Static farm scenery + ambient motion: sky, ground, path (with draw-in reveal), barn, windmills, foliage, clouds. */
+/** Static farm scenery + ambient motion: sky, grass, decor ring, windmills, clouds, and the route ribbon. */
 export class WorldView {
   readonly group = new THREE.Group();
   private dynamic = new THREE.Group();
   private ribbon: THREE.Mesh | null = null;
-  private dashes: THREE.InstancedMesh | null = null;
+  private ghost: THREE.Mesh | null = null;
+  private ghostMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 1, depthWrite: false, side: THREE.DoubleSide });
+  private ghostT0 = -1;
   private mat = toon({ rim: 0.12 });
   private foliageMat = toon({ rim: 0.12, wind: 0.035 });
   private ribbonMat: THREE.MeshToonMaterial;
@@ -43,20 +32,15 @@ export class WorldView {
   private reveal = { value: 1e6 };
   private revealT0 = -1;
   private revealMax = 0;
-  private dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false });
   private sails: THREE.Mesh[] = [];
   private clouds: THREE.Mesh | null = null;
   private cloudTex: THREE.CanvasTexture | null = null;
-  barn!: THREE.Mesh;
-  private barnBounceT = -1;
-  /** Bobbing arrow over the barn while the basket is full ("sell here"). */
-  private arrow: THREE.Mesh;
-  private arrowShown = 0;
   private sim: Sim;
   private scene: THREE.Scene;
   /** Ambient extras (flowers, dense foliage) are skipped on the low quality tier. */
   lowQuality = false;
   private cloudShadows: boolean;
+  private shownStyle = -1;
 
   constructor(sim: Sim, scene: THREE.Scene, quality: Pick<QualitySettings, 'tier' | 'cloudShadows'>) {
     this.sim = sim;
@@ -64,7 +48,7 @@ export class WorldView {
     this.lowQuality = quality.tier === 'low';
     this.cloudShadows = quality.cloudShadows;
     this.ribbonMat = toon({ rim: 0, side: THREE.DoubleSide });
-    // Path "draws itself": fragments beyond the reveal radius are discarded, the front edge glows.
+    // New route "draws itself": fragments beyond the reveal distance are discarded, the front edge glows.
     const base = this.ribbonMat.onBeforeCompile;
     this.ribbonMat.onBeforeCompile = (sh, r) => {
       base.call(this.ribbonMat, sh, r);
@@ -72,13 +56,12 @@ export class WorldView {
       sh.vertexShader = `attribute float aArc;\nvarying float vArc;\n${sh.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\n vArc = aArc;');
       sh.fragmentShader = `uniform float uReveal;\nvarying float vArc;\n${sh.fragmentShader}`
         .replace('void main() {', 'void main() {\n if (vArc > uReveal) discard;')
-        .replace('#include <opaque_fragment>', 'outgoingLight += vec3(1.0, 0.9, 0.5) * smoothstep(uReveal - 1.5, uReveal, vArc) * step(uReveal, 900.0) * 0.6;\n#include <opaque_fragment>');
+        .replace(
+          '#include <opaque_fragment>',
+          'outgoingLight += vec3(1.0, 0.9, 0.5) * smoothstep(uReveal - 1.5, uReveal, vArc) * step(0.001, vArc) * step(uReveal, 900.0) * 0.7;\n#include <opaque_fragment>',
+        );
     };
     this.ribbonMat.customProgramCacheKey = () => 'ribbon-reveal';
-    this.arrow = new THREE.Mesh(arrowGeometry(), this.mat);
-    this.arrow.add(new THREE.Mesh(hullGeometry(this.arrow.geometry), outlineMaterial(0.05)));
-    this.arrow.visible = false;
-    this.dynamic.add(this.arrow);
     this.group.add(this.dynamic);
     this.rebuild();
   }
@@ -89,7 +72,6 @@ export class WorldView {
       this.group.remove(c);
       c.traverse((o) => {
         if (o instanceof THREE.Mesh) o.geometry.dispose();
-        // Frees the instance buffers on the GPU too.
         if (o instanceof THREE.InstancedMesh) o.dispose();
       });
     }
@@ -103,27 +85,12 @@ export class WorldView {
     this.scene.fog = new THREE.Fog(biome.fog, 38, 80);
     const { x0, z0, x1, z1 } = farm.bounds;
     const outsideMat = new THREE.MeshLambertMaterial({ color: biome.outside });
-    const outlineMat = outlineMaterial(0.05);
-    this.owned.push(outsideMat, outlineMat);
+    this.owned.push(outsideMat);
     const outside = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), outsideMat);
     outside.position.y = -0.02;
     this.group.add(outside);
-    this.group.add(new THREE.Mesh(fieldGround(x0 - 1, z0 - 1, x1 + 1, z1 + 1, biome.groundA, biome.groundB), this.mat));
 
-    // Barn faces the unload point; outlined for the sticker look.
-    this.barn = new THREE.Mesh(barnGeometry(), this.mat);
-    this.barn.add(new THREE.Mesh(hullGeometry(this.barn.geometry), outlineMat));
-    this.barn.position.set(farm.barn.bx, 0, farm.barn.bz);
-    this.barn.rotation.y = Math.atan2(farm.barn.x - farm.barn.bx, farm.barn.z - farm.barn.bz);
-    this.group.add(this.barn);
-
-    // Fence around the field.
-    const posts: [number, number, number][] = [];
-    for (let x = x0 - 1.5; x < x1 + 1.5; x += 2) posts.push([x, z0 - 1.5, 0], [x, z1 + 1.5, 0]);
-    for (let z = z0 - 1.5; z < z1 + 1.5; z += 2) posts.push([x0 - 1.5, z, -Math.PI / 2], [x1 + 1.5, z, -Math.PI / 2]);
-    this.addInstanced(fencePostGeometry(), this.mat, posts, () => 1);
-
-    // Decor ring outside the fence: trees, rocks, grass tufts, flowers.
+    // Decor ring around the farm: trees, rocks, grass tufts, flowers.
     const ring = (n: number, salt: number, dMin: number, dMax: number): [number, number, number][] => {
       const out: [number, number, number][] = [];
       for (let i = 0; i < n; i++) {
@@ -136,17 +103,18 @@ export class WorldView {
         else if (side === 2) out.push([x0 - d, z0 - 1 + (z1 - z0 + 2) * u, a]);
         else out.push([x1 + d, z0 - 1 + (z1 - z0 + 2) * u, a]);
       }
-      return out;
+      // Keep the depot's surroundings clear.
+      return out.filter(([x, z]) => (x - farm.barn.bx) ** 2 + (z - farm.barn.bz) ** 2 > 20);
     };
     const jitter = (i: number) => 0.8 + 0.5 * hashFloat(i, 9, farm.seed);
     this.addInstanced(decorGeometry(biome.decor), this.foliageMat, ring(this.lowQuality ? 120 : 210, 10, 4, 18), (i) => 1.1 * jitter(i));
     this.addInstanced(rockGeometry(), this.mat, ring(40, 20, 2.5, 16), jitter);
-    this.addInstanced(tuftGeometry(), this.foliageMat, ring(this.lowQuality ? 120 : 320, 30, 2.2, 14), (i) => 0.9 + jitter(i) * 0.6);
+    this.addInstanced(tuftGeometry(), this.foliageMat, ring(this.lowQuality ? 120 : 320, 30, 1.4, 14), (i) => 0.9 + jitter(i) * 0.6);
     if (!this.lowQuality && biome.decor !== 'cactus') {
-      FLOWER_COLORS.forEach((c, k) => this.addInstanced(flowerGeometry(c), this.foliageMat, ring(40, 40 + k * 7, 2.2, 12), jitter));
+      this.addInstanced(flowerClusterGeometry(FLOWER_COLORS), this.foliageMat, ring(90, 40, 1.6, 12), jitter);
     }
 
-    // Windmills at the field corners (sails spin), snowmen on the snowy farm.
+    // Windmills beyond the field corners (sails spin), snowmen on the snowy farm.
     const corners: [number, number][] = [
       [x0 - 4.5, z1 + 3.5],
       [x1 + 4.5, z1 + 3.5],
@@ -157,7 +125,6 @@ export class WorldView {
     corners.forEach(([x, z], i) => {
       const tower = new THREE.Mesh(towerGeo, this.mat);
       tower.position.set(x, 0, z);
-      // Face roughly towards the field centre.
       tower.rotation.y = Math.atan2((x0 + x1) / 2 - x, (z0 + z1) / 2 - z) + (i - 1) * 0.3;
       const sails = new THREE.Mesh(sailGeo, this.mat);
       sails.position.set(0, 3.55, 0.85);
@@ -165,9 +132,7 @@ export class WorldView {
       this.sails.push(sails);
       this.group.add(tower);
     });
-    if (farm.id === 'snowyberry') {
-      this.addInstanced(snowmanGeometry(), this.mat, ring(10, 60, 3, 9), () => 1);
-    }
+    if (farm.id === 'snowyberry') this.addInstanced(snowmanGeometry(), this.mat, ring(10, 60, 3, 9), () => 1);
 
     // Drifting cloud shadows (one transparent full-screen layer: high tier only).
     this.clouds = null;
@@ -181,7 +146,8 @@ export class WorldView {
       this.clouds.renderOrder = 2;
       this.group.add(this.clouds);
     }
-    this.setStage(false);
+    this.clearGhost();
+    this.setRoute(null);
   }
 
   private addInstanced(geo: THREE.BufferGeometry, mat: THREE.Material, items: [number, number, number][], scale: (i: number) => number): THREE.InstancedMesh {
@@ -198,58 +164,66 @@ export class WorldView {
     return m;
   }
 
-  /** Path ribbon for the current stage + dashed preview of the next expansion. `animate` draws it in from the head. */
-  setStage(animate = true): void {
-    const { farm, path } = this.sim;
+  /**
+   * (Re)builds the route ribbon. With the previous route given, the stretches that are new draw themselves from
+   * where they leave the old route, and the abandoned stretches fade into the meadow.
+   */
+  setRoute(prev: PathTable | null): void {
+    const { farm, path, state } = this.sim;
     const biome = BIOMES[farm.id];
+    const style = state.progress.zone;
+    this.shownStyle = style;
+    let arcOf: (i: number) => number = () => 0;
+    let maxArc = 0;
+    if (prev) {
+      const fresh = freshness(path, prev);
+      const arcs = new Float32Array(path.n);
+      // Walk the loop starting at an old sample so every fresh stretch is measured from its own start.
+      let start = 0;
+      while (start < path.n && fresh[start]) start++;
+      let run = 0;
+      for (let k = 0; k < path.n; k++) {
+        const i = (start + k) % path.n;
+        if (fresh[i]) {
+          run += path.ds;
+          arcs[i] = run;
+          if (run > maxArc) maxArc = run;
+        } else run = 0;
+      }
+      arcOf = (i) => arcs[i];
+    }
     if (this.ribbon) {
       this.dynamic.remove(this.ribbon);
-      this.ribbon.geometry.dispose();
+      if (prev && maxArc > 0) {
+        // Keep the old ribbon as a fading ghost underneath.
+        this.clearGhost();
+        this.ghost = this.ribbon;
+        this.ghost.material = this.ghostMat;
+        this.ghost.position.y = -0.006;
+        this.ghostMat.opacity = 1;
+        this.ghostT0 = shared.uTime.value;
+        this.dynamic.add(this.ghost);
+      } else this.ribbon.geometry.dispose();
     }
-    const headS = wrap(this.sim.state.headS, path.length);
-    this.ribbon = new THREE.Mesh(pathRibbon(path, 1.3, biome.path, biome.pathEdge, 0.02, headS), animate ? this.ribbonMat : this.ribbonPlain);
+    const animate = maxArc > 0;
+    this.ribbon = new THREE.Mesh(pathRibbon(path, RIBBON_W, biome.path, biome.pathEdge, 0.02, arcOf, style), animate ? this.ribbonMat : this.ribbonPlain);
     this.dynamic.add(this.ribbon);
     if (animate) {
       this.revealT0 = shared.uTime.value;
-      this.revealMax = path.length / 2 + 2;
+      this.revealMax = maxArc + 0.5;
       this.reveal.value = 0;
     } else {
       this.revealT0 = -1;
       this.reveal.value = 1e6;
     }
-    if (this.dashes) {
-      this.dynamic.remove(this.dashes);
-      this.dashes.dispose();
-      this.dashes = null;
-    }
-    const stage = this.sim.state.progress.stage;
-    if (stage < 3) {
-      const next = farmPaths(farm)[stage + 1];
-      const pts: number[] = [];
-      for (let i = 0; i < next.n; i += 6) {
-        // Skip stretches shared with the current loop.
-        let near = false;
-        for (let j = 0; j < path.n; j += 2) {
-          if ((path.x[j] - next.x[i]) ** 2 + (path.z[j] - next.z[i]) ** 2 < 1) {
-            near = true;
-            break;
-          }
-        }
-        if (!near) pts.push(i);
-      }
-      const m = new THREE.InstancedMesh(dashGeometry(), this.dashMat, Math.max(1, pts.length));
-      m.count = pts.length;
-      pts.forEach((i, k) => {
-        V.set(next.x[i], 0.05, next.z[i]);
-        E.set(0, Math.atan2(-next.tz[i], next.tx[i]), 0);
-        Q.setFromEuler(E);
-        S.setScalar(1);
-        m.setMatrixAt(k, M4.compose(V, Q, S));
-      });
-      m.renderOrder = 1;
-      this.dashes = m;
-      this.dynamic.add(m);
-    }
+  }
+
+  private clearGhost(): void {
+    if (!this.ghost) return;
+    this.dynamic.remove(this.ghost);
+    this.ghost.geometry.dispose();
+    this.ghost = null;
+    this.ghostT0 = -1;
   }
 
   /** Shader warm-up: temporarily show the path with its draw-in material so that program is compiled up front. */
@@ -258,31 +232,15 @@ export class WorldView {
     this.ribbon.material = on ? this.ribbonMat : this.ribbonPlain;
   }
 
-  /** Barn squash-and-stretch when a load arrives. */
-  bounceBarn(now: number): void {
-    this.barnBounceT = now;
-  }
-
   update(now: number, dt: number): void {
-    // "Sell here" arrow: eases in while the basket is full, bobs and spins over the barn.
-    const st = this.sim.state;
-    const full = st.basket.mass >= capacityOf(st);
-    this.arrowShown += ((full ? 1 : 0) - this.arrowShown) * Math.min(1, dt * 8);
-    this.arrow.visible = this.arrowShown > 0.02;
-    if (this.arrow.visible) {
-      const b = this.sim.farm.barn;
-      this.arrow.position.set(b.bx, 4.6 + Math.abs(Math.sin(now * 3.2)) * 0.7, b.bz);
-      this.arrow.rotation.y = now * 1.6;
-      this.arrow.scale.setScalar(this.arrowShown * (1 + 0.08 * Math.sin(now * 6.4)));
-    }
-    this.dashMat.opacity = 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(now * 3));
+    if (this.shownStyle !== this.sim.state.progress.zone && this.revealT0 < 0) this.setRoute(null);
     for (let i = 0; i < this.sails.length; i++) this.sails[i].rotation.z -= dt * (0.9 + i * 0.15);
     if (this.cloudTex) {
       this.cloudTex.offset.x = now * 0.004;
       this.cloudTex.offset.y = now * 0.0025;
     }
     if (this.revealT0 >= 0) {
-      const u = Math.min(1, (now - this.revealT0) / 1.4);
+      const u = Math.min(1, (now - this.revealT0) / REVEAL_S);
       this.reveal.value = easeOutCubic(u) * this.revealMax;
       if (u >= 1) {
         this.revealT0 = -1;
@@ -290,16 +248,37 @@ export class WorldView {
         if (this.ribbon) this.ribbon.material = this.ribbonPlain;
       }
     }
-    if (this.barnBounceT >= 0) {
-      const u = (now - this.barnBounceT) / 0.5;
-      if (u >= 1) {
-        this.barnBounceT = -1;
-        this.barn.scale.set(1, 1, 1);
-      } else {
-        const k = easeOutBack(u) - u;
-        const sq = Math.sin(u * Math.PI * 2) * (1 - u) * 0.12 + k * 0.02;
-        this.barn.scale.set(1 + sq, 1 - sq, 1 + sq);
-      }
+    if (this.ghost) {
+      const u = (now - this.ghostT0) / 1.1;
+      if (u >= 1) this.clearGhost();
+      else this.ghostMat.opacity = 1 - easeOutCubic(u);
     }
   }
+}
+
+/** 1 for samples of `p` that are not on `prev` (new stretches of the route). */
+function freshness(p: PathTable, prev: PathTable): Uint8Array {
+  const cell = 1;
+  const grid = new Map<number, number[]>();
+  const key = (x: number, z: number) => (Math.floor(x / cell) + 4096) * 8192 + (Math.floor(z / cell) + 4096);
+  for (let i = 0; i < prev.n; i++) {
+    const k = key(prev.x[i], prev.z[i]);
+    let a = grid.get(k);
+    if (!a) grid.set(k, (a = []));
+    a.push(i);
+  }
+  const out = new Uint8Array(p.n);
+  const r2 = 0.35 * 0.35;
+  for (let i = 0; i < p.n; i++) {
+    const cx = Math.floor(p.x[i] / cell);
+    const cz = Math.floor(p.z[i] / cell);
+    let near = false;
+    for (let dz = -1; dz <= 1 && !near; dz++)
+      for (let dx = -1; dx <= 1 && !near; dx++) {
+        const a = grid.get((cx + dx + 4096) * 8192 + (cz + dz + 4096));
+        if (a) for (const j of a) if ((prev.x[j] - p.x[i]) ** 2 + (prev.z[j] - p.z[i]) ** 2 < r2) (near = true);
+      }
+    out[i] = near ? 0 : 1;
+  }
+  return out;
 }

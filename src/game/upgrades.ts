@@ -1,29 +1,35 @@
 import type { GameState, PathTable, UpgradeId } from './types.ts';
 import type { FarmDef } from './farms/index.ts';
-import { BODY, MOVE, cost, farmEco } from './config.ts';
+import { BODY, MOVE, TERRITORY, cost, farmEco } from './config.ts';
 import { findMergePair } from './caterpillar.ts';
+import { clearedUpTo, type Territory } from './territory.ts';
 
-export type BuyReason = 'coins' | 'maxSegments' | 'noPair' | 'maxLevel' | 'finalStage' | 'notFinalStage' | 'finished';
+export type BuyReason = 'coins' | 'maxSegments' | 'noPair' | 'maxLevel' | 'finalZone' | 'notCleared' | 'finished';
 export interface BuyCheck {
   ok: boolean;
   cost: number;
   reason?: BuyReason;
 }
 
-/** How many segments fit on the current loop (stage cap and geometry). */
-export function maxSegments(farm: FarmDef, stage: number, path: PathTable): number {
+/** How many segments fit: the open zone's cap and the loop's length. */
+export function maxSegments(farm: FarmDef, zone: number, path: PathTable): number {
   const geometric = Math.floor((path.length - BODY.HEAD_GAP - 4) / BODY.SEG_SPACING) + 1;
-  return Math.min(farm.stages[stage].maxSegments, geometric);
+  return Math.max(1, Math.min(farm.maxSegments[zone], geometric));
 }
 
-export function upgradeCost(st: GameState, farm: FarmDef, id: UpgradeId): number {
+/** EXPAND (open the next zone's fence) is free once the open area is mostly cleared. */
+export const zoneOpensFree = (st: GameState, terr: Territory): boolean => clearedUpTo(terr, st.progress.zone) >= TERRITORY.ZONE_FREE_AT;
+
+/** Destroyed share of all the farm's crops. */
+export const farmCleared = (terr: Territory): number => clearedUpTo(terr, 3);
+
+export function upgradeCost(st: GameState, farm: FarmDef, terr: Territory, id: UpgradeId): number {
   const m = farmEco(farm.index).costMult;
   const p = st.progress;
   switch (id) {
     case 'add':
       return Math.ceil(cost.add(p.segments.length, p.addCount) * m);
-    case 'merge':
-      {
+    case 'merge': {
       const pair = findMergePair(p.segments);
       return Math.ceil(cost.merge(pair ? pair.level : 1, p.mergeCount) * m);
     }
@@ -32,19 +38,20 @@ export function upgradeCost(st: GameState, farm: FarmDef, id: UpgradeId): number
     case 'capacity':
       return Math.ceil(cost.capacity(p.capacityLevel) * m);
     case 'expand':
-      return p.stage >= 3 ? Infinity : Math.ceil(farm.stages[p.stage + 1].cost * m);
+      if (p.zone >= 3) return Infinity;
+      return zoneOpensFree(st, terr) ? 0 : Math.ceil(farm.zoneCost[p.zone + 1] * m);
     case 'finish':
-      return Math.ceil(farm.finishCost * m);
+      return 0;
   }
 }
 
-export function canBuy(st: GameState, farm: FarmDef, path: PathTable, id: UpgradeId, free = false): BuyCheck {
-  const c = upgradeCost(st, farm, id);
+export function canBuy(st: GameState, farm: FarmDef, terr: Territory, path: PathTable, id: UpgradeId, free = false): BuyCheck {
+  const c = upgradeCost(st, farm, terr, id);
   const p = st.progress;
   const fail = (reason: BuyReason): BuyCheck => ({ ok: false, cost: c, reason });
   switch (id) {
     case 'add':
-      if (p.segments.length >= maxSegments(farm, p.stage, path)) return fail('maxSegments');
+      if (p.segments.length >= maxSegments(farm, p.zone, path)) return fail('maxSegments');
       break;
     case 'merge':
       if (!findMergePair(p.segments)) return fail('noPair');
@@ -55,11 +62,11 @@ export function canBuy(st: GameState, farm: FarmDef, path: PathTable, id: Upgrad
     case 'capacity':
       break;
     case 'expand':
-      if (p.stage >= 3) return fail('finalStage');
+      if (p.zone >= 3) return fail('finalZone');
       break;
     case 'finish':
       if (p.finished) return fail('finished');
-      if (p.stage < 3) return fail('notFinalStage');
+      if (p.zone < 3 || farmCleared(terr) < TERRITORY.FINISH_AT) return fail('notCleared');
       break;
   }
   if (!free && st.coins < c) return fail('coins');

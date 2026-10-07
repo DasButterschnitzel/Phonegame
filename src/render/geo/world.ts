@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { PathTable } from '../../game/types.ts';
 import { build, ball, box, cone, cyl, dodeca, octa, type Part } from './lowpoly.ts';
 
-/** Checkerboard field ground (vertex colours), tiles of `tile` units inside bounds. */
+/** Checkerboard ground (vertex colours), tiles of `tile` units inside bounds. */
 export function fieldGround(x0: number, z0: number, x1: number, z1: number, a: number, b: number, tile = 2): THREE.BufferGeometry {
   const pos: number[] = [];
   const col: number[] = [];
@@ -27,26 +27,27 @@ export function fieldGround(x0: number, z0: number, x1: number, z1: number, a: n
 }
 
 /**
- * Path ribbon along the loop: dirt centre plus darker edges. `aArc` holds each vertex's arc distance from
- * `arcFrom` (either direction) so the ribbon can "draw itself" outwards from the caterpillar on EXPAND.
+ * Path ribbon along the loop: dirt centre plus darker edges. `aArc` holds each vertex's reveal distance (0 = always
+ * visible) so new stretches can "draw themselves". `style` (the outermost open zone) upgrades the path as the farm
+ * develops: dirt → gravel edging → paving → golden brick.
  */
-export function pathRibbon(p: PathTable, width: number, center: number, edge: number, y = 0.02, arcFrom = 0): THREE.BufferGeometry {
+export function pathRibbon(p: PathTable, width: number, center: number, edge: number, y = 0.02, arcOf: (i: number) => number = () => 0, style = 0): THREE.BufferGeometry {
   const pos: number[] = [];
   const col: number[] = [];
   const arc: number[] = [];
   const cc = new THREE.Color(center);
   const ce = new THREE.Color(edge);
+  if (style >= 1) ce.lerp(new THREE.Color(0xe8e2d6), 0.35);
+  if (style >= 3) {
+    cc.lerp(new THREE.Color(0xf6c35a), 0.35);
+    ce.lerp(new THREE.Color(0xc98a2b), 0.5);
+  }
+  const stripe = new THREE.Color(0xfff3c4);
   const half = width / 2;
-  const bands: [number, number, THREE.Color][] = [
-    [-half - 0.12, -half + 0.08, ce],
-    [-half + 0.08, half - 0.08, cc],
-    [half - 0.08, half + 0.12, ce],
-  ];
-  const L = p.length;
-  const arcOf = (i: number) => {
-    const d = Math.abs(i * p.ds - arcFrom) % L;
-    return Math.min(d, L - d);
-  };
+  const bands: [number, number, number][] = style >= 3
+    ? [[-half - 0.14, -half + 0.1, 0], [-half + 0.1, -0.06, 1], [-0.06, 0.06, 2], [0.06, half - 0.1, 1], [half - 0.1, half + 0.14, 0]]
+    : [[-half - 0.12, -half + 0.08, 0], [-half + 0.08, half - 0.08, 1], [half - 0.08, half + 0.12, 0]];
+  const tmp = new THREE.Color();
   const step = 2; // every other sample keeps the vertex count modest
   for (let i = 0; i < p.n; i += step) {
     const j = (i + step) % p.n;
@@ -56,7 +57,7 @@ export function pathRibbon(p: PathTable, width: number, center: number, edge: nu
     const nzj = p.tx[j];
     const ai = arcOf(i);
     const aj = arcOf(j);
-    for (const [a, b, c] of bands) {
+    for (const [a, b, kind] of bands) {
       const ax = p.x[i] + nxi * a;
       const az = p.z[i] + nzi * a;
       const bx = p.x[i] + nxi * b;
@@ -67,8 +68,13 @@ export function pathRibbon(p: PathTable, width: number, center: number, edge: nu
       const dz = p.z[j] + nzj * b;
       pos.push(ax, y, az, cx, y, cz, bx, y, bz, bx, y, bz, cx, y, cz, dx, y, dz);
       arc.push(ai, aj, ai, ai, aj, aj);
-      const shade = 0.96 + 0.08 * (((i * 7919) % 13) / 13);
-      for (let k = 0; k < 6; k++) col.push(c.r * shade, c.g * shade, c.b * shade);
+      tmp.copy(kind === 0 ? ce : kind === 2 ? stripe : cc);
+      let shade = 0.96 + 0.08 * (((i * 7919) % 13) / 13);
+      // Paving: alternating slabs across the path.
+      if (style >= 2 && kind === 1) shade *= Math.floor(i / 4) % 2 ? 1.06 : 0.92;
+      // Gravel edging: speckled.
+      if (style >= 1 && kind === 0) shade *= 0.9 + 0.2 * (((i * 104729) % 7) / 7);
+      for (let k = 0; k < 6; k++) col.push(tmp.r * shade, tmp.g * shade, tmp.b * shade);
     }
   }
   const g = new THREE.BufferGeometry();
@@ -87,12 +93,11 @@ export function barnGeometry(): THREE.BufferGeometry {
   const parts: Part[] = [
     { geo: box(2.6, 1.8, 2.6), color: red, pos: [0, 0.9, 0], jitter: 0.06 },
     { geo: roofGeo, color: roof, pos: [0, 2.1, 0], rot: [0, 0, Math.PI / 2], scale: [1, 1, 0.75], jitter: 0.08 },
-    // Door facing +Z (rotated by the view to face the path).
-    { geo: box(1.1, 1.3, 0.08), color: 0x7a2323, pos: [0, 0.65, 1.31] },
-    { geo: box(1.2, 0.08, 0.1), color: white, pos: [0, 1.32, 1.33] },
-    { geo: box(0.08, 1.3, 0.1), color: white, pos: [0.58, 0.65, 1.33] },
-    { geo: box(0.08, 1.3, 0.1), color: white, pos: [-0.58, 0.65, 1.33] },
-    { geo: box(1.5, 0.08, 0.1), color: white, pos: [0, 0.65, 1.34], rot: [0, 0, 0.75] },
+    // Dark doorway facing +Z (rotated by the view to face the path); the door panels are animated separately.
+    { geo: box(1.1, 1.3, 0.06), color: 0x2a1a14, pos: [0, 0.65, 1.3] },
+    { geo: box(1.3, 0.1, 0.12), color: white, pos: [0, 1.35, 1.33] },
+    { geo: box(0.1, 1.35, 0.12), color: white, pos: [0.62, 0.67, 1.33] },
+    { geo: box(0.1, 1.35, 0.12), color: white, pos: [-0.62, 0.67, 1.33] },
     // Hay loft window.
     { geo: box(0.5, 0.45, 0.08), color: 0xffd23f, pos: [0, 2.0, 1.12] },
     // Silo.
@@ -148,7 +153,6 @@ export function fencePostGeometry(): THREE.BufferGeometry {
   ]);
 }
 
-/** Dash for the "next expansion" outline. */
 /** Chunky "go here" arrow pointing down (shown over the barn when the basket is full). */
 export function arrowGeometry(): THREE.BufferGeometry {
   const gold = 0xffd23f;
@@ -158,9 +162,6 @@ export function arrowGeometry(): THREE.BufferGeometry {
   ]);
 }
 
-export function dashGeometry(): THREE.BufferGeometry {
-  return build([{ geo: box(0.5, 0.03, 0.16), color: 0xffffff }]);
-}
 
 /** Radial blob shadow texture. */
 export function blobTexture(): THREE.Texture {
@@ -218,14 +219,6 @@ export function tuftGeometry(): THREE.BufferGeometry {
   ]);
 }
 
-export function flowerGeometry(petal: number): THREE.BufferGeometry {
-  return build([
-    { geo: cyl(0.02, 0.02, 0.4, 3), color: 0x4f9e3a, pos: [0, 0.2, 0] },
-    { geo: octa(0.11), color: petal, pos: [0, 0.42, 0], scale: [1.3, 0.55, 1.3] },
-    { geo: octa(0.05), color: 0xffd23f, pos: [0, 0.46, 0] },
-  ]);
-}
-
 export function snowmanGeometry(): THREE.BufferGeometry {
   return build(
     [
@@ -240,4 +233,129 @@ export function snowmanGeometry(): THREE.BufferGeometry {
     0.15,
     2,
   );
+}
+
+/** One barn door panel (hinge at x = 0, opening towards +x), red with the white cross brace. */
+export function barnDoorGeometry(): THREE.BufferGeometry {
+  return build([
+    { geo: box(0.55, 1.28, 0.07), color: 0xa83232, pos: [0.275, 0.64, 0] },
+    { geo: box(0.07, 1.28, 0.09), color: 0xffffff, pos: [0.52, 0.64, 0] },
+    { geo: box(0.08, 1.35, 0.09), color: 0xffffff, pos: [0.275, 0.64, 0.01], rot: [0, 0, 0.42] },
+  ]);
+}
+
+/** Fence run along +x of length `len` (posts at both ends, two rails). */
+export function fenceSegmentGeometry(len: number): THREE.BufferGeometry {
+  const posts = Math.max(2, Math.round(len / 1.2) + 1);
+  const parts: Part[] = [];
+  for (let k = 0; k < posts; k++) parts.push({ geo: box(0.15, 0.78, 0.15), color: 0x9a6334, pos: [(k / (posts - 1)) * len, 0.39, 0], jitter: 0.12 });
+  parts.push({ geo: box(len, 0.1, 0.06), color: 0xc98d55, pos: [len / 2, 0.56, 0], jitter: 0.08 });
+  parts.push({ geo: box(len, 0.1, 0.06), color: 0xc98d55, pos: [len / 2, 0.28, 0], jitter: 0.08 });
+  return build(parts);
+}
+
+/** Square ring (plot highlight), outer size `size`, bar width `w`, lying flat. */
+export function plotFrameGeometry(size: number, w: number): THREE.BufferGeometry {
+  const h = size / 2;
+  const parts: Part[] = [
+    { geo: box(size, 0.02, w), color: 0xffffff, pos: [0, 0, -h + w / 2] },
+    { geo: box(size, 0.02, w), color: 0xffffff, pos: [0, 0, h - w / 2] },
+    { geo: box(w, 0.02, size - 2 * w), color: 0xffffff, pos: [-h + w / 2, 0, 0] },
+    { geo: box(w, 0.02, size - 2 * w), color: 0xffffff, pos: [h - w / 2, 0, 0] },
+  ];
+  return build(parts);
+}
+
+/** What is left of a destroyed crop until its plot is cleared: cut stalks on a scuffed dirt patch. */
+export function stubbleGeometry(): THREE.BufferGeometry {
+  const parts: Part[] = [{ geo: cyl(0.26, 0.3, 0.03, 6), color: 0x7a5232, pos: [0, 0.015, 0], jitter: 0.2 }];
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2 + 0.4;
+    parts.push({ geo: cyl(0.025, 0.035, 0.12 + (k % 3) * 0.04, 3), color: k % 2 ? 0xb9a35a : 0x8a9a3e, pos: [Math.cos(a) * 0.12, 0.07, Math.sin(a) * 0.12], rot: [0.2 * Math.sin(a), 0, 0.2 * Math.cos(a)] });
+  }
+  return build(parts);
+}
+
+/** Depot pad: a painted unloading bay along +x (length `len`, width `w`) with yellow/charcoal hazard edges. */
+export function depotPadGeometry(len: number, w: number): THREE.BufferGeometry {
+  const parts: Part[] = [{ geo: box(len, 0.02, w), color: 0xf2e3b8, pos: [0, 0.01, 0] }];
+  const n = Math.round(len / 0.4);
+  for (let k = 0; k < n; k++) {
+    const x = -len / 2 + (k + 0.5) * (len / n);
+    const c = k % 2 ? 0xffc62e : 0x3a3f4c;
+    parts.push({ geo: box(len / n, 0.025, 0.18), color: c, pos: [x, 0.015, -w / 2 + 0.09] });
+    parts.push({ geo: box(len / n, 0.025, 0.18), color: c, pos: [x, 0.015, w / 2 - 0.09] });
+  }
+  return build(parts);
+}
+
+/** Chevron arrow pointing +x (painted on the pad; animated by instance colour). */
+export function chevronGeometry(): THREE.BufferGeometry {
+  return build([
+    { geo: box(0.5, 0.02, 0.13), color: 0xffffff, pos: [0, 0, 0.17], rot: [0, 0.75, 0] },
+    { geo: box(0.5, 0.02, 0.13), color: 0xffffff, pos: [0, 0, -0.17], rot: [0, -0.75, 0] },
+  ]);
+}
+
+/** Hopper/chute next to the route: a funnel on legs that takes the cargo (front faces +z, towards the route). */
+export function hopperGeometry(): THREE.BufferGeometry {
+  const y = 0xffc62e;
+  const dark = 0x3a3f4c;
+  return build(
+    [
+      { geo: cyl(0.62, 0.26, 0.62, 8), color: y, pos: [0, 1.05, 0], jitter: 0.06 },
+      // Open mouth: a dark hole inside a bright rim.
+      { geo: cyl(0.48, 0.48, 0.04, 8), color: 0x2a1f16, pos: [0, 1.37, 0] },
+      { geo: cyl(0.66, 0.66, 0.06, 8), color: 0xffe08a, pos: [0, 1.33, 0] },
+      { geo: cyl(0.22, 0.22, 0.42, 6), color: dark, pos: [0, 0.58, 0] },
+      { geo: box(0.08, 0.8, 0.08), color: dark, pos: [0.42, 0.4, 0.3] },
+      { geo: box(0.08, 0.8, 0.08), color: dark, pos: [-0.42, 0.4, 0.3] },
+      { geo: box(0.08, 0.8, 0.08), color: dark, pos: [0.42, 0.4, -0.3] },
+      { geo: box(0.08, 0.8, 0.08), color: dark, pos: [-0.42, 0.4, -0.3] },
+    ],
+    0.2,
+    1.4,
+  );
+}
+
+/** Conveyor bed along +z from the hopper to the barn door. */
+export function conveyorGeometry(len: number): THREE.BufferGeometry {
+  return build([
+    { geo: box(0.62, 0.12, len), color: 0x4a505e, pos: [0, 0.34, len / 2] },
+    { geo: box(0.07, 0.2, len), color: 0xffc62e, pos: [0.33, 0.4, len / 2] },
+    { geo: box(0.07, 0.2, len), color: 0xffc62e, pos: [-0.33, 0.4, len / 2] },
+    { geo: box(0.08, 0.34, 0.08), color: 0x3a3f4c, pos: [0.3, 0.17, 0.1] },
+    { geo: box(0.08, 0.34, 0.08), color: 0x3a3f4c, pos: [-0.3, 0.17, 0.1] },
+  ]);
+}
+
+/** Depot sign: post with a round coin board. */
+export function depotSignGeometry(): THREE.BufferGeometry {
+  return build([
+    { geo: box(0.12, 1.7, 0.12), color: 0x8b5a2b, pos: [0, 0.85, 0] },
+    { geo: cyl(0.48, 0.48, 0.1, 10), color: 0xffffff, pos: [0, 1.85, 0], rot: [Math.PI / 2, 0, 0] },
+    { geo: cyl(0.38, 0.38, 0.12, 10), color: 0xffc62e, pos: [0, 1.85, 0.01], rot: [Math.PI / 2, 0, 0] },
+    { geo: box(0.1, 0.36, 0.13), color: 0xd99a00, pos: [0, 1.85, 0.03] },
+  ]);
+}
+
+/** A little bloom patch: three flowers of different colours (one mesh instead of one per colour), optional clover. */
+export function flowerClusterGeometry(colors: readonly number[] = [0xff6fb5, 0xffffff, 0xffd23f], clover = false): THREE.BufferGeometry {
+  const parts: Part[] = [];
+  if (clover)
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2;
+      parts.push({ geo: ball(0.1, 0), color: k % 2 ? 0x5fb346 : 0x6cc24a, pos: [-0.3 + Math.cos(a) * 0.13, 0.05, 0.15 + Math.sin(a) * 0.13], scale: [1, 0.45, 1] });
+    }
+  const spots: [number, number, number][] = [
+    [0, 0, 1],
+    [0.22, 0.12, 0.85],
+    [-0.15, 0.2, 0.75],
+  ];
+  spots.forEach(([x, z, s], i) => {
+    parts.push({ geo: cyl(0.02, 0.02, 0.4 * s, 3), color: 0x4f9e3a, pos: [x, 0.2 * s, z] });
+    parts.push({ geo: octa(0.11 * s), color: colors[i % colors.length], pos: [x, 0.42 * s, z], scale: [1.3, 0.55, 1.3] });
+    parts.push({ geo: octa(0.05 * s), color: 0xffd23f, pos: [x, 0.46 * s, z] });
+  });
+  return build(parts);
 }

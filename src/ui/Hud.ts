@@ -61,6 +61,8 @@ export class Hud {
   private rateText: HTMLElement;
   private farmName: HTMLElement;
   private dots: HTMLElement[];
+  private progFill: HTMLElement;
+  private progText: HTMLElement;
   private basket: HTMLElement;
   private basketFill: HTMLElement;
   private basketText: HTMLElement;
@@ -92,10 +94,17 @@ export class Hud {
     this.rateText = h('div', { class: 'rate outline' });
     this.farmName = h('div', { class: 'farm-name' });
     this.dots = [0, 1, 2, 3].map(() => h('i'));
+    this.progFill = h('div', { class: 'farm-prog-fill' });
+    this.progText = h('span', { class: 'farm-prog-text' });
     const top = h(
       'div',
       { class: 'hud-top' },
-      h('div', { class: 'pill farm-pill' }, this.farmName, h('div', { class: 'stage-dots' }, ...this.dots)),
+      h(
+        'div',
+        { class: 'pill farm-pill' },
+        h('div', { class: 'farm-row' }, this.farmName, h('div', { class: 'stage-dots' }, ...this.dots)),
+        h('div', { class: 'farm-prog' }, h('div', { class: 'farm-prog-track' }, this.progFill), this.progText),
+      ),
       h('div', { class: 'coin-box' }, this.coinPill, this.rateText),
     );
 
@@ -283,7 +292,10 @@ export class Hud {
     this.freeOffer = freeOffer;
     setText(this.rateText, vm.rate > 0 ? t('hud.perSec', { n: fmt(vm.rate) }) : '');
     setText(this.farmName, t(`farm.${vm.farmId}` as I18nKey));
-    this.dots.forEach((d, i) => toggleClass(d, 'on', i <= vm.stage));
+    this.dots.forEach((d, i) => toggleClass(d, 'on', i <= vm.zone));
+    // Farm progress: how much of the farm has been cleared.
+    setStyle(this.progFill, 'transform', `scaleX(${Math.min(1, vm.cleared).toFixed(3)})`);
+    setText(this.progText, `${Math.floor(vm.cleared * 100)}%`);
     // transform (not height) so the fill animates on the compositor without layout.
     setStyle(this.basketFill, 'transform', `scaleY(${Math.min(1, vm.fill).toFixed(3)})`);
     setText(this.basketText, `${fmt(vm.mass)}/${fmt(vm.cap)}`);
@@ -297,11 +309,15 @@ export class Hud {
       const travel = g.id === 'travel';
       setText(this.goalTitle, travel ? t('up.travel', { farm: t(`farm.${g.farm}` as I18nKey) }) : t(g.id === 'expand' ? 'up.expand' : 'up.finish'));
       setStyle(this.goalCostRow, 'display', travel ? 'none' : '');
-      if (!travel) setText(this.goalCost, fmt(g.cost));
+      // OPEN FIELD: a coin price that drops to FREE once the open area is mostly cleared. FINISH: clearing progress.
+      const free = !travel && g.id === 'expand' && g.cost === 0;
+      if (!travel) setText(this.goalCost, g.id === 'finish' ? `${Math.floor(g.progress * 90)}% / 90%` : free ? t('up.free') : fmt(g.cost));
+      toggleClass(this.goalCostRow, 'progress-only', g.id === 'finish' || free);
       toggleClass(this.goal, 'travel', travel);
       toggleClass(this.goal, 'ready', g.ok && !travel);
       toggleClass(this.goal, 'shine', g.ok);
-      setStyle(this.goalFill, 'transform', `scaleX(${travel ? 0 : Math.min(1, vm.coins / Math.max(1, g.cost)).toFixed(3)})`);
+      const fill = travel ? 0 : g.id === 'finish' ? g.progress : Math.max(g.progress, Math.min(1, vm.coins / Math.max(1, g.cost)));
+      setStyle(this.goalFill, 'transform', `scaleX(${fill.toFixed(3)})`);
     }
     setText(this.tornadoCount, vm.tornadoes > 0 ? String(vm.tornadoes) : this.adsAvailable && this.tornadoAd ? '+1' : '0');
     toggleClass(this.tornadoBtn, 'empty', vm.tornadoes === 0);

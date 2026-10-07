@@ -31,37 +31,66 @@ export interface CropField {
   key: Int32Array;
   x: Float32Array;
   z: Float32Array;
+  /** Crop tier = zone of its plot (0..3). */
   tier: Uint8Array;
+  /** Plot index (layout grid) the crop grows in. */
+  plot: Int32Array;
   /** Visual variety seed per crop (rotation, scale jitter). */
   seed: Float32Array;
   hp: Float32Array;
   maxHp: Float32Array;
-  /** Sim time when the crop is alive again; 0 = alive. */
-  regrowAt: Float64Array;
   golden: Uint8Array;
-  /** 1 = covered by the current stage's path (not rendered, not harvestable). */
-  paved: Uint8Array;
-  /** For each stage, 1 if the crop is paved at that stage (for carve animation and validation). */
-  pavedAt: Uint8Array[];
-  /** Dead crop indices awaiting regrowth. */
-  dead: Uint32Array;
+  /** 1 = destroyed. Permanent: crops never grow back. */
+  dead: Uint8Array;
   deadCount: number;
+  /** 1 = within reach of the current route (recomputed whenever the route changes). */
+  reach: Uint8Array;
+  /** Crops of plot p are indices plotStart[p] .. plotStart[p + 1] − 1. */
+  plotStart: Uint32Array;
   /** Crops whose visual state changed since the renderer last consumed them. */
   dirty: Uint32Array;
   dirtyCount: number;
   dirtyMark: Uint8Array;
-  /** Per arc-bin candidate lists (CSR). */
+  /** Per arc-bin candidate lists (CSR) of alive crops in open zones. */
   bins: { binLen: number; n: number; start: Uint32Array; items: Uint32Array };
 }
 
+/** Persistent per-farm field state (bitsets as base64). `ver` guards against layout changes between versions. */
+export interface FieldSnapshot {
+  ver: number;
+  claimed: string;
+  dead: string;
+  /** Flat [cropIndex, hp, cropIndex, hp, …] for damaged, still alive crops. */
+  hp: number[];
+  /** Flat [plot, readySince, …] for plots waiting to join the territory. */
+  ready?: number[];
+}
+
 export interface FarmProgress {
-  stage: number;
+  /** Outermost open zone (0..3). */
+  zone: number;
   finished: boolean;
   addCount: number;
   mergeCount: number;
   speedLevel: number;
   capacityLevel: number;
   segments: Segment[];
+  /** Cleared ground and crop damage; written on save and when leaving the farm. */
+  field?: FieldSnapshot;
+}
+
+/** A rolling unload in progress: each segment empties its share as it passes the depot chute. */
+export interface DepotPass {
+  active: boolean;
+  /** Distance the head has travelled since it passed the chute. */
+  dist: number;
+  segs: number;
+  mass: number;
+  value: number;
+  /** Segments that have already unloaded. */
+  done: number;
+  paidMass: number;
+  paidValue: number;
 }
 
 export interface Basket {
@@ -89,6 +118,7 @@ export interface GameState {
   /** Total distance crawled (drives leg animation; never wraps). */
   odometer: number;
   basket: Basket;
+  depot: DepotPass;
   boosts: Record<BoostId, number>;
   tornadoes: number;
   maxLevelReached: number;
@@ -117,20 +147,25 @@ export type Command =
   | { c: 'travel'; farm: FarmId }
   | { c: 'fillBasket'; frac: number }
   | { c: 'forceGift' }
-  | { c: 'forceGolden'; n: number };
+  | { c: 'forceGolden'; n: number }
+  | { c: 'clearFrontier'; n: number }
+  | { c: 'clearAll' };
 
-export type CoinReason = 'offline' | 'gift' | 'daily' | 'farmComplete' | 'travel' | 'debug';
+export type CoinReason = 'offline' | 'gift' | 'daily' | 'farmComplete' | 'travel' | 'tornado' | 'debug';
 
 export type SimEvent =
-  | { t: 'chunk'; crop: number; body: number; value: number; golden: boolean; wasted: boolean; tier: number }
-  | { t: 'kill'; crop: number; body: number; golden: boolean }
-  | { t: 'regrow'; crop: number; golden: boolean }
+  | { t: 'chunk'; crop: number; body: number; value: number; golden: boolean; tier: number }
+  | { t: 'kill'; crop: number; body: number; golden: boolean; swept: boolean }
   | { t: 'basketFull' }
-  | { t: 'unload'; value: number; mass: number; massByTier: number[] }
+  | { t: 'plotReady'; plot: number }
+  | { t: 'routeGrew'; plots: number[]; prevLength: number }
+  | { t: 'zoneOpened'; zone: number; free: boolean }
+  | { t: 'unloadStart'; segs: number; value: number; mass: number; massByTier: number[] }
+  | { t: 'unloadSeg'; seg: number; value: number; mass: number; last: boolean }
+  | { t: 'unload'; value: number; mass: number }
   | { t: 'segAdded'; id: number; level: number }
   | { t: 'merged'; consumed: [number, number]; into: number; level: number; firstTime: boolean }
   | { t: 'upgraded'; id: 'speed' | 'capacity'; level: number }
-  | { t: 'stageChanged'; stage: number; prevLength: number }
   | { t: 'farmFinished'; farm: FarmId; reward: number; next: FarmId | null }
   | { t: 'traveled'; farm: FarmId }
   | { t: 'tornado'; x: number; z: number; crops: number[]; value: number }

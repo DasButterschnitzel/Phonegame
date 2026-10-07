@@ -1,126 +1,123 @@
 import type { CropId, FarmId } from '../types.ts';
-import type { Pt } from '../path.ts';
+import { FIELD } from '../config.ts';
+import { buildLayout, type FarmLayout } from './layout.ts';
 
-export interface StageDef {
-  /** Polygon corners; the loop is these edges joined by fillets. Every stage passes the barn point. */
-  corners: Pt[];
-  /** Coins (before the farm cost multiplier) to EXPAND into this stage. 0 for stage 0. */
-  cost: number;
-  maxSegments: number;
-}
-
+/**
+ * A farm is a grid of square plots (FIELD.PLOT world units, 3×3 crops each). Row 0 is the far side (−z).
+ *   '.' nothing (scenery)        '#' rocks, '~' water — never cleared, the route bends around them
+ *   'S' start territory (cleared) 'D' start plot whose outward side carries the depot
+ *   'o' plot, zone assigned by distance from the start   '0'..'3' plot with an explicit zone
+ * The route is always the outline of the cleared territory; clearing plots next to it pushes it outward.
+ */
 export interface FarmDef {
   id: FarmId;
   index: number;
   seed: number;
   crops: [CropId, CropId, CropId, CropId];
+  map: readonly string[];
+  /** Share of the non-start plots in each zone (auto-assigned by distance from the start). */
+  zoneShare: readonly [number, number, number, number];
+  /** Coins (before the farm cost multiplier) to open zone k before it would open for free; [0] unused. */
+  zoneCost: readonly [number, number, number, number];
+  /** Segment cap while zone k is the outermost open zone. */
+  maxSegments: readonly [number, number, number, number];
+  layout: FarmLayout;
+  /** World-space extent of the plot grid. */
   bounds: { x0: number; z0: number; x1: number; z1: number };
-  /** Unload point on the path (x, z) and the barn building centre (bx, bz). */
+  /** Depot point on the route (x, z) and the barn building centre (bx, bz). */
   barn: { x: number; z: number; bx: number; bz: number };
-  stages: [StageDef, StageDef, StageDef, StageDef];
-  /** Coins (before multiplier) to finish the farm after the last stage. */
-  finishCost: number;
 }
 
-const EXPAND_COSTS = [0, 2500, 30_000, 220_000] as const;
+const ZONE_SHARE = [0.12, 0.22, 0.3, 0.36] as const;
+const ZONE_COST = [0, 900, 12_000, 110_000] as const;
 const MAX_SEGMENTS = [8, 14, 22, 32] as const;
-const FINISH_COST = 1_200_000;
 
-function stages(...polys: Pt[][]): [StageDef, StageDef, StageDef, StageDef] {
-  return polys.map((corners, i) => ({
-    corners: orient(corners),
-    cost: EXPAND_COSTS[i],
-    maxSegments: MAX_SEGMENTS[i],
-  })) as [StageDef, StageDef, StageDef, StageDef];
-}
-
-/** All loops run the same way round (positive signed area in x/z), so EXPAND never reverses the caterpillar. */
-function orient(corners: Pt[]): Pt[] {
-  let a = 0;
-  for (let i = 0; i < corners.length; i++) {
-    const [x1, z1] = corners[i];
-    const [x2, z2] = corners[(i + 1) % corners.length];
-    a += x1 * z2 - x2 * z1;
-  }
-  return a < 0 ? [...corners].reverse() : corners;
+function farm(id: FarmId, index: number, seed: number, crops: FarmDef['crops'], map: string[]): FarmDef {
+  const layout = buildLayout(map, FIELD.PLOT, ZONE_SHARE, FIELD.PLOT_CROPS);
+  return {
+    id,
+    index,
+    seed,
+    crops,
+    map,
+    zoneShare: ZONE_SHARE,
+    zoneCost: ZONE_COST,
+    maxSegments: MAX_SEGMENTS,
+    layout,
+    bounds: layout.bounds,
+    barn: layout.barn,
+  };
 }
 
 export const FARMS: Record<FarmId, FarmDef> = {
-  meadow: {
-    id: 'meadow',
-    index: 0,
-    seed: 1101,
-    crops: ['lettuce', 'wheat', 'carrot', 'pumpkin'],
-    bounds: { x0: -24, z0: -27, x1: 24, z1: 8 },
-    barn: { x: 0, z: 4, bx: 0, bz: 0.6 },
-    stages: stages(
-      [[-6, 4], [-6, -4], [6, -4], [6, 4]],
-      [[-6, 4], [-6, -10], [12, -10], [12, 4]],
-      [[-16, 4], [-16, -14], [12, -14], [12, -2], [6, -2], [6, 4]],
-      [[-20, 4], [-20, -22], [-4, -22], [-4, -12], [4, -12], [4, -22], [20, -22], [20, 4]],
-    ),
-    finishCost: FINISH_COST,
-  },
-  pumpkin: {
-    id: 'pumpkin',
-    index: 1,
-    seed: 2202,
-    crops: ['cabbage', 'squash', 'pumpkin', 'watermelon'],
-    bounds: { x0: -12, z0: -24, x1: 24, z1: 18 },
-    barn: { x: -8, z: 0, bx: -4.6, bz: 0 },
-    stages: stages(
-      [[-8, 6], [-8, -6], [2, -6], [2, 6]],
-      [[-8, 8], [-8, -12], [8, -12], [8, 8]],
-      [[-8, 10], [-8, -12], [8, -12], [8, -4], [16, -4], [16, 10]],
-      [[-8, 14], [-8, -20], [20, -20], [20, 14], [10, 14], [10, 4], [2, 4], [2, 14]],
-    ),
-    finishCost: FINISH_COST,
-  },
-  sunflower: {
-    id: 'sunflower',
-    index: 2,
-    seed: 3303,
-    crops: ['turnip', 'tomato', 'corn', 'sunflower'],
-    bounds: { x0: -22, z0: -26, x1: 22, z1: 10 },
-    barn: { x: 0, z: 6, bx: 0, bz: 2.6 },
-    stages: stages(
-      [[-7, 6], [-7, -2], [-3, -6], [7, -6], [7, 6]],
-      [[-10, 6], [-10, -6], [-4, -12], [10, -12], [10, 6]],
-      [[-14, 6], [-14, -10], [-8, -16], [14, -16], [14, 0], [8, 6]],
-      [[-18, 6], [-18, -14], [-10, -22], [18, -22], [18, -2], [10, 6]],
-    ),
-    finishCost: FINISH_COST,
-  },
-  snowyberry: {
-    id: 'snowyberry',
-    index: 3,
-    seed: 4404,
-    crops: ['turnip', 'blueberry', 'strawberry', 'pumpkin'],
-    bounds: { x0: -24, z0: -20, x1: 12, z1: 20 },
-    barn: { x: 8, z: 0, bx: 4.6, bz: 0 },
-    stages: stages(
-      [[8, 5], [-4, 5], [-4, -5], [8, -5]],
-      [[8, 8], [-10, 8], [-10, -8], [8, -8]],
-      [[8, 8], [-6, 8], [-6, 14], [-16, 14], [-16, -10], [8, -10]],
-      [[8, 16], [-20, 16], [-20, 4], [-10, 4], [-10, -4], [-20, -4], [-20, -16], [8, -16]],
-    ),
-    finishCost: FINISH_COST,
-  },
-  desert: {
-    id: 'desert',
-    index: 4,
-    seed: 5505,
-    crops: ['pepper', 'cactusfruit', 'watermelon', 'dragonfruit'],
-    bounds: { x0: -22, z0: -13, x1: 22, z1: 22 },
-    barn: { x: 0, z: -6, bx: 0, bz: -9.4 },
-    stages: stages(
-      [[-6, -6], [6, -6], [6, 4], [-6, 4]],
-      [[-6, -6], [10, -6], [10, 10], [-6, 10]],
-      [[-14, -6], [10, -6], [10, 14], [-2, 14], [-2, 6], [-14, 6]],
-      [[-18, -6], [18, -6], [18, 18], [6, 18], [6, 10], [-6, 10], [-6, 18], [-18, 18]],
-    ),
-    finishCost: FINISH_COST,
-  },
+  // Wide meadow: a pond eats into the top, a rock spur from the left.
+  meadow: farm('meadow', 0, 1101, ['lettuce', 'wheat', 'carrot', 'pumpkin'], [
+    '..oooo~~oooo..',
+    '.ooooo~~ooooo.',
+    'ooooooo~oooooo',
+    'oooooooooooooo',
+    '##oooooooooooo',
+    '#ooooooooooooo',
+    'oooooooooooooo',
+    'oooooooooooooo',
+    'oooooSSSSooooo',
+    '.ooooSDSSoooo.',
+  ]),
+  // Tall patch with a creek cutting in from the right: the route has to wrap around it.
+  pumpkin: farm('pumpkin', 1, 2202, ['cabbage', 'squash', 'pumpkin', 'watermelon'], [
+    '..oooooooo..',
+    '.oooooooooo.',
+    'oooooooooooo',
+    'oooooooooooo',
+    'ooooooo~~~~~',
+    'oooooooo~~~~',
+    'oooooooooooo',
+    'oooooooooooo',
+    'oooooooooooo',
+    'oooooooooooo',
+    'ooooSSSooooo',
+    '.oooSDSoooo.',
+  ]),
+  // Rounded hill with rock ledges on both flanks.
+  sunflower: farm('sunflower', 2, 3303, ['turnip', 'tomato', 'corn', 'sunflower'], [
+    '...oooooooo...',
+    '..oooooooooo..',
+    '.oooooooooooo.',
+    '##oooooooooooo',
+    '###ooooooooooo',
+    'oooooooooooooo',
+    'oooooooooooo##',
+    'ooooooooooooo#',
+    'oooooSSSoooooo',
+    '.ooooSDSooooo.',
+  ]),
+  // Frozen pond at the top, pines in the bottom-left corner.
+  snowyberry: farm('snowyberry', 3, 4404, ['turnip', 'blueberry', 'strawberry', 'pumpkin'], [
+    'ooooo~~ooooo',
+    'ooooo~~ooooo',
+    'oooooo~ooooo',
+    'oooooooooooo',
+    'oooooooooooo',
+    'oooooooooooo',
+    'oooooooooooo',
+    'oooooooooooo',
+    'oooooooooooo',
+    '#ooooooooooo',
+    '##ooSSSooooo',
+    '##ooSDSoooo.',
+  ]),
+  // Wide ranch with two mesas on the far edge.
+  desert: farm('desert', 4, 5505, ['pepper', 'cactusfruit', 'watermelon', 'dragonfruit'], [
+    'oo###oooooo##oo',
+    'ooo#oooooooo#oo',
+    'ooooooooooooooo',
+    'ooooooooooooooo',
+    'ooooooooooooooo',
+    'ooooooooooooooo',
+    'ooooooooooooooo',
+    'ooooooSSSoooooo',
+    '.oooooSDSooooo.',
+  ]),
 };
 
 export const getFarm = (id: FarmId): FarmDef => FARMS[id];

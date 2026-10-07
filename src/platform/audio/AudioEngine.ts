@@ -12,9 +12,15 @@ export class AudioEngine {
   private sfx!: GainNode;
   private musicBus!: GainNode;
   private noise!: AudioBuffer;
-  private motorOsc: OscillatorNode | null = null;
+  /** Motor = a quiet servo whine (two oscillators) + a breath of filtered air, under a ducking gain. */
+  private servoA: OscillatorNode | null = null;
+  private servoB: OscillatorNode | null = null;
   private motorGain!: GainNode;
   private motorFilter!: BiquadFilterNode;
+  private whirrGain!: GainNode;
+  private duckGain!: GainNode;
+  private lastStep = -1;
+  private wasHeld = false;
   private lastPlay = new Map<string, number>();
   private soundOn = true;
   private musicOn = true;
@@ -49,17 +55,39 @@ export class AudioEngine {
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      // Motor bus (ducked under big moments).
+      this.duckGain = this.ctx.createGain();
+      this.duckGain.connect(this.sfx);
       this.motorFilter = this.ctx.createBiquadFilter();
-      this.motorFilter.type = 'lowpass';
-      this.motorFilter.frequency.value = 300;
+      this.motorFilter.type = 'bandpass';
+      this.motorFilter.Q.value = 1.1;
+      this.motorFilter.frequency.value = 600;
       this.motorGain = this.ctx.createGain();
       this.motorGain.gain.value = 0;
-      this.motorFilter.connect(this.motorGain).connect(this.sfx);
-      this.motorOsc = this.ctx.createOscillator();
-      this.motorOsc.type = 'sawtooth';
-      this.motorOsc.frequency.value = 55;
-      this.motorOsc.connect(this.motorFilter);
-      this.motorOsc.start();
+      this.motorFilter.connect(this.motorGain).connect(this.duckGain);
+      this.servoA = this.ctx.createOscillator();
+      this.servoA.type = 'triangle';
+      this.servoA.frequency.value = 180;
+      this.servoB = this.ctx.createOscillator();
+      this.servoB.type = 'sine';
+      this.servoB.frequency.value = 362;
+      const bGain = this.ctx.createGain();
+      bGain.gain.value = 0.45;
+      this.servoA.connect(this.motorFilter);
+      this.servoB.connect(bGain).connect(this.motorFilter);
+      this.servoA.start();
+      this.servoB.start();
+      const air = this.ctx.createBufferSource();
+      air.buffer = this.noise;
+      air.loop = true;
+      const airF = this.ctx.createBiquadFilter();
+      airF.type = 'bandpass';
+      airF.frequency.value = 2600;
+      airF.Q.value = 0.7;
+      this.whirrGain = this.ctx.createGain();
+      this.whirrGain.gain.value = 0;
+      air.connect(airF).connect(this.whirrGain).connect(this.duckGain);
+      air.start();
       this.applyGain();
     }
     this.syncRunning();
@@ -105,19 +133,65 @@ export class AudioEngine {
     this.musicBus.gain.value = this.musicOn ? 0.14 : 0;
   }
 
-  /** 0..1 speed fraction; drives motor hum and music tempo. */
+  /** 0..1 speed fraction; drives the servo whirr and music tempo. */
   setSpeed(frac: number): void {
     this.speed = frac;
-    if (!this.ctx || !this.motorOsc || this.ctx.state !== 'running') return;
+    if (!this.ctx || !this.servoA || this.ctx.state !== 'running') return;
     // Automation events cross to the audio thread: send only real changes, at most ~15 Hz.
     const now = performance.now();
     if (Math.abs(frac - this.sentSpeed) < 0.02 || now - this.sentAt < 66) return;
     this.sentSpeed = frac;
     this.sentAt = now;
     const t = this.ctx.currentTime;
-    this.motorOsc.frequency.setTargetAtTime(45 + 40 * frac, t, 0.1);
-    this.motorFilter.frequency.setTargetAtTime(120 + 500 * frac, t, 0.1);
-    this.motorGain.gain.setTargetAtTime(0.025 + 0.06 * frac, t, 0.15);
+    // A light electric whine that rises with speed — kept among the quietest sounds in the mix.
+    const f = 165 + 230 * frac;
+    this.servoA.frequency.setTargetAtTime(f, t, 0.12);
+    this.servoB!.frequency.setTargetAtTime(f * 2.01, t, 0.12);
+    this.motorFilter.frequency.setTargetAtTime(f * 2.4, t, 0.12);
+    this.motorGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.006 + 0.02 * frac, t, 0.18);
+    this.whirrGain.gain.setTargetAtTime(frac < 0.03 ? 0 : 0.003 + 0.011 * frac, t, 0.18);
+  }
+
+  /**
+   * Per frame: leg ticks at the stepping cadence (odometer based) and servo chirps when the throttle engages or
+   * releases.
+   */
+  motion(odometer: number, held: boolean): void {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const step = Math.floor(odometer / 0.55);
+    if (step !== this.lastStep) {
+      if (this.lastStep >= 0 && this.speed > 0.05 && this.can('leg', 45)) this.legTick(step % 2 === 0);
+      this.lastStep = step;
+    }
+    if (held !== this.wasHeld) {
+      this.wasHeld = held;
+      if (this.can('chirp', 180)) this.tone(held ? 420 : 760, 0.11, 'sine', 0.03, 0, held ? 880 : 360);
+    }
+  }
+
+  private legTick(left: boolean): void {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = left ? 3200 : 2700;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.012 + 0.02 * this.speed, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.012);
+    src.connect(f).connect(g).connect(this.duckGain);
+    src.start(t, Math.random() * 0.3);
+    src.stop(t + 0.02);
+  }
+
+  /** Big moments push the motor down for a beat. */
+  private duck(amount = 0.25, dur = 0.5): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.duckGain.gain.cancelScheduledValues(t);
+    this.duckGain.gain.setTargetAtTime(amount, t, 0.03);
+    this.duckGain.gain.setTargetAtTime(1, t + dur, 0.2);
   }
 
   private can(key: string, minGapMs: number): boolean {
@@ -171,9 +245,12 @@ export class AudioEngine {
     if (golden) this.tone(1568, 0.25, 'sine', 0.12, 0.02);
   }
 
-  pop(): void {
+  /** A crop collapses: leafy crunch + a small pop (heavier crops sound lower). */
+  pop(tier = 0): void {
     if (!this.ctx || !this.can('pop', 60)) return;
-    this.tone(500 + Math.random() * 200, 0.08, 'sine', 0.12, 0, 900);
+    const k = 1 - tier * 0.12;
+    this.noiseHit(0.09, 2400 * k, 1.8, 0.1);
+    this.tone((480 + Math.random() * 160) * k, 0.08, 'sine', 0.1, 0.01, 820 * k);
   }
 
   coin(): void {
@@ -182,10 +259,67 @@ export class AudioEngine {
     this.tone(1319, 0.18, 'square', 0.06, 0.06);
   }
 
+  /** The pass is over: a ka-ching sized to the load. */
   unload(n: number): void {
     if (!this.ctx || !this.can('unload', 300)) return;
-    const notes = Math.min(8, 3 + Math.floor(Math.log2(1 + n)));
-    for (let i = 0; i < notes; i++) this.tone(midi(76 + PENTA[i % PENTA.length]), 0.12, 'triangle', 0.1, i * 0.055);
+    this.duck(0.3, 0.6);
+    this.tone(1568, 0.09, 'square', 0.07);
+    this.tone(2093, 0.22, 'square', 0.07, 0.07);
+    this.noiseHit(0.25, 7000, 0.8, 0.05, 0.07);
+    if (n > 40) this.tone(midi(88), 0.3, 'triangle', 0.08, 0.16);
+  }
+
+  /** Hopper flap + conveyor kick in as the first segment reaches the chute. */
+  unloadStart(): void {
+    if (!this.ctx || !this.can('unloadStart', 400)) return;
+    this.duck(0.45, 0.4);
+    this.tone(120, 0.12, 'triangle', 0.14, 0, 80);
+    this.noiseHit(0.12, 700, 2, 0.12, 0.02);
+  }
+
+  /** One segment tipping its stack: a cargo thump and a coin plink that climbs with each segment. */
+  unloadSeg(i: number, last: boolean): void {
+    if (!this.ctx || !this.can('unloadSeg', 45)) return;
+    this.noiseHit(0.06, 380, 1.5, 0.12);
+    const step = Math.min(i, 15);
+    this.tone(midi(76 + PENTA[step % PENTA.length] + 12 * Math.floor(step / PENTA.length)), 0.09, 'triangle', last ? 0.12 : 0.08, 0.01);
+  }
+
+  /** Getting close to the depot with cargo: soft blips at 50 %, 25 % and "almost there". */
+  approach(level: number): void {
+    if (!this.ctx || !this.can('approach', 400)) return;
+    for (let k = 0; k <= level; k++) this.tone(midi(79 + k * 5), 0.06, 'sine', 0.035 + 0.01 * level, k * 0.07);
+  }
+
+  /** A plot is cleared and about to join the territory. */
+  plotReady(): void {
+    if (!this.ctx || !this.can('plotReady', 250)) return;
+    this.tone(midi(93), 0.18, 'sine', 0.05);
+    this.tone(midi(100), 0.25, 'sine', 0.035, 0.05);
+  }
+
+  /** The route grows: a swoosh along the new stretch and a bright rising sting. */
+  routeGrow(n: number): void {
+    if (!this.ctx || !this.can('routeGrow', 300)) return;
+    this.duck(0.4, 0.5);
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 2;
+    f.frequency.setValueAtTime(400, t);
+    f.frequency.exponentialRampToValueAtTime(2400, t + 0.45);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    src.connect(f).connect(g).connect(this.sfx);
+    src.start(t, Math.random() * 0.2);
+    src.stop(t + 0.55);
+    const base = 72 + Math.min(5, n - 1) * 2;
+    [0, 4, 7, 12].forEach((s2, i) => this.tone(midi(base + s2), 0.16, 'triangle', 0.09, 0.08 + i * 0.06));
   }
 
   /** Coins landing in the counter: quick ascending ticks. */
@@ -217,6 +351,7 @@ export class AudioEngine {
 
   merge(level: number): void {
     if (!this.ctx) return;
+    this.duck(0.35, 0.5);
     const base = 60 + Math.min(12, level);
     [0, 4, 7, 12].forEach((s, i) => this.tone(midi(base + s), 0.18, 'triangle', 0.13, i * 0.07));
     this.noiseHit(0.3, 6000, 1, 0.05, 0.25);
@@ -224,6 +359,7 @@ export class AudioEngine {
 
   levelUp(): void {
     if (!this.ctx) return;
+    this.duck(0.25, 0.9);
     [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => this.tone(midi(67 + s), 0.25, 'square', 0.07, i * 0.08));
   }
 
@@ -272,9 +408,12 @@ export class AudioEngine {
     src.stop(t + 1.8);
   }
 
+  /** A zone fence opens: the fence crashes down, then a fanfare. */
   expand(): void {
     if (!this.ctx) return;
+    this.duck(0.2, 1.2);
     this.noiseHit(0.6, 200, 0.8, 0.4);
+    this.noiseHit(0.25, 1400, 3, 0.15, 0.05);
     [0, 7, 12, 19].forEach((s, i) => this.tone(midi(55 + s), 0.3, 'triangle', 0.12, 0.1 + i * 0.09));
   }
 

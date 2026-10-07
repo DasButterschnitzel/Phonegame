@@ -7,7 +7,7 @@ import { Capacitor } from '@capacitor/core';
 import { Sim, newGameState } from '../game/sim.ts';
 import type { SimEvent } from '../game/types.ts';
 import { offlineReward } from '../game/economy.ts';
-import { applyCrops, serialize } from '../game/save/serialize.ts';
+import { serialize } from '../game/save/serialize.ts';
 import { newMeta, type SaveMeta } from '../game/save/schema.ts';
 import { canClaimDaily } from '../game/daily.ts';
 import { GameRenderer } from '../render/Renderer.ts';
@@ -64,7 +64,7 @@ function hasWebGL(): boolean {
 /** Last boot milestone, shown by the loading-screen watchdog in index.html if startup stalls. */
 const step = (s: string) => ((window as unknown as { __bootStep?: string }).__bootStep = s);
 
-const SAVE_EVENTS = new Set<SimEvent['t']>(['segAdded', 'merged', 'upgraded', 'stageChanged', 'farmFinished', 'traveled', 'coins', 'boost']);
+const SAVE_EVENTS = new Set<SimEvent['t']>(['segAdded', 'merged', 'upgraded', 'zoneOpened', 'routeGrew', 'unload', 'farmFinished', 'traveled', 'coins', 'boost']);
 
 export async function boot(): Promise<App | null> {
   const root = document.getElementById('app')!;
@@ -97,7 +97,6 @@ export async function boot(): Promise<App | null> {
   const meta: SaveMeta = loaded.ok ? loaded.save.meta : newMeta(clock.wall());
   meta.sessions++;
   const sim = new Sim(loaded.ok ? loaded.save.game : newGameState(Number(params.get('seed')) || (Date.now() & 0xffff)));
-  if (loaded.ok) applyCrops(sim, loaded.save.crops);
   const qParam = debug ? params.get('quality') : null;
   const quality = qParam === 'low' || qParam === 'med' || qParam === 'high' ? qParam : settings.quality === 'auto' ? undefined : settings.quality;
   // Level badges are drawn into a canvas atlas: make sure the bundled font is ready first (bounded wait).
@@ -178,9 +177,17 @@ export async function boot(): Promise<App | null> {
   const metaFlows = installMetaFlows(sim, game, meta, saves);
   let tutAcc = 0;
 
+  // The route the renderer is showing (to find the freshly grown stretches when it changes).
+  let shownPath = sim.path;
   const onEvent = (e: SimEvent) => {
-    if (e.t === 'stageChanged') renderer.onStageChanged();
-    if (e.t === 'traveled') renderer.onFarmChanged();
+    if (e.t === 'routeGrew') {
+      renderer.onRouteGrew(e.plots, shownPath);
+      shownPath = sim.path;
+    }
+    if (e.t === 'traveled') {
+      renderer.onFarmChanged();
+      shownPath = sim.path;
+    }
     game.onEvent(e);
     if (SAVE_EVENTS.has(e.t)) saves.saveSoon();
   };
@@ -215,7 +222,7 @@ export async function boot(): Promise<App | null> {
         for (const e of sim.drainEvents()) onEvent(e);
         renderer.frame(alpha, dt, now, budgetMs);
         game.frame(dt);
-        juiceFrame(sim, audio);
+        juiceFrame(sim, audio, input.effective || sim.state.boosts.autopilot > 0, renderer);
         metaFlows.frame();
         tutAcc += dt;
         if (tutAcc > 0.5) {

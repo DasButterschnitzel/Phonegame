@@ -1,15 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { ready, g, shot } from './helpers.ts';
 
-test('loot stacks grow with the basket and unload at the barn @smoke', async ({ page }, info) => {
+test('loot stacks grow with the basket and roll off at the depot @smoke', async ({ page }, info) => {
   await ready(page);
   await g(page, '(g.grant(200000), [0,1,2,3,4,5].forEach(() => g.buy("add")), g.buy("capacity"), g.buy("capacity"))');
   await g(page, 'g.fillBasket(0.9)');
   await page.waitForFunction(() => (window as any).__game.app.renderer.stacks.blockCount > 30, null, { timeout: 8000 });
   await shot(page, 'stacks', info.project.name);
-  // Crawl until the basket has been sold.
+  // Crawl until the cargo rolls off at the depot: segments unload one by one while the pass is active.
   await g(page, 'g.setThrottle(true)');
+  await page.waitForFunction(() => (window as any).__game.state().depot.active, null, { timeout: 30000 });
+  await shot(page, 'unloading', info.project.name);
+  const during = await g<number>(page, 'g.state().coins');
   await page.waitForFunction(() => (window as any).__game.state().stats.unloads > 0, null, { timeout: 30000 });
+  expect(await g<number>(page, 'g.state().coins')).toBeGreaterThan(during);
   await g(page, 'g.setThrottle(null)');
 });
 
@@ -29,7 +33,7 @@ test('collection shows discovered levels', async ({ page }, info) => {
 
 test('tutorial suggests ADD when affordable', async ({ page }) => {
   await ready(page);
-  await g(page, 'g.grant(50)');
+  await g(page, 'g.grant(80)');
   await expect(page.locator('.tut')).toContainText('ADD', { timeout: 3000 });
   await page.locator('.up-add').click();
   // Next hint in the sequence: merge the two level-1 segments.

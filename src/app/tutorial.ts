@@ -3,7 +3,7 @@ import type { SimEvent } from '../game/types.ts';
 import type { Toasts } from '../ui/Toasts.ts';
 import { t, type I18nKey } from '../platform/i18n/i18n.ts';
 
-type Step = 'add' | 'merge' | 'full' | 'capacity' | 'expand' | 'tornado';
+type Step = 'add' | 'merge' | 'full' | 'capacity' | 'expand' | 'tornado' | 'grow';
 
 /** First-time-user hints, one at a time, remembered in the save. */
 export class Tutorial {
@@ -45,7 +45,13 @@ export class Tutorial {
   onEvent(e: SimEvent): void {
     if (e.t === 'segAdded') this.done('add');
     if (e.t === 'merged') this.done('merge');
-    if (e.t === 'stageChanged') this.done('expand');
+    if (e.t === 'zoneOpened') this.done('expand');
+    // Teach by reaction: the first time the route grows, name what just happened.
+    if (e.t === 'routeGrew' && !this.flags.grow && !this.current) {
+      this.show('grow');
+      this.flags.grow = true;
+      this.save();
+    }
     if (e.t === 'tornado') this.done('tornado');
     if (e.t === 'basketFull' && !this.flags.full) this.fullPending = true;
     else if (e.t === 'basketFull' && !this.flags.capacity) this.capacityPending = true;
@@ -61,6 +67,7 @@ export class Tutorial {
     if (this.current === 'full' && age > 5) this.done('full');
     if (this.current === 'capacity' && age > 8) this.done('capacity');
     if (this.current === 'tornado' && age > 12) this.done('tornado');
+    if (this.current === 'grow' && age > 4) this.show(null);
     if (this.current) return;
     if (!f.add && this.sim.check('add').ok) return this.show('add');
     if (f.add && !f.merge && this.sim.check('merge').ok) return this.show('merge');

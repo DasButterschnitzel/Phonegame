@@ -1,18 +1,25 @@
 import { test, expect } from '@playwright/test';
 import { ready, g, shot } from './helpers.ts';
 
-test('expand all stages, finish the farm and travel @smoke', async ({ page }, info) => {
+test('open every field, clear the farm, finish it and travel @smoke', async ({ page }, info) => {
   await ready(page);
   // Seasoned player: no tutorial hints (they move the goal button aside while pointing at the upgrade bar).
-  await g(page, "Object.assign(g.meta().tutorial, { add: true, merge: true, full: true, capacity: true, expand: true, tornado: true })");
+  await g(page, "Object.assign(g.meta().tutorial, { add: true, merge: true, full: true, capacity: true, expand: true, tornado: true, grow: true })");
   await g(page, 'g.grant(1e8)');
+  await expect(page.locator('.goal .title')).toHaveText('OPEN FIELD');
   for (let i = 0; i < 3; i++) {
     await page.locator('.goal').click({ force: true });
     await page.waitForTimeout(150);
   }
-  expect(await g<number>(page, 'g.state().progress.stage')).toBe(3);
+  expect(await g<number>(page, 'g.state().progress.zone')).toBe(3);
+  // FINISH needs a cleared farm, not coins.
   await expect(page.locator('.goal .title')).toHaveText('FINISH FARM');
-  await shot(page, 'stage4', info.project.name);
+  await expect(page.locator('.goal')).not.toHaveClass(/ready/);
+  await page.locator('.goal').click({ force: true });
+  await expect(page.locator('.modal-farmcomplete')).toHaveCount(0);
+  await g(page, 'g.clearAll()');
+  await expect(page.locator('.goal')).toHaveClass(/ready/);
+  await shot(page, 'cleared', info.project.name);
   await page.locator('.goal').click({ force: true });
   await expect(page.locator('.modal-farmcomplete')).toBeVisible();
   await page.locator('.modal-farmcomplete .btn-big.ad').click();
@@ -71,12 +78,14 @@ test('lucky bug gift', async ({ page }) => {
   expect(await g<number>(page, 'g.state().coins')).toBeGreaterThan(before);
 });
 
-test('tornado sweeps crops into the basket', async ({ page }, info) => {
+test('tornado clears its radius, overfills the basket and pays the rest', async ({ page }, info) => {
   await ready(page);
+  const coins = await g<number>(page, 'g.state().coins');
   await page.locator('.tornado-btn').click();
   await page.waitForTimeout(300);
   expect(await g<number>(page, 'g.state().tornadoes')).toBe(0);
-  expect(await g<number>(page, 'g.state().basket.mass')).toBeGreaterThan(25);
+  expect(await g<number>(page, 'g.state().basket.mass')).toBeGreaterThan(await g<number>(page, 'g.sim.capacity'));
+  expect(await g<number>(page, 'g.state().coins')).toBeGreaterThan(coins);
   await shot(page, 'tornado', info.project.name);
   // No tornado left → watch an ad for a free one.
   await page.locator('.tornado-btn').click();

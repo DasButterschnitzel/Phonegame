@@ -13,7 +13,8 @@ export interface MapInfo {
   unlocked: FarmId[];
   completed: FarmId[];
   passive: Partial<Record<FarmId, number>>;
-  stageOf: (id: FarmId) => number | null;
+  /** Cleared share of a farm (null = never visited). */
+  clearedOf: (id: FarmId) => number | null;
   travel: (id: FarmId) => void;
 }
 
@@ -25,14 +26,14 @@ export function openMap(modals: ModalStack, m: MapInfo): void {
       const done = m.completed.includes(id);
       const isCur = id === m.current;
       const b = BIOMES[id];
-      const stage = m.stageOf(id);
+      const cleared = m.clearedOf(id);
       const sub = !unlocked
         ? t('map.locked')
         : isCur
-          ? `${t('map.current')} · ${t('hud.stage', { n: (stage ?? 0) + 1 })}`
+          ? `${t('map.current')} · ${t('hud.cleared', { n: Math.floor((cleared ?? 0) * 100) })}`
           : done
             ? `${t('map.completed')} · ${t('map.passive', { n: fmt(m.passive[id] ?? 0) })}`
-            : t('hud.stage', { n: (stage ?? 0) + 1 });
+            : t('hud.cleared', { n: Math.floor((cleared ?? 0) * 100) });
       const card = button(
         `farm-card farm-${id}${unlocked ? '' : ' locked'}${isCur ? ' current' : ''}`,
         () => {

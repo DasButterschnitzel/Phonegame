@@ -1,21 +1,47 @@
-import type { CoinReason, Command, FarmId, FarmProgress, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
+import type { CoinReason, Command, DepotPass, FarmId, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
 import { FARM_ORDER } from './types.ts';
 import { FARMS, type FarmDef } from './farms/index.ts';
-import { MISC, capacityOf, farmEco } from './config.ts';
-import { applyStage, buildField, farmPaths, markDirty } from './field.ts';
+import { DEPOT, FIELD, MISC, TERRITORY, capacityOf, farmEco, vMax } from './config.ts';
+import { buildBins, buildField, buildRoute, computeReach, markDirty } from './field.ts';
 import { nearestS, sampleAt, type PathSample } from './path.ts';
 import { bodyOffset, findMergePair, sortSegments, updateSpeed } from './caterpillar.ts';
-import { harvestStep, regrowStep, tornado, type HarvestCtx } from './harvest.ts';
-import { canBuy } from './upgrades.ts';
+import { harvestStep, kill, tornado, type HarvestCtx } from './harvest.ts';
+import { canBuy, farmCleared, zoneOpensFree } from './upgrades.ts';
 import { finishReward, giftReward, passiveRate, tickIncome, trackIncome } from './economy.ts';
 import { nextRandom, randRange } from './rng.ts';
+import {
+  clearedUpTo,
+  isFrontier,
+  isSimple,
+  keepsRouteTidy,
+  keepsSimpleLoop,
+  newTerritory,
+  plotRect,
+  updateReady,
+  type Territory,
+} from './territory.ts';
+import { packBits, unpackBits } from '../shared/bits.ts';
 import { wrap } from '../shared/math.ts';
 
 export function newFarmProgress(firstSegId: number): FarmProgress {
   const segments = [];
   for (let i = 0; i < MISC.START_SEGMENTS; i++) segments.push({ id: firstSegId + i, level: 1 });
-  return { stage: 0, finished: false, addCount: 0, mergeCount: 0, speedLevel: 1, capacityLevel: 1, segments };
+  return { zone: 0, finished: false, addCount: 0, mergeCount: 0, speedLevel: 1, capacityLevel: 1, segments };
 }
+
+/** Cleared share of a farm you are not on, from its saved field (null = never visited). */
+export function clearedOfSnapshot(id: FarmId, snap: FieldSnapshot | undefined): number | null {
+  if (!snap) return null;
+  const l = FARMS[id].layout;
+  const total = l.zonePlots.reduce((a, b) => a + b, 0) * FIELD.PLOT_CROPS ** 2;
+  const dead = snap.ver === l.version ? unpackBits(snap.dead, total) : null;
+  if (!dead || total === 0) return 0;
+  let n = 0;
+  for (let i = 0; i < total; i++) n += dead[i];
+  return n / total;
+}
+
+export const newDepotPass = (): DepotPass => ({ active: false, dist: 0, segs: 0, mass: 0, value: 0, done: 0, paidMass: 0, paidValue: 0 });
 
 export function newGameState(seed = 0x5eed): GameState {
   return {
@@ -34,6 +60,7 @@ export function newGameState(seed = 0x5eed): GameState {
     v: 0,
     odometer: 0,
     basket: { mass: 0, value: 0, massByTier: [0, 0, 0, 0, 0] },
+    depot: newDepotPass(),
     boosts: { incomeX2: 0, autopilot: 0 },
     tornadoes: 1,
     maxLevelReached: 1,
@@ -45,15 +72,16 @@ export function newGameState(seed = 0x5eed): GameState {
 }
 
 const tmp: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
+const tmp2: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
 
 export class Sim {
   state: GameState;
   farm!: FarmDef;
   path!: PathTable;
   field!: CropField;
+  terr!: Territory;
   private cmds: Command[] = [];
   private events: SimEvent[] = [];
-  private regrowAcc = 0;
 
   constructor(state: GameState = newGameState()) {
     this.state = state;
@@ -61,14 +89,73 @@ export class Sim {
   }
 
   private loadFarm(id: FarmId): void {
+    const st = this.state;
     this.farm = FARMS[id];
-    this.path = farmPaths(this.farm)[this.state.progress.stage];
-    this.field = buildField(this.farm, this.state.progress.stage);
-    if (!Number.isFinite(this.state.headS)) {
-      // Spawn so the first barn pass comes quickly.
-      this.state.headS = this.path.barnS - this.path.length * 0.55 + this.path.length;
-      this.state.prevHeadS = this.state.headS;
+    this.field = buildField(this.farm);
+    this.terr = newTerritory(this.farm.layout);
+    const f = this.field;
+    const t = this.terr;
+    const nPlots = t.claimed.length;
+    for (let p = 0; p < nPlots; p++) t.cropsIn[p] = f.plotStart[p + 1] - f.plotStart[p];
+    for (let i = 0; i < f.count; i++) t.zoneCrops[f.tier[i]]++;
+    this.restoreField(st.progress.field);
+    this.path = buildRoute(this.farm, t);
+    this.afterRouteChange(false);
+    if (!Number.isFinite(st.headS)) {
+      // Spawn so the first depot pass comes quickly.
+      st.headS = this.path.barnS - this.path.length * 0.55 + this.path.length * 1000;
+      st.prevHeadS = st.headS;
     }
+  }
+
+  /** Applies a saved field snapshot (ignored when the farm layout changed since it was written). */
+  private restoreField(snap: FarmProgress['field']): void {
+    const f = this.field;
+    const t = this.terr;
+    if (!snap || snap.ver !== this.farm.layout.version) return;
+    const dead = unpackBits(snap.dead, f.count);
+    if (dead) {
+      for (let i = 0; i < f.count; i++) {
+        if (!dead[i]) continue;
+        f.dead[i] = 1;
+        f.hp[i] = 0;
+        f.deadCount++;
+        t.deadIn[f.plot[i]]++;
+        t.zoneDead[f.tier[i]]++;
+      }
+    }
+    if (Array.isArray(snap.hp)) {
+      for (let k = 0; k + 1 < snap.hp.length; k += 2) {
+        const i = snap.hp[k];
+        const hp = snap.hp[k + 1];
+        if (Number.isInteger(i) && i >= 0 && i < f.count && !f.dead[i] && Number.isFinite(hp)) f.hp[i] = Math.min(f.maxHp[i], Math.max(1e-3, hp));
+      }
+    }
+    const claimed = unpackBits(snap.claimed, t.claimed.length);
+    if (claimed) {
+      const keep = t.claimed.slice();
+      t.claimed.set(claimed);
+      if (isSimple(t)) {
+        t.claimedCount = 0;
+        for (let p = 0; p < t.claimed.length; p++) t.claimedCount += t.claimed[p];
+      } else t.claimed.set(keep);
+    }
+    if (Array.isArray(snap.ready))
+      for (let k = 0; k + 1 < snap.ready.length; k += 2) {
+        const p = snap.ready[k];
+        if (Number.isInteger(p) && p >= 0 && p < t.claimed.length && Number.isFinite(snap.ready[k + 1])) t.readySince[p] = snap.ready[k + 1];
+      }
+    for (let i = 0; i < f.count; i++) markDirty(f, i);
+  }
+
+  /** Writes the current field into the farm's progress (for saving and when leaving the farm). */
+  syncField(): void {
+    const f = this.field;
+    const hp: number[] = [];
+    for (let i = 0; i < f.count; i++) if (!f.dead[i] && f.hp[i] < f.maxHp[i]) hp.push(i, Math.round(f.hp[i] * 100) / 100);
+    const ready: number[] = [];
+    this.terr.readySince.forEach((t, p) => t >= 0 && ready.push(p, t));
+    this.state.progress.field = { ver: this.farm.layout.version, claimed: packBits(this.terr.claimed), dead: packBits(f.dead), hp, ready };
   }
 
   get valueMult(): number {
@@ -77,6 +164,16 @@ export class Sim {
 
   get capacity(): number {
     return capacityOf(this.state);
+  }
+
+  /** Destroyed share of the whole farm (the farm progress metric). */
+  get cleared(): number {
+    return farmCleared(this.terr);
+  }
+
+  /** Destroyed share of the open zones (drives the free fence opening). */
+  get openCleared(): number {
+    return clearedUpTo(this.terr, this.state.progress.zone);
   }
 
   enqueue(cmd: Command): void {
@@ -95,7 +192,7 @@ export class Sim {
   }
 
   check(id: UpgradeId, free = false) {
-    return canBuy(this.state, this.farm, this.path, id, free);
+    return canBuy(this.state, this.farm, this.terr, this.path, id, free);
   }
 
   headPosition(out: PathSample = tmp): PathSample {
@@ -103,7 +200,7 @@ export class Sim {
   }
 
   private ctx(): HarvestCtx {
-    return { st: this.state, path: this.path, field: this.field, valueMult: this.valueMult, events: this.events };
+    return { st: this.state, path: this.path, field: this.field, terr: this.terr, valueMult: this.valueMult, events: this.events };
   }
 
   step(dt: number, input: SimInput): void {
@@ -116,7 +213,7 @@ export class Sim {
     st.boosts.autopilot = Math.max(0, st.boosts.autopilot - dt);
 
     const cap = this.capacity;
-    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt);
+    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, st.depot.active ? DEPOT.SLOW : 1);
     st.prevHeadS = st.headS;
     const ds = st.v * dt;
     st.headS += ds;
@@ -126,7 +223,8 @@ export class Sim {
 
     const L = this.path.length;
     const b = this.path.barnS;
-    if (Math.floor((st.headS - b) / L) > Math.floor((st.prevHeadS - b) / L)) this.unload();
+    if (Math.floor((st.headS - b) / L) > Math.floor((st.prevHeadS - b) / L)) this.depotEnter(st.headS - b - Math.floor((st.headS - b) / L) * L);
+    if (st.depot.active) this.depotRoll(ds);
 
     const passive = passiveRate(st) * dt;
     if (passive > 0) {
@@ -136,29 +234,149 @@ export class Sim {
     }
     tickIncome(st, dt);
 
-    this.regrowAcc += dt;
-    if (this.regrowAcc >= 0.5) {
-      this.regrowAcc = 0;
-      regrowStep(this.ctx());
-    }
+    // Stateless cadence (survives save/load unchanged).
+    if (Math.floor(st.simTime / TERRITORY.CHECK_S) > Math.floor((st.simTime - dt) / TERRITORY.CHECK_S)) this.tryClaims();
 
     if (st.simTime >= st.gift.nextAt && st.gift.activeUntil < st.simTime) this.spawnGift();
   }
 
-  private unload(): void {
+  // ── Depot: rolling unload ──────────────────────────────────────────────────────────────────────────────────────
+
+  /** The head just passed the chute (`over` units ago): start a pass that empties each segment as it rolls through. */
+  private depotEnter(over: number): void {
     const st = this.state;
+    if (st.depot.active) this.depotFlush();
+    if (st.basket.mass <= 0) return;
+    const d = st.depot;
+    d.active = true;
+    d.dist = Math.max(0, over);
+    d.segs = Math.max(1, st.progress.segments.length);
+    d.mass = st.basket.mass;
+    d.value = st.basket.value;
+    d.done = 0;
+    d.paidMass = 0;
+    d.paidValue = 0;
+    this.events.push({ t: 'unloadStart', segs: d.segs, value: d.value * this.incomeMult, mass: d.mass, massByTier: st.basket.massByTier.slice() });
+    this.depotRoll(0);
+  }
+
+  private get incomeMult(): number {
+    return this.state.boosts.incomeX2 > 0 ? 2 : 1;
+  }
+
+  private depotRoll(ds: number): void {
+    const d = this.state.depot;
+    d.dist += ds;
+    while (d.active && d.dist >= bodyOffset(d.done + 1)) this.depotPay();
+  }
+
+  /** Pays out every segment still waiting (leaving the farm, or a new pass before the old one finished). */
+  private depotFlush(): void {
+    while (this.state.depot.active) this.depotPay();
+  }
+
+  private depotPay(): void {
+    const st = this.state;
+    const d = st.depot;
+    const k = d.done;
+    const last = k + 1 >= d.segs;
+    const m = last ? d.mass - d.paidMass : (d.mass * (k + 1)) / d.segs - d.paidMass;
+    const v = last ? d.value - d.paidValue : (d.value * (k + 1)) / d.segs - d.paidValue;
+    d.paidMass += m;
+    d.paidValue += v;
+    d.done++;
     const bk = st.basket;
-    if (bk.mass <= 0) return;
-    const value = bk.value * (st.boosts.incomeX2 > 0 ? 2 : 1);
+    const before = bk.mass;
+    bk.mass = Math.max(0, bk.mass - m);
+    bk.value = Math.max(0, bk.value - v);
+    const keep = before > 0 ? bk.mass / before : 0;
+    for (let t = 0; t < bk.massByTier.length; t++) bk.massByTier[t] *= keep;
+    if (bk.mass < 1e-6) {
+      bk.mass = 0;
+      bk.value = 0;
+      bk.massByTier.fill(0);
+    }
+    const value = v * this.incomeMult;
     st.coins += value;
     st.lifetimeCoins += value;
-    st.stats.unloads++;
     trackIncome(st, value);
-    this.events.push({ t: 'unload', value, mass: bk.mass, massByTier: bk.massByTier.slice() });
-    bk.mass = 0;
-    bk.value = 0;
-    bk.massByTier.fill(0);
+    this.events.push({ t: 'unloadSeg', seg: k, value, mass: m, last });
+    if (last) {
+      d.active = false;
+      st.stats.unloads++;
+      this.events.push({ t: 'unload', value: d.value * this.incomeMult, mass: d.mass });
+    }
   }
+
+  // ── Territory: route growth ───────────────────────────────────────────────────────────────────────────────────
+
+  /** Claims ready plots (after the anticipation beat, once the body is clear of them) and grows the route. */
+  private tryClaims(): void {
+    const st = this.state;
+    const t = this.terr;
+    const now = st.simTime;
+    const ready: number[] = [];
+    for (let p = 0; p < t.readySince.length; p++) if (t.readySince[p] >= 0 && now - t.readySince[p] >= TERRITORY.CLAIM_DELAY_S) ready.push(p);
+    if (!ready.length) return;
+    ready.sort((a, b) => t.readySince[a] - t.readySince[b] || a - b);
+    const claimed: number[] = [];
+    const grace = TERRITORY.TIDY_GRACE_S + (TERRITORY.TIDY_GRACE_LAPS * this.path.length) / vMax(st.progress.speedLevel);
+    for (const p of ready) {
+      const age = now - t.readySince[p];
+      if (!isFrontier(t, p, st.progress.zone) || !keepsSimpleLoop(t, p)) continue;
+      if (age < grace && !keepsRouteTidy(t, p, st.progress.zone)) continue;
+      if (age < TERRITORY.MAX_DEFER_S && this.bodyNear(p)) continue;
+      t.claimed[p] = 1;
+      t.claimedCount++;
+      t.readySince[p] = -1;
+      claimed.push(p);
+    }
+    if (claimed.length) this.growRoute(claimed);
+  }
+
+  /** True while any part of the caterpillar is close to plot p (growth there would yank the body sideways). */
+  private bodyNear(p: number): boolean {
+    const [x0, z0, x1, z1] = plotRect(this.terr, p, TERRITORY.BODY_PAD);
+    const n = this.state.progress.segments.length + 1;
+    for (let b = 0; b < n; b++) {
+      sampleAt(this.path, this.state.headS - bodyOffset(b), tmp2);
+      if (tmp2.x > x0 && tmp2.x < x1 && tmp2.z > z0 && tmp2.z < z1) return true;
+    }
+    return false;
+  }
+
+  private growRoute(plots: number[]): void {
+    const st = this.state;
+    const prevLength = this.path.length;
+    const head = this.headPosition({ x: 0, z: 0, tx: 0, tz: 0 });
+    this.path = buildRoute(this.farm, this.terr);
+    // Keep headS large and positive; only its value modulo L matters.
+    st.headS = nearestS(this.path, head.x, head.z) + this.path.length * 1000;
+    st.prevHeadS = st.headS;
+    this.afterRouteChange(true);
+    this.events.push({ t: 'routeGrew', plots, prevLength });
+  }
+
+  /**
+   * Recomputes everything that depends on the route or the open zones: reach, proximity bins, blockers and
+   * readiness. Crops left inside the territory out of reach of the new route are swept away (no yield).
+   */
+  private afterRouteChange(sweep: boolean): void {
+    const f = this.field;
+    const t = this.terr;
+    const st = this.state;
+    computeReach(f, this.path);
+    if (sweep) {
+      const ctx = this.ctx();
+      for (let i = 0; i < f.count; i++) if (!f.dead[i] && !f.reach[i] && t.claimed[f.plot[i]]) kill(ctx, i, -1, true);
+    }
+    buildBins(f, this.path, st.progress.zone);
+    t.blockers.fill(0);
+    for (let i = 0; i < f.count; i++) if (!f.dead[i] && f.reach[i]) t.blockers[f.plot[i]]++;
+    for (let p = 0; p < t.claimed.length; p++) if (updateReady(t, p, st.progress.zone, st.simTime)) this.events.push({ t: 'plotReady', plot: p });
+  }
+
+  // ── Misc ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
   private spawnGift(): void {
     const st = this.state;
@@ -189,7 +407,11 @@ export class Sim {
         if (st.tornadoes > 0) {
           st.tornadoes--;
           const h = this.headPosition();
-          tornado(this.ctx(), h.x + h.tx * 2.5, h.z + h.tz * 2.5);
+          const direct = tornado(this.ctx(), h.x + h.tx * 2.5, h.z + h.tz * 2.5);
+          if (direct > 0) {
+            trackIncome(st, direct * this.incomeMult);
+            this.grant(direct * this.incomeMult, 'tornado');
+          }
         }
         break;
       case 'boost':
@@ -228,17 +450,43 @@ export class Sim {
       case 'forceGolden': {
         let n = c.n;
         const h = this.headPosition();
-        const order = [...Array(this.field.count).keys()]
-          .filter((i) => this.field.regrowAt[i] === 0 && !this.field.paved[i])
-          .sort((a, b) => (this.field.x[a] - h.x) ** 2 + (this.field.z[a] - h.z) ** 2 - ((this.field.x[b] - h.x) ** 2 + (this.field.z[b] - h.z) ** 2));
+        const f = this.field;
+        const order = [...Array(f.count).keys()]
+          .filter((i) => !f.dead[i] && f.tier[i] <= st.progress.zone)
+          .sort((a, b) => (f.x[a] - h.x) ** 2 + (f.z[a] - h.z) ** 2 - ((f.x[b] - h.x) ** 2 + (f.z[b] - h.z) ** 2));
         for (const i of order) {
           if (n-- <= 0) break;
-          this.field.golden[i] = 1;
-          markDirty(this.field, i);
+          f.golden[i] = 1;
+          markDirty(f, i);
         }
         break;
       }
+      case 'clearFrontier':
+        this.clearFrontier(c.n);
+        break;
+      case 'clearAll': {
+        // Debug/test helper: every crop of the open zones is destroyed (no yield).
+        const ctx = this.ctx();
+        for (let i = 0; i < this.field.count; i++) if (!this.field.dead[i] && this.field.tier[i] <= st.progress.zone) kill(ctx, i, -1, true);
+        break;
+      }
     }
+  }
+
+  /** Debug/test helper: destroys (without yield) every crop of up to n frontier plots, nearest to the head first. */
+  private clearFrontier(n: number): void {
+    const t = this.terr;
+    const f = this.field;
+    const h = this.headPosition({ x: 0, z: 0, tx: 0, tz: 0 });
+    const plots: number[] = [];
+    for (let p = 0; p < t.claimed.length; p++) if (isFrontier(t, p, this.state.progress.zone)) plots.push(p);
+    const d2 = (p: number) => {
+      const [x0, z0, x1, z1] = plotRect(t, p, 0);
+      return ((x0 + x1) / 2 - h.x) ** 2 + ((z0 + z1) / 2 - h.z) ** 2;
+    };
+    plots.sort((a, b) => d2(a) - d2(b) || a - b);
+    const ctx = this.ctx();
+    for (const p of plots.slice(0, n)) for (let i = f.plotStart[p]; i < f.plotStart[p + 1]; i++) kill(ctx, i, -1, true);
   }
 
   private buy(id: UpgradeId, free: boolean): void {
@@ -282,7 +530,7 @@ export class Sim {
         this.events.push({ t: 'upgraded', id: 'capacity', level: p.capacityLevel });
         break;
       case 'expand':
-        this.setStage(p.stage + 1);
+        this.openZone(chk.cost === 0);
         break;
       case 'finish':
         this.finishFarm();
@@ -290,18 +538,17 @@ export class Sim {
     }
   }
 
-  private setStage(stage: number): void {
+  /** Opens the next zone's fence: its crops become harvestable and the territory may grow into it. */
+  private openZone(free: boolean): void {
     const st = this.state;
-    const prevLength = this.path.length;
-    const head = this.headPosition({ x: 0, z: 0, tx: 0, tz: 0 });
-    st.progress.stage = stage;
-    this.path = farmPaths(this.farm)[stage];
-    applyStage(this.field, this.path, stage);
-    const s = nearestS(this.path, head.x, head.z);
-    // Keep headS large and monotonic-ish; only its value modulo L matters.
-    st.headS = s + this.path.length * 1000;
-    st.prevHeadS = st.headS;
-    this.events.push({ t: 'stageChanged', stage, prevLength });
+    st.progress.zone++;
+    this.afterRouteChange(false);
+    this.events.push({ t: 'zoneOpened', zone: st.progress.zone, free });
+  }
+
+  /** True when EXPAND would cost nothing right now. */
+  get zoneFree(): boolean {
+    return this.state.progress.zone < 3 && zoneOpensFree(this.state, this.terr);
   }
 
   private finishFarm(): void {
@@ -320,14 +567,17 @@ export class Sim {
   private travel(id: FarmId): void {
     const st = this.state;
     if (!st.unlockedFarms.includes(id) || id === st.farmId) return;
+    this.depotFlush();
+    this.syncField();
     st.farmsProgress[st.farmId] = st.progress;
     st.progress = st.farmsProgress[id] ?? newFarmProgress(st.nextSegId);
     if (!st.farmsProgress[id]) st.nextSegId += MISC.START_SEGMENTS;
     delete st.farmsProgress[id];
     st.farmId = id;
     // Sell whatever is still in the basket instead of silently discarding it.
-    const carried = st.basket.value * (st.boosts.incomeX2 > 0 ? 2 : 1);
+    const carried = st.basket.value * this.incomeMult;
     st.basket = { mass: 0, value: 0, massByTier: [0, 0, 0, 0, 0] };
+    st.depot = newDepotPass();
     this.grant(carried, 'travel');
     // The rolling income estimate belongs to the farm we left; restart it from the passive baseline.
     st.economy.ema = passiveRate(st);

@@ -118,6 +118,49 @@
   white-space: nowrap;
 }
 
+.farm-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.farm-prog {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.farm-prog-track {
+  flex: 1;
+  height: 7px;
+  min-width: 70px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.farm-prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7ed957, #c6f25a);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.4s ease-out;
+}
+
+.farm-prog-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #d9f7b8;
+  min-width: 30px;
+  text-align: right;
+}
+
+.goal .cost.progress-only .ico {
+  display: none;
+}
+
 .stage-dots {
   display: flex;
   gap: 5px;
@@ -859,9 +902,21 @@
   font-size: 24px;
 }
 
-.floater.waste {
-  color: #ffb3b3;
-  font-size: 14px;
+/* Rolling depot payout: one counter riding above the hopper. */
+.unload-counter {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--gold);
+  pointer-events: none;
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+.unload-counter.done {
+  font-size: 34px;
 }
 
 .floater.big {
