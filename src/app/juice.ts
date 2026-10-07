@@ -44,13 +44,32 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       audio.full();
       break;
     case 'segAdded':
-    case 'upgraded':
       audio.upgrade();
       haptics.fire('selection');
       break;
+    case 'upgraded': {
+      // Upgrades show up in the world, not just on the button.
+      const now = performance.now() / 1000;
+      const hp = r.cat.poses[0];
+      if (e.id === 'speed') {
+        const n = sim.state.progress.segments.length;
+        const tail = r.cat.tailPoint(n, 0.8);
+        r.fx.burst(tail.x, 0.15, tail.z, DUST, 14, 3.5, 0.18, 0.7, 2, 5);
+        r.fx.burst(hp.x, 0.6, hp.z, 0xffffff, 8, 4, 0.08, 0.45, 2.5, 4);
+        r.waves.spawn(hp.x, hp.z, 0x9fe3ff, 3.5, now, 0.45);
+        r.rig.addKick(0.05);
+      } else {
+        r.cat.pulseWave(now);
+        r.waves.spawn(hp.x, hp.z, 0xffe680, 2.6, now, 0.5);
+      }
+      audio.upgrade(e.id);
+      haptics.fire('light');
+      break;
+    }
     case 'merged': {
       // The two segments are pulled together first; the flash, ring, sound and haptic land on impact.
       r.cat.merge(e.consumed, e.into, e.level, performance.now() / 1000);
+      audio.mergeCharge();
       setTimeout(() => {
         const i = sim.state.progress.segments.findIndex((s) => s.id === e.into);
         const p = i >= 0 ? r.cat.poses[i + 1] : undefined;

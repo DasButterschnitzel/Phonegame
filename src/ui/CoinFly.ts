@@ -1,7 +1,15 @@
 import { ICONS } from './icons.ts';
 
 /** Coins arc from a world point (barn) into the coin counter. */
-export function coinFly(layer: HTMLElement, from: { x: number; y: number }, to: { x: number; y: number }, n: number, onArrive: () => void, reduceMotion = false): void {
+export function coinFly(
+  layer: HTMLElement,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  n: number,
+  onArrive: () => void,
+  reduceMotion = false,
+  onEach: (i: number) => void = () => {},
+): void {
   if (reduceMotion || typeof Element.prototype.animate !== 'function') {
     onArrive();
     return;
@@ -29,6 +37,7 @@ export function coinFly(layer: HTMLElement, from: { x: number; y: number }, to: 
     anim.onfinish = () => {
       el.remove();
       arrived++;
+      onEach(arrived);
       if (arrived === 1 || arrived === count) onArrive();
     };
   }

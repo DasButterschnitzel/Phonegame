@@ -161,6 +161,7 @@ export async function boot(): Promise<App | null> {
   applyAudio(settings);
   const tutorial = new Tutorial(sim, game.toasts, meta.tutorial, () => saves.saveSoon(), (step) => game.hud.target(step));
   game.tutorialActive = () => tutorial.active;
+  game.onCoinLand = (i) => audio.coinTick(i);
   game.openCollection = () => openCollection(game.modals, sim.state.maxLevelReached);
   game.listeners.push((e) => {
     juice(e, sim, renderer, audio, haptics);

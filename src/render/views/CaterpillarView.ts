@@ -157,6 +157,12 @@ export class CaterpillarView {
     this.pulses.set(segId, now);
   }
 
+  /** A pulse travelling down the whole chain, head to tail (capacity upgrade). */
+  pulseWave(now: number, stagger = 0.045): void {
+    const segs = this.sim.state.progress.segments;
+    for (let i = 0; i < segs.length; i++) this.pulses.set(segs[i].id, now + i * stagger);
+  }
+
   /** Body b (0 = head) just ate a chunk. */
   gulp(b: number, now: number): void {
     if (b <= MAX && now - this.gulps[b] > 0.12) this.gulps[b] = now;
@@ -255,7 +261,7 @@ export class CaterpillarView {
       if (pt !== undefined) {
         const u = (now - pt) / 0.45;
         if (u >= 1) this.pulses.delete(seg.id);
-        else scale *= 1 + 0.35 * Math.sin(u * Math.PI) * (1 - u);
+        else if (u > 0) scale *= 1 + 0.35 * Math.sin(u * Math.PI) * (1 - u);
       }
       const et = this.emerge.get(seg.id);
       if (et !== undefined) {

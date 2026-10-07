@@ -25,6 +25,9 @@ export class AudioEngine {
   private sched: ReturnType<typeof setInterval> | null = null;
   private sentSpeed = -1;
   private sentAt = 0;
+  /** Back-to-back chomps climb in pitch a little (resets after a short pause). */
+  private combo = 0;
+  private lastChompAt = 0;
 
   /** Must be called from a user gesture (iOS/Chrome autoplay rules). */
   unlock(): void {
@@ -159,7 +162,10 @@ export class AudioEngine {
 
   chomp(golden = false): void {
     if (!this.ctx || !this.can('chomp', 70)) return;
-    const p = 0.9 + 0.35 * this.speed + Math.random() * 0.15;
+    const now = performance.now();
+    this.combo = now - this.lastChompAt < 450 ? Math.min(10, this.combo + 1) : 0;
+    this.lastChompAt = now;
+    const p = (0.9 + 0.35 * this.speed + Math.random() * 0.15) * (1 + this.combo * 0.025);
     this.noiseHit(0.07, 1800 * p, 2.5, 0.25);
     this.tone(220 * p, 0.06, 'square', 0.04, 0, 140 * p);
     if (golden) this.tone(1568, 0.25, 'sine', 0.12, 0.02);
@@ -182,6 +188,33 @@ export class AudioEngine {
     for (let i = 0; i < notes; i++) this.tone(midi(76 + PENTA[i % PENTA.length]), 0.12, 'triangle', 0.1, i * 0.055);
   }
 
+  /** Coins landing in the counter: quick ascending ticks. */
+  coinTick(i: number): void {
+    if (!this.ctx || !this.can('coinTick', 35)) return;
+    this.tone(1175 * 2 ** (Math.min(12, i) / 24), 0.05, 'square', 0.035);
+  }
+
+  /** Anticipation as two segments are pulled together (the impact follows with merge()). */
+  mergeCharge(): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 4;
+    f.frequency.setValueAtTime(500, t);
+    f.frequency.exponentialRampToValueAtTime(3800, t + 0.26);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.22);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    src.connect(f).connect(g).connect(this.sfx);
+    src.start(t, Math.random() * 0.2);
+    src.stop(t + 0.3);
+  }
+
   merge(level: number): void {
     if (!this.ctx) return;
     const base = 60 + Math.min(12, level);
@@ -194,9 +227,16 @@ export class AudioEngine {
     [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => this.tone(midi(67 + s), 0.25, 'square', 0.07, i * 0.08));
   }
 
-  upgrade(): void {
+  /** Purchase confirmation; speed revs the motor, capacity clunks like a bigger basket. */
+  upgrade(kind: 'add' | 'speed' | 'capacity' = 'add'): void {
     if (!this.ctx || !this.can('upgrade', 50)) return;
     this.tone(660, 0.08, 'triangle', 0.12, 0, 990);
+    if (kind === 'speed') this.tone(110, 0.32, 'sawtooth', 0.05, 0.03, 440);
+    if (kind === 'capacity') {
+      this.tone(196, 0.1, 'triangle', 0.13, 0.05);
+      this.tone(294, 0.14, 'triangle', 0.12, 0.13);
+      this.noiseHit(0.08, 900, 1.5, 0.08, 0.05);
+    }
   }
 
   tap(): void {

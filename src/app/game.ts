@@ -222,7 +222,7 @@ export class GameController {
         if (renderer.project(barn.bx, 2.6, barn.bz, tmpP)) {
           this.floaters.spawn(tmpP.x, tmpP.y - 20, `+${fmt(e.value)}`, 'big', 1.3);
           const target = this.hud.center(this.hud.coinPill);
-          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, Math.ceil(Math.log2(1 + e.mass)), () => this.hud.bumpCoins(), this.d.settings.reduceMotion);
+          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, Math.ceil(Math.log2(1 + e.mass)), () => this.hud.bumpCoins(), this.d.settings.reduceMotion, (i) => this.onCoinLand(i));
         }
         this.hud.bumpBasket();
         this.d.ads.noteUnload();
@@ -291,4 +291,6 @@ export class GameController {
   }
 
   tutorialActive: () => boolean = () => false;
+  /** Each payout coin reaching the counter (audio tick, set by the app). */
+  onCoinLand: (i: number) => void = () => {};
 }
