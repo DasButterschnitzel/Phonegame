@@ -13,10 +13,18 @@ test('loot stacks grow with the basket and unload at the barn @smoke', async ({ 
   await g(page, 'g.setThrottle(null)');
 });
 
-test('collection shows discovered levels', async ({ page }) => {
+test('collection shows discovered levels', async ({ page }, info) => {
   await ready(page);
   await page.locator('.btn-collection').click();
   await expect(page.locator('.modal-collection .coll-item:not(.unknown)')).toHaveCount(1);
+  await page.locator('.modal-collection .close-x').click();
+  await g(page, 'g.state().maxLevelReached = 6');
+  await page.locator('.btn-collection').click();
+  await expect(page.locator('.modal-collection .coll-item:not(.unknown)')).toHaveCount(6);
+  // Discovered levels show their power; the next one is teased.
+  await expect(page.locator('.modal-collection .coll-item').nth(1)).toContainText('×2.4');
+  await expect(page.locator('.modal-collection .coll-item.next')).toContainText('7');
+  await page.screenshot({ path: `e2e-screens/collection-${info.project.name}.png` });
 });
 
 test('tutorial suggests ADD when affordable', async ({ page }) => {

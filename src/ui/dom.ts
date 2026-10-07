@@ -45,6 +45,25 @@ export function showWhen(el: HTMLElement, available: () => boolean): void {
   }, 500);
 }
 
+/**
+ * Rolls a number up from 0 to `value` (ease-out) using `format`, for reward reveals.
+ * Respects the in-game "reduce motion" setting (jumps straight to the value).
+ */
+export function countUp(el: HTMLElement, value: number, format: (n: number) => string, ms = 900): void {
+  if (document.documentElement.classList.contains('reduce-motion') || value <= 0) {
+    el.textContent = format(value);
+    return;
+  }
+  const t0 = performance.now();
+  const step = (t: number) => {
+    const u = Math.min(1, (t - t0) / ms);
+    el.textContent = format(value * (1 - (1 - u) ** 3));
+    if (u < 1 && el.isConnected) requestAnimationFrame(step);
+  };
+  el.textContent = format(0);
+  requestAnimationFrame(step);
+}
+
 /** Button helper: pointerdown feedback + click handler; swallows game input. */
 export function button(cls: string, onClick: (e: Event) => void, ...children: Child[]): HTMLButtonElement {
   const b = h('button', { class: `btn ${cls}`, 'data-ui': true, type: 'button' }, ...children);

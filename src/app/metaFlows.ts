@@ -11,7 +11,7 @@ import { openMap } from '../ui/modals/Map.ts';
 import { openFarmComplete } from '../ui/modals/FarmComplete.ts';
 import { openDaily } from '../ui/modals/Daily.ts';
 import { Gift } from '../ui/Gift.ts';
-import { button, h, showWhen } from '../ui/dom.ts';
+import { button, countUp, h, showWhen } from '../ui/dom.ts';
 import { icon } from '../ui/icons.ts';
 import { fmt, t } from '../platform/i18n/i18n.ts';
 import { FARM_ORDER } from '../game/types.ts';
@@ -72,9 +72,11 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
         }
       }, icon('ad'), t('gift.collectX3'));
       showWhen(x3, () => ads.rewardedAvailable);
+      const countEl = h('span', {}, fmt(0));
+      countUp(countEl, amount, fmt, 700);
       return [
         h('h2', {}, t('gift.title', { kind: t(kind === 'ladybug' ? 'gift.ladybug' : 'gift.butterfly') })),
-        h('div', { class: 'reward-big' }, icon('coin'), h('span', {}, fmt(amount))),
+        h('div', { class: 'reward-big' }, icon('coin'), countEl),
         h(
           'div',
           { class: 'btn-row' },

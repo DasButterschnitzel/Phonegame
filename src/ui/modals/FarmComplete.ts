@@ -1,5 +1,5 @@
 import type { FarmId } from '../../game/types.ts';
-import { button, h, showWhen } from '../dom.ts';
+import { button, countUp, h, showWhen } from '../dom.ts';
 import { icon } from '../icons.ts';
 import { fmt, t, type I18nKey } from '../../platform/i18n/i18n.ts';
 import type { ModalStack } from './ModalStack.ts';
@@ -20,7 +20,8 @@ export function openFarmComplete(
         }
       }, icon('ad'), t('farm.rewardX2'));
       showWhen(x2, () => o.adAvailable() && !x2.disabled);
-      const amount = h('span', {}, fmt(o.reward));
+      const amount = h('span', {}, fmt(0));
+      countUp(amount, o.reward, fmt, 1200);
       return [
         h('div', { class: 'rays' }),
         icon('trophy', 'ico trophy-big'),
