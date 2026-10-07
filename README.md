@@ -24,7 +24,15 @@ npm run balance -- --profile all   # headless pacing report
 ```
 
 Useful URL parameters (dev / e2e builds): `?lang=de`, `?seed=1`, `?quality=low|med|high`, `?fresh` (ignore save),
-`?ads=fail|noreward`, `?adms=500` (simulated ad length), `?debug=1` (`window.__game` helpers).
+`?ads=fail|noreward`, `?adms=500` (simulated ad length), `?debug=1` (`window.__game` helpers), `?perf=1`
+(performance overlay, any build).
+
+Feel and performance tools (not part of `npm run e2e`):
+
+```bash
+CAPTURE=1 npx playwright test capture --project=pixel7   # frame-stepped clips → capture/*.mp4, bite lineup, audio WAVs
+PACING=1 npx playwright test pacing --project=pixel7     # frame pacing of the heavy moments, CPU throttled 4×
+```
 
 ## Project layout
 
@@ -59,6 +67,7 @@ npm run android:debug                           # → android/app/build/outputs/
 ```
 
 - `minSdk 24`, `targetSdk 36` (Google Play requirement from 2026-08-31), portrait, edge-to-edge, WebGL 2 required.
+- **Testing on a phone:** `docs/DEVICE_TESTING.md` (performance overlay: Settings → tap the version 7×).
 - **Release:** set `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`,
   `VERSION_CODE`, `VERSION_NAME` and run `cd android && ./gradlew bundleRelease`.
 - **AdMob:** Google's test IDs are used until you set real ones:

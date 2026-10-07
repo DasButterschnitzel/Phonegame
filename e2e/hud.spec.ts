@@ -62,7 +62,9 @@ test('hidden developer switch: seven taps on the version show the performance ov
   await expect(page.locator('.perf-overlay')).toHaveCount(0);
   await page.locator('.btn-settings').click();
   const version = page.locator('.modal-settings .version');
-  for (let i = 0; i < 7; i++) await version.click();
+  // Seven quick taps (fired together: under load, seven separate Playwright clicks can outlast the 4 s window).
+  const tap7 = () => version.evaluate((el) => Array.from({ length: 7 }, () => (el as HTMLElement).click()));
+  await tap7();
   await page.locator('.modal-settings .close-x').click();
   await expect(page.locator('.perf-overlay')).toContainText('fps', { timeout: 3000 });
   await expect(page.locator('.perf-overlay')).toContainText('GPU');
@@ -72,7 +74,7 @@ test('hidden developer switch: seven taps on the version show the performance ov
   // Saved with the settings; the same gesture switches it off.
   expect(await g<boolean>(page, 'g.app.settings.perfOverlay')).toBe(true);
   await page.locator('.btn-settings').click();
-  for (let i = 0; i < 7; i++) await version.click();
+  await tap7();
   await page.locator('.modal-settings .close-x').click();
   await expect(page.locator('.perf-overlay')).toHaveCount(0);
 });

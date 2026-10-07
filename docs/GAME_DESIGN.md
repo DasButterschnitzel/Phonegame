@@ -11,10 +11,10 @@ soil turns into meadow, and the farm visibly transforms from a dense field into 
 |---|---|
 | Hold to drive the train | **Hold to crawl** (release → 20 % idle crawl, so it is idle-friendly) |
 | Saw wagons cut tiles next to the track | Head and segments chomp crops within reach (`REACH 2.0`) of the route |
-| Tiles take damage, break apart | Crops drop **3 chunks** as HP falls; damage is staged (100/75/50/25 %: shrink, lean away from the bite, wilt), the last bite tips them over; stubble remains |
+| Tiles take damage, break apart | Crops drop **3 chunks** as HP falls and look *eaten*: the first contact nibbles a notch, each chunk takes a bigger bite (carved geometry showing flesh, facing the body that bit), the second leaves a stump, the last topples it (squash, tip, dirt puff); stubble remains |
 | Cleared tile → new track spawns | **Cleared plot → the route grows into it** (see below) |
-| MASS bar + resource stack | Basket bar + **wobbling block stack on every segment**; chunks arc from the crop into the stack |
-| Sell at the station | **Depot**: each segment tips its stack into the hopper as it rolls past (rolling payout) |
+| MASS bar + resource stack | Basket bar + **wobbling block stack on every segment**; each chunk arcs from the bite into the stack of the segment that ate it and the stack grows when it lands |
+| Sell at the station | **Depot**: a wave from the first segment to the last tips every stack into the hopper while the caterpillar rolls through (0.4–1.3 s) |
 | ADD / MERGE / SPEED / CAPACITY / TNT | ADD / MERGE / SPEED / CAPACITY / **TORNADO** (clears its whole radius) |
 | Clear the area → next level | **OPEN FIELD** (fenced zones) → **FINISH FARM** at 90 % cleared → map, 5 farms |
 
@@ -38,13 +38,18 @@ soil turns into meadow, and the farm visibly transforms from a dense field into 
 ### Depot: unload rule (decision)
 | Option | Pros | Cons |
 |---|---|---|
-| A — fly-through (rolling) | Never breaks the hold-to-crawl flow; each segment pays as it passes the chute (readable wave); scales with chain length like Train Miner | Long chains take a few seconds to pay out |
+| A — fly-through (rolling) | Never breaks the hold-to-crawl flow; a readable head-to-tail wave; a longer chain makes a longer wave | Paying each segment only when it physically reached the chute took 3 s for 7 segments and 10+ s for long chains — so the wave is timed and capped instead |
 | B — stop to unload | Very explicit | Breaks flow, needs a second input, punishes long chains |
 | C — hybrid (slow zone + stop on release) | Flexible | Two rules to learn; unclear when it pays |
 
-**Chosen: A, fly-through rolling unload with a gentle magnetic drag (speed × 0.85 during the pass).** The pad,
-chevrons, open barn doors and glow make the drop-off unmistakable; approach cues at ½ lap, ¼ lap and just before the
-chute (soft blips + bay flash) pull a loaded caterpillar home. Coins credited = value unloaded (unit-tested).
+**Chosen: A, fly-through with a timed unload wave and a gentle magnetic drag (speed × 0.85 during the pass).** When
+the head crosses the chute, segment *k* of *n* pays at `unloadAt(k, n)`: the first after 0.36 s, the whole wave
+0.44–0.7 s for 2–4 segments and 0.8–1.3 s for 12–32, never longer (config `DEPOT`). Each segment heaves its stack up
+early enough that the blocks land in the hopper as it is paid, top block first; the stack visibly empties front to
+back, the counter climbs, the last load gets the barn's bounce, a coin spray and a stronger tick on the coin counter.
+The pad, chevrons, open doors and glow make the drop-off unmistakable; approach cues at ½ lap, ¼ lap and just before
+the chute pull a loaded caterpillar home; the camera leans towards the hopper only with a real load and holds through
+the wave. Coins credited = value unloaded (unit-tested).
 
 **A full basket takes no bites**: crops hold at their next chunk threshold (blades grind and spark, stack tops flash,
 FULL badge, arrow over the hopper) — nothing is wasted, but clearing pauses until you unload or upgrade CAPACITY.
@@ -69,7 +74,7 @@ needs time to clear the farm.
 |---|---|
 | First chunk / unload / ADD | 0:02 / 0:09 / 0:25 |
 | First route growth | ~1:00 |
-| Meadow zone 2 / 3 / 4 opened | 2:46 / 7:18 / 13:17 |
+| Meadow zone 2 / 3 / 4 opened | 2:32 / 7:17 / 13:11 |
 | Meadow finished | ~27 min (casual ~41 min, idle-only ~2.5 h — no softlock) |
 | Other farms (active) | 38–55 min each |
 A plot is claimed every ~20–40 s in the late game; the longest stretch without growth is ~2 min (asserted ≤ 4 min).
@@ -78,11 +83,17 @@ A plot is claimed every ~20–40 s in the late game; the longest stretch without
 - Offline earnings: 50 % of the recent income rate + passive income, up to 2 h, ×3 with a rewarded ad.
 - 7-day daily calendar (coins, tornadoes, boosts), ×2 with a rewarded ad; missed days do not reset.
 - Lucky ladybug/butterfly crosses the screen every 2–3 min: tap for coins, ×3 with an ad.
-- Juice: stack wobble, staged directional crop damage, chunks into stacks, rolling payout counter, route draw-in, merge
-  pop, camera kicks and pull-backs, haptics. Audio: a quiet servo whirr with leg ticks and throttle chirps (the
-  quietest layer, ducked under big moments), crunchy chomps, plinks that climb with each unloading segment, ka-ching,
-  route-growth sting, fence-crash fanfare. Mix levels are measured by `e2e/audio.spec.ts` (motor ≥ 6 dB under every
-  gameplay sound).
+- Juice: carved bite stages, recoil away from the biter, debris from the bite, chunks arcing into the eating
+  segment's stack, the unload wave, route draw-in, merge pop, camera kicks and pull-backs, haptics. Motion: a strain
+  wave runs down the chain on acceleration and braking, the head leads into bends, feet plant and push, cargo bounces
+  a beat behind the stride.
+- Audio: the motor is a tiny electric servo — a band-passed noise texture plus a faint 640–1000 Hz sine whine and
+  leg ticks — with nothing below ~450 Hz (phone speakers don't play it; low buzz reads as moped/bee). It is the
+  quietest layer and is ducked under big moments. Bites come from four crunch recipes with constrained variation
+  (bigger crops lower); the final bite is its own rustle-thunk-pop; unload plinks climb per segment to a ka-ching.
+  `e2e/audio.spec.ts` checks the loudness hierarchy (motor ≥ 6 dB under every gameplay sound), the motor's spectrum,
+  that no sound leans on sub-bass and that bites vary; how it *sounds* still needs ears on a phone
+  (docs/DEVICE_TESTING.md).
 - First-time hints teach by reaction: ADD → MERGE → full basket → depot → the first route growth → OPEN FIELD → tornado.
 
 ## Monetization rules (src/platform/ads/AdPolicy.ts)
