@@ -48,7 +48,7 @@ export function openFarmComplete(
           'div',
           { class: 'btn-row' },
           x2,
-          button('btn-big', () => {
+          button('btn-big btn-map', () => {
             close();
             o.openMap();
           }, icon('map'), t('map.title')),

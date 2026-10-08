@@ -1,83 +1,134 @@
-import type { BiomeId, FarmKey, ModifierId, SizeClass } from '../../game/types.ts';
+import type { BiomeId, FarmKey } from '../../game/types.ts';
+import type { Trail, TrailNode } from '../../game/world/trail.ts';
 import { button, h } from '../dom.ts';
 import { icon } from '../icons.ts';
-import { fmt, t } from '../../platform/i18n/i18n.ts';
+import { fmt, t, type I18nKey } from '../../platform/i18n/i18n.ts';
+import { formatDuration } from '../../shared/format.ts';
 import { biomeLook } from '../../render/palette.ts';
 import { biomeTitle, farmTitle } from '../farmNames.ts';
 import type { ModalStack } from './ModalStack.ts';
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
-
-/** One destination on the map (bounded: a few behind you, where you are, a few ahead). */
-export interface MapNode {
-  key: FarmKey;
-  ordinal: number;
-  biome: BiomeId;
-  name: number;
-  state: 'done' | 'current' | 'next' | 'future' | 'locked';
-  showcase: boolean;
-  size?: SizeClass;
-  modifier?: ModifierId | null;
-  /** Cleared share (null = not visited). */
-  cleared: number | null;
-  passive?: number;
-  canTravel: boolean;
-}
+/** A biome as a tiny landscape postcard: its sky, the land around the farm and its soil. */
+const gradient = (b: BiomeId) => {
+  const l = biomeLook(b);
+  return `background:linear-gradient(180deg, ${hex(l.sky)} 0 36%, ${hex(l.outside)} 36% 68%, ${hex(l.groundA)} 68%)`;
+};
 
 export interface MapInfo {
-  /** The five starter farms while the Starter Tour is still the chapter you are in. */
-  starter: MapNode[] | null;
-  /** World Tour destinations around you (null until the Starter Tour is done). */
-  world: { rank: number; nodes: MapNode[] } | null;
+  trail: Trail;
+  /** Core Rank (Tours completed) and its bonus on harvest value (a fraction). */
+  rank: number;
+  rankBonus: number;
+  /** How much of the farm you are on is cleared. */
+  cleared: number;
+  passive: (key: FarmKey) => number;
+  canTravel: (key: FarmKey) => boolean;
+  stats: { farms: number; found: readonly BiomeId[]; families: readonly BiomeId[]; bestS: number };
   travel: (key: FarmKey) => void;
 }
 
-function card(n: MapNode, onTap: () => void): HTMLButtonElement {
-  const b = biomeLook(n.biome);
-  const open = n.state !== 'locked';
-  const sub =
-    n.state === 'locked'
-      ? t('map.locked')
-      : n.state === 'current'
-        ? `${t('map.current')} · ${t('hud.cleared', { n: Math.floor((n.cleared ?? 0) * 100) })}`
-        : n.state === 'done'
-          ? `${t('map.completed')}${n.passive ? ` · ${t('map.passive', { n: fmt(n.passive) })}` : ''}`
-          : n.state === 'next'
-            ? `${t('map.next')} · ${biomeTitle(n.biome)}`
-            : biomeTitle(n.biome);
-  const el = button(
-    `farm-card farm-${n.biome}${open ? '' : ' locked'}${n.state === 'current' ? ' current' : ''}${n.state === 'next' ? ' next' : ''}${n.showcase ? ' showcase' : ''}`,
-    onTap,
-    h('div', { class: 'swatch', style: `background:linear-gradient(135deg, ${hex(b.groundA)}, ${hex(b.sky)})` }, icon(n.state === 'done' ? 'trophy' : open ? 'map' : 'lock')),
-    h(
-      'div',
-      { class: 'info' },
-      h('div', { class: 'name' }, `${n.ordinal > 0 ? `#${n.ordinal} ` : ''}${farmTitle(n)}`),
-      h('div', { class: 'sub' }, `${n.showcase ? `★ ${t('map.finale')} · ` : ''}${sub}`),
-    ),
-  );
-  el.style.setProperty('--fc', open ? '#fff' : '#eef1f5');
-  return el;
+/** Size, modifier and rarity of a destination, as short chips. */
+export function farmChips(n: Pick<TrailNode, 'size' | 'modifier' | 'rarity' | 'showcase'>): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  if (n.showcase) out.push(h('span', { class: 'ftag finale' }, `★ ${t('map.finale')}`));
+  if (n.rarity === 'rare' || n.rarity === 'legendary') out.push(h('span', { class: `ftag ${n.rarity}` }, t(`rarity.${n.rarity}` as I18nKey)));
+  if (n.size && n.size !== 'standard') out.push(h('span', { class: `ftag size-${n.size}` }, t(`size.${n.size}` as I18nKey)));
+  if (n.modifier) out.push(h('span', { class: 'ftag mod', title: t(`mod.${n.modifier}.d` as I18nKey) }, t(`mod.${n.modifier}` as I18nKey)));
+  return out;
+}
+
+function swatch(n: TrailNode): HTMLElement {
+  if (n.mystery) return h('div', { class: 'swatch mystery' }, h('b', {}, '?'));
+  const inner =
+    n.state === 'done' ? icon('check') : n.state === 'current' ? icon('pin') : n.showcase ? icon('star') : h('b', { class: 'ord outline' }, n.ordinal > 0 ? `#${n.ordinal}` : '');
+  return h('div', { class: 'swatch', style: gradient(n.biome) }, inner);
+}
+
+function stop(n: TrailNode, m: MapInfo, close: () => void, milestone = false): HTMLElement {
+  const travel = m.canTravel(n.key) && (n.state === 'next' || n.state === 'done');
+  const title = n.mystery ? t('map.mystery') : farmTitle(n);
+  const lines: (HTMLElement | null)[] = [h('div', { class: 'name' }, n.state === 'current' || n.state === 'done' ? `#${n.ordinal} ${title}` : title)];
+  if (n.state === 'current') {
+    const fill = h('i', { style: `transform:scaleX(${Math.min(1, m.cleared).toFixed(3)})` });
+    lines.push(h('div', { class: 'sub' }, `${t('map.current')} · ${t('hud.cleared', { n: Math.floor(m.cleared * 100) })}`), h('div', { class: 'mini-prog' }, fill));
+  } else if (n.state === 'done') {
+    const p = m.passive(n.key);
+    lines.push(h('div', { class: 'sub' }, `${t('map.completed')}${p > 0 ? ` · ${t('map.passive', { n: fmt(p) })}` : ''}`));
+  } else {
+    lines.push(h('div', { class: 'sub' }, n.mystery ? `#${n.ordinal}` : `${n.ordinal > 0 ? `#${n.ordinal} · ` : ''}${biomeTitle(n.biome)}`));
+    // A mystery card already says "new" (its "?"): the chip is for a new family you can see coming.
+    const chips = [...(n.newBiome && !n.mystery ? [h('span', { class: 'ftag new' }, t('map.newBiome'))] : []), ...farmChips(n)];
+    if (chips.length) lines.push(h('div', { class: 'ftags' }, ...chips));
+  }
+  if (n.state === 'next') lines.push(travel ? null : h('div', { class: 'hint' }, t('map.finishFirst')));
+  const cls = `farm-card ${n.state} farm-${n.biome}${n.showcase ? ' finale' : ''}${n.mystery ? ' mystery' : ''}${milestone ? ' milestone' : ''}`;
+  const body = [swatch(n), h('div', { class: 'info' }, ...lines)];
+  const card = travel
+    ? button(cls, () => {
+        m.travel(n.key);
+        close();
+      }, ...body, h('span', { class: 'go' }, n.state === 'done' ? t('map.visit') : t('common.go'), n.state === 'next' ? icon('arrow') : null))
+    : h('div', { class: cls }, ...body);
+  return h('div', { class: `stop s-${n.state}${milestone ? ' s-milestone' : ''}` }, card);
+}
+
+function pips(tr: Trail): HTMLElement {
+  const out = h('div', { class: 'tour-pips' });
+  for (let i = 0; i < tr.farms; i++) {
+    const finale = tr.tour > 0 && i === tr.farms - 1;
+    const cls = `pip${i < tr.done ? ' done' : ''}${i === tr.hereSlot ? ' here' : ''}${finale ? ' finale' : ''}`;
+    out.append(h('i', { class: cls }, finale ? '★' : ''));
+  }
+  return out;
 }
 
 export function openMap(modals: ModalStack, m: MapInfo): void {
   modals.push('map', (close) => {
-    const out: HTMLElement[] = [h('h2', {}, t('map.title'))];
-    const tap = (n: MapNode) => () => {
-      if (!n.canTravel) return;
-      m.travel(n.key);
-      close();
-    };
-    if (m.starter) {
-      const list = h('div', { class: 'farm-list' });
-      for (const n of m.starter) list.append(card(n, tap(n)));
-      out.push(h('div', { class: 'map-section' }, t('map.starter')), list);
+    const tr = m.trail;
+    const head = h(
+      'div',
+      { class: 'tour-head' },
+      pips(tr),
+      tr.hereSlot >= 0 ? h('div', { class: 'tour-of' }, t('map.tourOf', { n: tr.hereSlot + 1, m: tr.farms })) : null,
+      m.rank > 0 ? h('div', { class: 'rank-chip' }, icon('star'), h('b', {}, t('tour.rank', { n: m.rank })), h('span', {}, t('rank.bonus', { n: Math.round(m.rankBonus * 100) }))) : null,
+    );
+    const list = h('div', { class: 'trail' });
+    let prevTour = -1;
+    for (const n of tr.nodes) {
+      if (prevTour >= 0 && n.tour !== prevTour && n.tour > 0) list.append(h('div', { class: 'tour-divider' }, t('map.tourN', { n: n.tour })));
+      prevTour = n.tour;
+      list.append(stop(n, m, close));
     }
-    if (m.world) {
-      const list = h('div', { class: 'farm-list' });
-      for (const n of m.world.nodes) list.append(card(n, tap(n)));
-      out.push(h('div', { class: 'map-section' }, `${t('map.world')} · ${t('tour.rank', { n: m.world.rank })}`), list);
+    if (tr.milestone) {
+      const gap = tr.milestone.ordinal - (tr.nodes.at(-1)?.ordinal ?? 0) - 1;
+      if (gap > 0) list.append(h('div', { class: 'trail-gap' }, `⋯ ${gap === 1 ? t('map.moreOne') : t('map.more', { n: gap })}`));
+      list.append(stop(tr.milestone, m, close, true));
     }
-    return out;
+    if (tr.worldTeaser)
+      list.append(
+        h(
+          'div',
+          { class: 'stop s-milestone' },
+          h('div', { class: 'farm-card milestone teaser' }, h('div', { class: 'swatch globe' }, icon('globe')), h('div', { class: 'info' }, h('div', { class: 'name' }, t('map.teaser')), h('div', { class: 'sub' }, t('map.teaserBody', { n: m.stats.families.length })))),
+        ),
+      );
+    const found = new Set(m.stats.found);
+    const journey = h(
+      'div',
+      { class: 'journey' },
+      h('div', { class: 'journey-title' }, t('map.journey')),
+      h(
+        'div',
+        { class: 'journey-stats' },
+        h('span', {}, t('map.statFarms', { n: m.stats.farms })),
+        h('span', {}, t('map.statBiomes', { n: m.stats.families.filter((b) => found.has(b)).length, m: m.stats.families.length })),
+        m.stats.bestS > 0 ? h('span', {}, t('map.statBest', { t: formatDuration(m.stats.bestS) })) : null,
+      ),
+      h('div', { class: 'stamps' }, ...m.stats.families.map((b) => (found.has(b) ? h('i', { class: 'stamp', style: gradient(b), title: biomeTitle(b) }) : h('i', { class: 'stamp unknown' }, '?')))),
+    );
+    // Open on where you are and where you go next.
+    requestAnimationFrame(() => (list.querySelector('.s-next') ?? list.querySelector('.s-current'))?.scrollIntoView({ block: 'center' }));
+    return [h('h2', {}, tr.tour === 0 ? t('map.starter') : t('map.tourN', { n: tr.tour })), head, list, journey];
   });
 }

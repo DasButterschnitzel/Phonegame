@@ -428,13 +428,394 @@
   font-weight: 600;
 }
 
-.farm-card.locked {
-  filter: grayscale(1);
-  opacity: 0.6;
-}
-
 .farm-card.current {
   outline: 4px solid var(--gold);
+}
+
+/* ——— Journey map: a short trail (behind you, here, ahead, the Tour finale) ——— */
+.modal-map {
+  gap: 10px;
+}
+
+.tour-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.tour-pips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tour-pips .pip {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e7dcc4;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1;
+  color: #b59a5a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tour-pips .pip.done {
+  background: var(--green);
+  color: #fff;
+}
+
+.tour-pips .pip.here {
+  background: var(--gold);
+  box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.45);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.tour-pips .pip.finale {
+  width: 22px;
+  height: 22px;
+  font-size: 15px;
+  background: #fff3c4;
+  color: #f7b500;
+}
+
+.tour-pips .pip.finale.done {
+  background: var(--gold);
+  color: #fff;
+}
+
+.tour-of {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.rank-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(180deg, #7a6ae0, #5444c4);
+  color: #fff;
+  border-radius: 999px;
+  padding: 4px 12px 4px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 3px 0 #3a2e98;
+}
+
+.rank-chip .ico {
+  width: 20px;
+  height: 20px;
+}
+
+.rank-chip span {
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.trail {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 24px;
+}
+
+.trail::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 18px;
+  bottom: 18px;
+  border-left: 4px dotted #d8c9a4;
+}
+
+.stop {
+  position: relative;
+  display: flex;
+}
+
+.stop::before {
+  content: '';
+  position: absolute;
+  left: -21px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #e7dcc4;
+  border: 3px solid var(--cream);
+}
+
+.stop.s-done::before {
+  background: var(--green);
+}
+
+.stop.s-current::before {
+  background: var(--red);
+}
+
+.stop.s-next::before {
+  background: var(--gold);
+}
+
+.stop.s-milestone::before {
+  background: var(--gold);
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+
+.stop .farm-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.farm-card.done {
+  padding: 6px 10px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.08);
+}
+
+.farm-card.done .swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.farm-card.done .swatch .ico {
+  width: 26px;
+  height: 26px;
+}
+
+.farm-card.done .name {
+  font-size: 15px;
+}
+
+.farm-card.next {
+  outline: 4px solid var(--green);
+  box-shadow: 0 5px 0 rgba(61, 154, 36, 0.35);
+}
+
+.farm-card.future {
+  padding: 7px 10px;
+}
+
+.farm-card.future .swatch {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+
+.farm-card.future .name {
+  font-size: 16px;
+}
+
+.farm-card.finale {
+  background: linear-gradient(180deg, #fff6d6, #fff);
+  outline: 3px solid var(--gold);
+}
+
+.farm-card.next.finale {
+  outline-color: var(--green);
+}
+
+.farm-card .swatch .ord {
+  font-size: 15px;
+  color: #fff;
+}
+
+.farm-card .swatch.mystery {
+  background: radial-gradient(circle at 30% 30%, #c3acff, #5a3fc0);
+  color: #fff;
+  font-size: 26px;
+}
+
+.farm-card .swatch.globe {
+  background: #d8f0ff;
+}
+
+.farm-card .ftags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ftag {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #efe6d2;
+  color: var(--ink-soft);
+}
+
+.ftag.new {
+  background: linear-gradient(180deg, #b06dff, #8a3ffc);
+  color: #fff;
+}
+
+.ftag.finale {
+  background: var(--gold);
+  color: #7a5200;
+}
+
+.ftag.rare {
+  background: var(--blue);
+  color: #fff;
+}
+
+.ftag.legendary {
+  background: linear-gradient(90deg, var(--orange), var(--red));
+  color: #fff;
+}
+
+.ftag.mod {
+  background: var(--green);
+  color: #fff;
+}
+
+.ftag.size-quick {
+  background: #dff1ff;
+  color: var(--blue-d);
+}
+
+.ftag.size-grand {
+  background: #ffe7d1;
+  color: #b85c00;
+}
+
+.farm-card .hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b5651d;
+  margin-top: 2px;
+}
+
+.farm-card .go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(180deg, #7ee05a, var(--green));
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  box-shadow: 0 3px 0 var(--green-d);
+  flex: none;
+}
+
+.farm-card .go .ico {
+  width: 16px;
+  height: 16px;
+}
+
+.farm-card.done .go {
+  background: #fff;
+  color: var(--ink-soft);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+  font-size: 13px;
+}
+
+.mini-prog {
+  height: 8px;
+  border-radius: 4px;
+  background: #efe6d2;
+  overflow: hidden;
+  margin-top: 3px;
+}
+
+.mini-prog i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #7ee05a, var(--green));
+  transform-origin: left;
+}
+
+.tour-divider {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a6d2b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+  margin: 2px 0 -2px;
+}
+
+.trail-gap {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: left;
+  padding-left: 4px;
+}
+
+.farm-card.teaser {
+  background: linear-gradient(180deg, #e6f5ff, #fff);
+  outline: 3px dashed var(--blue);
+}
+
+.journey {
+  width: 100%;
+  background: #f6eedb;
+  border-radius: 16px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.journey-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a6d2b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+}
+
+.journey-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.stamps {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 5px;
+}
+
+.stamp {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+}
+
+.stamp.unknown {
+  border: 2px dashed #cdbb8f;
+  color: #b59a5a;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
 }
 
 .collection-grid {

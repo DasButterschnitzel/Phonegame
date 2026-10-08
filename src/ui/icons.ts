@@ -46,6 +46,11 @@ export const ICONS = {
   lock: svg('<rect x="10" y="20" width="28" height="22" rx="4" fill="#8a99a8"/><path d="M16 20v-6a8 8 0 0 1 16 0v6" stroke="#8a99a8" stroke-width="5" fill="none"/>'),
   close: svg('<path d="M12 12l24 24M36 12L12 36" stroke="#fff" stroke-width="6" stroke-linecap="round"/>'),
   collection: svg('<rect x="6" y="6" width="16" height="16" rx="4" fill="#6cc24a"/><rect x="26" y="6" width="16" height="16" rx="4" fill="#3fa7f5"/><rect x="6" y="26" width="16" height="16" rx="4" fill="#9b5de5"/><rect x="26" y="26" width="16" height="16" rx="4" fill="#ff5d5d"/>'),
+  star: svg('<path d="M24 4l6 13 14 2-10 10 2 14-12-7-12 7 2-14L4 19l14-2z" fill="#ffd23f" stroke="#f7b500" stroke-width="2.5" stroke-linejoin="round"/>'),
+  check: svg('<circle cx="24" cy="24" r="20" fill="#5cc93b"/><path d="M14 25l7 7 14-15" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'),
+  pin: svg('<path d="M24 44s14-14 14-24a14 14 0 0 0-28 0c0 10 14 24 14 24z" fill="#ff5d5d"/><circle cx="24" cy="20" r="6" fill="#fff"/>'),
+  globe: svg('<circle cx="24" cy="24" r="19" fill="#3fa7f5"/><path d="M13 14c5 2 6 6 3 9s0 7 4 8 3 6 1 9M31 8c-3 4 0 6 4 7s5 5 2 8" stroke="#6cc24a" stroke-width="5" fill="none" stroke-linecap="round"/><circle cx="24" cy="24" r="19" fill="none" stroke="#1f77c4" stroke-width="3"/>'),
+  arrow: svg('<path d="M8 24h28M26 12l12 12-12 12" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'),
 };
 
 export type IconName = keyof typeof ICONS;

@@ -7,22 +7,25 @@ import type { SaveMeta } from '../game/save/schema.ts';
 import type { GameController } from './game.ts';
 import type { SaveManager } from '../platform/storage/SaveManager.ts';
 import { clock } from '../platform/clock.ts';
-import { openMap, type MapNode } from '../ui/modals/Map.ts';
+import { openMap } from '../ui/modals/Map.ts';
 import { openFarmComplete } from '../ui/modals/FarmComplete.ts';
 import { openDaily } from '../ui/modals/Daily.ts';
 import { Gift } from '../ui/Gift.ts';
 import { button, countUp, h, showWhen } from '../ui/dom.ts';
 import { icon } from '../ui/icons.ts';
 import { fmt, t } from '../platform/i18n/i18n.ts';
-import { STARTER_FARMS, isStarterFarm } from '../game/types.ts';
-import { clearedOfSnapshot } from '../game/sim.ts';
-import { FARMS } from '../game/farms/index.ts';
-import { planForKey, upcoming, worldUnlocked } from '../game/world/journey.ts';
+import { isStarterFarm } from '../game/types.ts';
+import { coreBonus } from '../game/config.ts';
+import { planForKey } from '../game/world/journey.ts';
+import { readyBiomes } from '../game/world/biomes.ts';
+import { buildTrail } from '../game/world/trail.ts';
 import { FARMS_PER_TOUR, parseWorldKey } from '../game/world/plan.ts';
 import { farmTitle } from '../ui/farmNames.ts';
 
 /** How long the farm-finished celebration plays before its dialog (ms). */
 const CELEBRATE_MS = 1600;
+/** Every biome family, for the journey's stamp collection. */
+const FAMILIES = readyBiomes().map((b) => b.id);
 
 /** Map / travel, farm completion, daily calendar and lucky-bug gifts. */
 export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta, saves: SaveManager): { frame: () => void; maybeShowDaily: () => void } {
@@ -30,50 +33,26 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
   const ui = document.getElementById('ui')!;
 
   game.openMap = () => {
-    // The farm-finished celebration plays out first (its dialog leads to the map anyway).
+    // The farm-finished celebration plays out first (its dialog leads on anyway).
     if (game.celebrating) return;
     const st = sim.state;
     const j = st.journey;
-    const here = sim.farm;
-    // The Starter Tour's five farms while it is still the chapter you are in.
-    const starter: MapNode[] | null =
-      here.tour === 0
-        ? STARTER_FARMS.map((id, i) => {
-            const unlocked = st.unlockedFarms.includes(id);
-            const current = id === st.farmId;
-            return {
-              key: id,
-              ordinal: i + 1,
-              biome: id,
-              name: -1,
-              state: current ? 'current' : st.completedFarms.includes(id) ? 'done' : unlocked ? 'next' : 'locked',
-              showcase: false,
-              cleared: current ? sim.cleared : clearedOfSnapshot(FARMS[id], st.farmsProgress[id]?.field),
-              passive: st.economy.passive[id],
-              canTravel: sim.canTravel(id),
-            };
-          })
-        : null;
-    // The World Tour around you: a few farms behind, where you are, and what is coming (bounded, never the history).
-    let world: { rank: number; nodes: MapNode[] } | null = null;
-    if (worldUnlocked(j)) {
-      const nodes: MapNode[] = [];
-      for (const s of j.recent.filter((r) => !isStarterFarm(r.key) && r.key !== st.farmId).slice(-3))
-        nodes.push({ key: s.key, ordinal: s.ordinal, biome: s.biome, name: s.name, state: 'done', showcase: !!s.showcase, cleared: 1, canTravel: false });
-      if (here.tour > 0)
-        nodes.push({ key: here.id, ordinal: here.ordinal, biome: here.biome, name: here.name, state: 'current', showcase: here.showcase, size: here.size, modifier: here.modifier, cleared: sim.cleared, canTravel: false });
-      let first = true;
-      for (const p of upcoming(j, 6)) {
-        if (p.key === st.farmId) continue;
-        nodes.push({ key: p.key, ordinal: p.ordinal, biome: p.biome, name: p.name, state: first ? 'next' : 'future', showcase: p.showcase, size: p.size, modifier: p.modifier, cleared: null, canTravel: sim.canTravel(p.key) });
-        first = false;
-        if (nodes.length >= 9) break;
-      }
-      world = { rank: j.tours, nodes };
-    }
+    const f = sim.farm;
+    // A short trail (a few farms behind, where you are, what is coming, the Tour finale), never the whole history.
+    const trail = buildTrail(
+      j,
+      { key: f.id, ordinal: f.ordinal, tour: f.tour, slot: f.slot, biome: f.biome, name: f.name, size: f.tour > 0 ? f.size : null, modifier: f.modifier, showcase: f.showcase, finished: st.progress.finished },
+      st.completedFarms,
+      st.unlockedFarms,
+    );
     openMap(game.modals, {
-      starter,
-      world,
+      trail,
+      rank: j.tours,
+      rankBonus: coreBonus(j.tours),
+      cleared: sim.cleared,
+      passive: (key) => st.economy.passive[key] ?? 0,
+      canTravel: (key) => sim.canTravel(key),
+      stats: { farms: j.completed, found: j.biomes, families: FAMILIES, bestS: j.best.fastestS },
       travel: (key) =>
         game.travelTo(key, () => {
           sim.execute({ c: 'travel', farm: key });
