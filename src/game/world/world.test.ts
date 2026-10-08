@@ -63,6 +63,15 @@ describe('World Tour plan', () => {
       for (let i = 0; i < seq.length; i++) for (let k = 1; k <= 4 && i + k < seq.length; k++) expect(seq[i + k]).not.toBe(seq[i]);
     }
   });
+  it('a family never gives two farms the same name within two Tours', () => {
+    for (const seed of [1, 7, 99, 0x5eed]) {
+      const plans = Array.from({ length: FARMS_PER_TOUR * 30 }, (_, i) => planFarm(seed, STARTER_COUNT + 1 + i));
+      for (let i = 0; i < plans.length; i++)
+        for (let k = i + 1; k <= i + FARMS_PER_TOUR && k < plans.length; k++)
+          if (plans[k].biome === plans[i].biome) expect(plans[k].name, `seed ${seed}: #${plans[i].ordinal} and #${plans[k].ordinal}`).not.toBe(plans[i].name);
+    }
+  });
+
   it('generates valid, deterministic layouts', () => {
     for (let o = 6; o < 106; o++) {
       const p = planFarm(777, o);

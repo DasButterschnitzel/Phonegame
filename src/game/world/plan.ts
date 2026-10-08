@@ -106,7 +106,8 @@ export function planTour(worldSeed: number, tour: number): FarmPlan[] {
 }
 
 function buildTour(worldSeed: number, tour: number): FarmPlan[] {
-  const recent: BiomeId[] = tour > 1 ? (tourCache.get(`${worldSeed}:${tour - 1}`) ?? []).map((p) => p.biome) : [];
+  const prev: readonly FarmPlan[] = tour > 1 ? (tourCache.get(`${worldSeed}:${tour - 1}`) ?? []) : [];
+  const recent: BiomeId[] = prev.map((p) => p.biome);
   const rnd = stream(hash32(worldSeed ^ Math.imul(tour + 1, 0x85ebca77)));
   const rhythm = RHYTHMS[Math.floor(rnd() * RHYTHMS.length)];
   const pool = readyBiomes().filter((b) => b.minTour <= tour);
@@ -139,6 +140,7 @@ function buildTour(worldSeed: number, tour: number): FarmPlan[] {
       );
     }
     if (!biome) biome = pool[0];
+    const family = biome.id;
     const size: SizeClass = rhythm[slot];
     let modifier: ModifierId | null = null;
     if (showcase) modifier = SHOWCASE_MODIFIERS[Math.floor(rnd() * SHOWCASE_MODIFIERS.length)];
@@ -148,6 +150,10 @@ function buildTour(worldSeed: number, tour: number): FarmPlan[] {
     } else rnd();
     if (modifier) lastModifier = modifier;
     const seed = farmSeed(worldSeed, ordinal);
+    // A family's farms never share a name within two Tours (its curated list has twelve).
+    const used = new Set([...prev, ...out].filter((p) => p.biome === family).map((p) => p.name));
+    let name = hash32(seed ^ 0x2545f491) % NAME_COUNT;
+    for (let k = 0; k < NAME_COUNT && used.has(name); k++) name = (name + 1) % NAME_COUNT;
     out.push({
       key: worldKey(ordinal, biome.id, seed),
       ordinal,
@@ -158,7 +164,7 @@ function buildTour(worldSeed: number, tour: number): FarmPlan[] {
       size,
       modifier,
       showcase,
-      name: hash32(seed ^ 0x2545f491) % NAME_COUNT,
+      name,
       variant: hash32(seed ^ 0x51ed27) % 4,
     });
   }
