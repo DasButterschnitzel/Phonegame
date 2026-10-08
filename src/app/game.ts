@@ -261,6 +261,8 @@ export class GameController {
   traveling = false;
   /** The farm's entrance began (sound and haptics hook in here). */
   onArrive: (newBiome: boolean) => void = () => {};
+  /** A Tour was completed: its dialog is opening (the fanfare hooks in here). */
+  onTourDone: () => void = () => {};
   /** What waits for the farm's entrance to finish (the new-farm gift), and whether one is under way. */
   private afterArrival: (() => void)[] = [];
   private arriving = false;

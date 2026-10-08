@@ -1,4 +1,4 @@
-import type { BiomeId, FarmKey, Journey, ModifierId, SizeClass } from '../types.ts';
+import type { BiomeId, FarmKey, Journey, ModifierId, SizeClass, StarterFarmId } from '../types.ts';
 import { STARTER_FARMS, isStarterFarm } from '../types.ts';
 import { BIOMES, type Rarity } from './biomes.ts';
 import { upcoming, worldUnlocked } from './journey.ts';
@@ -64,7 +64,8 @@ export interface TrailHere {
 
 const rarityOf = (b: BiomeId): Rarity => BIOMES[b]?.rarity ?? 'common';
 
-function fromPlan(p: FarmPlan, state: TrailState, j: Journey): TrailNode {
+/** A planned World Tour farm as a trail node (a new family further ahead than `next` is a mystery). */
+export function nodeOfPlan(p: FarmPlan, state: TrailState, j: Journey): TrailNode {
   const newBiome = !j.biomes.includes(p.biome);
   return {
     key: p.key,
@@ -85,6 +86,12 @@ function fromPlan(p: FarmPlan, state: TrailState, j: Journey): TrailNode {
 
 function hereNode(h: TrailHere): TrailNode {
   return { ...h, state: 'current', rarity: rarityOf(h.biome), newBiome: false, mystery: false };
+}
+
+/** A Starter Tour farm as a trail node. */
+export function starterNode(id: StarterFarmId, state: TrailState): TrailNode {
+  const i = STARTER_FARMS.indexOf(id);
+  return { key: id, ordinal: i + 1, tour: 0, slot: i, biome: id, name: -1, state, size: null, modifier: null, showcase: false, rarity: 'common', newBiome: false, mystery: false };
 }
 
 /** The trail for the map (`completed` / `unlocked`: the Starter Tour's farms, used while you are on it). */
@@ -131,12 +138,12 @@ export function buildTrail(j: Journey, here: TrailHere, completed: readonly Farm
   const ahead = upcoming(j, TRAIL_AHEAD + 1)
     .filter((p) => p.key !== here.key)
     .slice(0, TRAIL_AHEAD);
-  ahead.forEach((p, i) => nodes.push(fromPlan(p, i === 0 ? 'next' : 'future', j)));
+  ahead.forEach((p, i) => nodes.push(nodeOfPlan(p, i === 0 ? 'next' : 'future', j)));
   // The next Tour finale: inside the farms shown ahead, or a milestone beyond them.
   const tour = onStarter ? 1 : here.tour;
   const finaleOrdinal = !onStarter && here.slot === FARMS_PER_TOUR - 1 ? firstOrdinalOfTour(tour + 1) + FARMS_PER_TOUR - 1 : firstOrdinalOfTour(tour) + FARMS_PER_TOUR - 1;
   const last = ahead.at(-1)?.ordinal ?? here.ordinal;
-  const milestone = finaleOrdinal > last ? fromPlan(planFarm(j.seed, finaleOrdinal), 'future', j) : null;
+  const milestone = finaleOrdinal > last ? nodeOfPlan(planFarm(j.seed, finaleOrdinal), 'future', j) : null;
   return {
     tour,
     farms: FARMS_PER_TOUR,

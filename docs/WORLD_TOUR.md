@@ -137,6 +137,21 @@ all tunes play within 1.1 dB of the meadow tune's loudness, none has more energy
 under C3), and every ambience sits ≥ 12 dB under a bite, at about the motor's level, with nothing below 150 Hz.
 Listening clips and spectrograms for a human: `CAPTURE=1 npx playwright test capture -g listening` → `capture/audio/`.
 
+## World Tour UX
+- **Journey map** (`game/world/trail.ts` → `ui/modals/Map.ts`): a short trail — three farms behind you, where you
+  are, the next stop and four more, and the next Tour finale as a milestone when it lies further on. States:
+  completed, current, next (Go — or "Finish this farm first"), future, Tour finale, NEW BIOME; a family you have
+  never been to stays a mystery ("Unknown land", with its rarity, size and modifier) until it is the next stop. Tour
+  pips, "Farm 4 of 8", the Core Rank chip with its bonus, "Your journey" (farms, biomes found as 18 stamps, best
+  time). Each biome is drawn as a tiny landscape postcard. Bounded: the last six stamps and ≤ 7 planned farms.
+- **Arrival** (`ui/Arrival.ts`): as the travel curtain lifts, a 1.45 s card — Tour and farm number (or "World Tour 3
+  begins!"), the farm's name, its family, size, modifier with what it does, finale, NEW BIOME stamp — and a chime in
+  the new farm's key. Pointer events pass through; the new-farm gift waits for it.
+- **Completion** (`ui/modals/FarmComplete.ts`): reward, Core Rank before → after on a Tour's end, Tour pips, the next
+  destination and one tap to travel there (the map is the other button). The Starter Tour's last farm opens the
+  World Tour with a fanfare and a three-line explainer. The ×2 is an offer; no interstitial can land while travelling
+  or during the entrance.
+
 ## Save v3
 `v2 → v3`: `farmId` stays the key (starter ids are valid keys); a `journey` is created from the starter progress
 (completed count, discovered biomes, World Tour unlocked when all five are done); everything else carries over.

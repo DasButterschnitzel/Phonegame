@@ -24,7 +24,7 @@ test('open every field, clear the farm, finish it and travel @smoke', async ({ p
   await expect(page.locator('.modal-farmcomplete')).toBeVisible();
   await page.locator('.modal-farmcomplete .btn-big.ad').click();
   await expect(page.locator('.modal-farmcomplete .btn-big.ad')).toBeDisabled({ timeout: 5000 });
-  await page.locator('.modal-farmcomplete .btn-big:not(.ad)').click();
+  await page.locator('.modal-farmcomplete .btn-map').click();
   await expect(page.locator('.modal-map')).toBeVisible();
   // The arrival card is short-lived: record it as it is inserted, before travelling.
   await page.evaluate(() => {

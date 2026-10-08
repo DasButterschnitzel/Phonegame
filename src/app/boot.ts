@@ -148,6 +148,10 @@ export async function boot(): Promise<App | null> {
     audio.arrive(newBiome);
     haptics.fire(newBiome ? 'success' : 'light');
   };
+  game.onTourDone = () => {
+    audio.tourFanfare();
+    haptics.fire('success');
+  };
   const haptics = new Haptics();
   const unlockAudio = () => audio.unlock();
   root.addEventListener('pointerdown', unlockAudio, { capture: true });

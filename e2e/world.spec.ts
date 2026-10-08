@@ -17,7 +17,7 @@ test('Starter Tour → World Tour: the journey goes on after Cactus Ranch @smoke
       await expect(page.locator('.modal-farmcomplete')).toContainText('Next destination');
       await shot(page, 'world-starter-done', info.project.name);
     }
-    await page.locator('.modal-farmcomplete .btn-big:not(.ad)').click();
+    await page.locator('.modal-farmcomplete .btn-map').click();
     await expect(page.locator('.modal-map')).toBeVisible();
     if (i === 4) {
       await expect(page.locator('.modal-map')).toContainText('World Tour');

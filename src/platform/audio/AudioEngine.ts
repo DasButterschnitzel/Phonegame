@@ -621,6 +621,15 @@ export class AudioEngine {
     }
   }
 
+  /** A Tour is complete (as its dialog opens): a bright climb to a held chord — the Core Rank goes up. */
+  tourFanfare(): void {
+    if (!this.ctx || !this.can('tourFanfare', 2000)) return;
+    this.duck(0.2, 1.8);
+    [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => this.tone(midi(67 + s), 0.14, 'triangle', 0.09, i * 0.06));
+    [0, 4, 7, 12].forEach((s) => this.tone(midi(79 + s), 1.2, 'sine', 0.05, 0.45));
+    this.sweep(0.8, 1500, 7000, 1.5, 0.05, 0.42);
+  }
+
   gift(): void {
     if (!this.ctx) return;
     [0, 7, 12, 16].forEach((s, i) => this.tone(midi(84 + s), 0.15, 'sine', 0.1, i * 0.05));

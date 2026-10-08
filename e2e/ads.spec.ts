@@ -124,3 +124,18 @@ test('tornado: bought with coins when none are left, then it fires', async ({ pa
   await page.locator('.modal-bonus .bonus-buy').click();
   await expect.poll(() => g<number>(page, 'g.state().stats.tornadoesUsed')).toBe(used + 1);
 });
+
+test('no interstitial when the farm-complete dialog travels on (never during a travel or a farm entrance)', async ({ page }) => {
+  await ready(page);
+  await g(page, skipTutorial);
+  await g(page, '(g.setPlaytime(600), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5)');
+  await g(page, 'g.completeCurrentFarm()');
+  await expect(page.locator('.modal-farmcomplete')).toBeVisible({ timeout: 10_000 });
+  // Let the policy allow one (as if the big moment were long past), then take the one-tap way on.
+  await g(page, '(g.app.game.lastBigMomentAt = -1e12)');
+  await page.locator('.modal-farmcomplete .btn-next').click();
+  await expect(page.locator('.travel-wipe')).toHaveCount(0, { timeout: 15_000 });
+  await page.waitForTimeout(800);
+  expect(await g<number>(page, 'g.app.ads.policy.interstitialWall.length')).toBe(0);
+  await expect(page.locator('.ad-overlay')).toHaveCount(0);
+});

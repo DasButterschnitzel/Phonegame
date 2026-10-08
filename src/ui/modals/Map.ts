@@ -45,21 +45,42 @@ function swatch(n: TrailNode): HTMLElement {
   return h('div', { class: 'swatch', style: gradient(n.biome) }, inner);
 }
 
+/** Name, number, family and tags of a destination ahead (the map's next stops, the farm-complete dialog). */
+function aheadLines(n: TrailNode): HTMLElement[] {
+  const lines: HTMLElement[] = [
+    h('div', { class: 'name' }, n.mystery ? t('map.mystery') : farmTitle(n)),
+    h('div', { class: 'sub' }, n.mystery ? `#${n.ordinal}` : `${n.ordinal > 0 ? `#${n.ordinal} · ` : ''}${biomeTitle(n.biome)}`),
+  ];
+  // A mystery card already says "new" (its "?"): the tag is for a new family you can see coming.
+  const tags = [...(n.newBiome && !n.mystery ? [h('span', { class: 'ftag new' }, t('map.newBiome'))] : []), ...farmChips(n)];
+  if (tags.length) lines.push(h('div', { class: 'ftags' }, ...tags));
+  return lines;
+}
+
+/** A destination as a card (not a button): the farm-complete dialog's next stop. */
+export function destinationCard(n: TrailNode): HTMLElement {
+  return h('div', { class: `farm-card next dest farm-${n.biome}${n.showcase ? ' finale' : ''}` }, swatch(n), h('div', { class: 'info' }, ...aheadLines(n)));
+}
+
+/** A Tour's farms as pips: done, the one you are on, the finale star (World Tours). */
+export function tourPips(farms: number, done: number, hereSlot: number, finale: boolean): HTMLElement {
+  const out = h('div', { class: 'tour-pips' });
+  for (let i = 0; i < farms; i++) {
+    const star = finale && i === farms - 1;
+    out.append(h('i', { class: `pip${i < done ? ' done' : ''}${i === hereSlot ? ' here' : ''}${star ? ' finale' : ''}` }, star ? '★' : ''));
+  }
+  return out;
+}
+
 function stop(n: TrailNode, m: MapInfo, close: () => void, milestone = false): HTMLElement {
   const travel = m.canTravel(n.key) && (n.state === 'next' || n.state === 'done');
-  const title = n.mystery ? t('map.mystery') : farmTitle(n);
-  const lines: (HTMLElement | null)[] = [h('div', { class: 'name' }, n.state === 'current' || n.state === 'done' ? `#${n.ordinal} ${title}` : title)];
+  const lines: (HTMLElement | null)[] = n.state === 'current' || n.state === 'done' ? [h('div', { class: 'name' }, `#${n.ordinal} ${farmTitle(n)}`)] : aheadLines(n);
   if (n.state === 'current') {
     const fill = h('i', { style: `transform:scaleX(${Math.min(1, m.cleared).toFixed(3)})` });
     lines.push(h('div', { class: 'sub' }, `${t('map.current')} · ${t('hud.cleared', { n: Math.floor(m.cleared * 100) })}`), h('div', { class: 'mini-prog' }, fill));
   } else if (n.state === 'done') {
     const p = m.passive(n.key);
     lines.push(h('div', { class: 'sub' }, `${t('map.completed')}${p > 0 ? ` · ${t('map.passive', { n: fmt(p) })}` : ''}`));
-  } else {
-    lines.push(h('div', { class: 'sub' }, n.mystery ? `#${n.ordinal}` : `${n.ordinal > 0 ? `#${n.ordinal} · ` : ''}${biomeTitle(n.biome)}`));
-    // A mystery card already says "new" (its "?"): the chip is for a new family you can see coming.
-    const chips = [...(n.newBiome && !n.mystery ? [h('span', { class: 'ftag new' }, t('map.newBiome'))] : []), ...farmChips(n)];
-    if (chips.length) lines.push(h('div', { class: 'ftags' }, ...chips));
   }
   if (n.state === 'next') lines.push(travel ? null : h('div', { class: 'hint' }, t('map.finishFirst')));
   const cls = `farm-card ${n.state} farm-${n.biome}${n.showcase ? ' finale' : ''}${n.mystery ? ' mystery' : ''}${milestone ? ' milestone' : ''}`;
@@ -73,15 +94,6 @@ function stop(n: TrailNode, m: MapInfo, close: () => void, milestone = false): H
   return h('div', { class: `stop s-${n.state}${milestone ? ' s-milestone' : ''}` }, card);
 }
 
-function pips(tr: Trail): HTMLElement {
-  const out = h('div', { class: 'tour-pips' });
-  for (let i = 0; i < tr.farms; i++) {
-    const finale = tr.tour > 0 && i === tr.farms - 1;
-    const cls = `pip${i < tr.done ? ' done' : ''}${i === tr.hereSlot ? ' here' : ''}${finale ? ' finale' : ''}`;
-    out.append(h('i', { class: cls }, finale ? '★' : ''));
-  }
-  return out;
-}
 
 export function openMap(modals: ModalStack, m: MapInfo): void {
   modals.push('map', (close) => {
@@ -89,7 +101,7 @@ export function openMap(modals: ModalStack, m: MapInfo): void {
     const head = h(
       'div',
       { class: 'tour-head' },
-      pips(tr),
+      tourPips(tr.farms, tr.done, tr.hereSlot, tr.tour > 0),
       tr.hereSlot >= 0 ? h('div', { class: 'tour-of' }, t('map.tourOf', { n: tr.hereSlot + 1, m: tr.farms })) : null,
       m.rank > 0 ? h('div', { class: 'rank-chip' }, icon('star'), h('b', {}, t('tour.rank', { n: m.rank })), h('span', {}, t('rank.bonus', { n: Math.round(m.rankBonus * 100) }))) : null,
     );

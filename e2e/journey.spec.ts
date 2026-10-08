@@ -126,3 +126,47 @@ test('arrival beat: a short entrance card (0.8–1.5 s) that never blocks play; 
   expect(a.t1 - a.t0).toBeGreaterThanOrEqual(800);
   expect(a.t1 - a.t0).toBeLessThanOrEqual(1700);
 });
+
+test('completion context: the next farm is one tap away; the Starter Tour opens the World Tour; a finale raises Core Rank', async ({ page }, info) => {
+  test.skip(info.project.name !== 'pixel7', 'one device');
+  test.setTimeout(240_000);
+  await ready(page);
+  await g(page, veteran);
+  // A Starter farm: the dialog shows the Tour so far and the next farm; one tap travels there (no map on the way).
+  await g(page, 'g.completeCurrentFarm()');
+  await expect(page.locator('.modal-farmcomplete')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.modal-farmcomplete .next-dest')).toContainText('Pumpkin Patch');
+  await expect(page.locator('.modal-farmcomplete .tour-pips .pip.done')).toHaveCount(1);
+  await shot(page, 'complete-farm', info.project.name);
+  await page.locator('.modal-farmcomplete .btn-next').click();
+  await expect(page.locator('.arrival')).toBeVisible({ timeout: 15_000 });
+  expect(await g<string>(page, 'g.state().farmId')).toBe('pumpkin');
+  await expect(page.locator('.modal-map')).toHaveCount(0);
+  await expect(page.locator('.travel-wipe')).toHaveCount(0, { timeout: 15_000 });
+  // The rest of the Starter Tour; its last farm opens the World Tour.
+  for (let i = 0; i < 4; i++) {
+    await g(page, 'g.completeCurrentFarm()');
+    await expect(page.locator('.modal-farmcomplete')).toBeVisible({ timeout: 10_000 });
+    if (i === 3) break;
+    await page.locator('.modal-farmcomplete .btn-next').click();
+    await expect(page.locator('.travel-wipe')).toHaveCount(0, { timeout: 15_000 });
+  }
+  await expect(page.locator('.modal-farmcomplete h2')).toHaveText('Starter Tour complete!');
+  await expect(page.locator('.modal-farmcomplete .tour-badge')).toContainText('Core Rank 1');
+  await expect(page.locator('.modal-farmcomplete .world-intro')).toBeVisible();
+  await expect(page.locator('.modal-farmcomplete .next-dest')).toContainText('World Tour 1');
+  await expect(page.locator('.modal-farmcomplete .btn-next')).toContainText('Start the World Tour');
+  await shot(page, 'complete-starter-tour', info.project.name);
+  await page.locator('.modal-farmcomplete .btn-next').click();
+  await expect.poll(() => g<number>(page, 'g.farmInfo().ordinal'), { timeout: 15_000 }).toBe(6);
+  await expect(page.locator('.travel-wipe')).toHaveCount(0, { timeout: 15_000 });
+  // A Tour's finale: Core Rank 1 → 2, all eight pips, the next Tour ahead.
+  await g(page, 'g.jumpToFarm(13)');
+  await g(page, 'g.completeCurrentFarm()');
+  await expect(page.locator('.modal-farmcomplete')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.modal-farmcomplete h2')).toHaveText('Tour 1 complete!');
+  await expect(page.locator('.modal-farmcomplete .tour-badge')).toContainText('Core Rank 1 → 2');
+  await expect(page.locator('.modal-farmcomplete .tour-pips .pip.done')).toHaveCount(8);
+  await expect(page.locator('.modal-farmcomplete .next-dest')).toContainText('World Tour 2');
+  await shot(page, 'complete-tour', info.project.name);
+});
