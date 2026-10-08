@@ -101,18 +101,23 @@ needs time to clear the farm.
 ### Pacing (bots, `npm run balance -- --profile all --farms 5 --bands --assert`)
 | Farm time (Meadow / other farms) | before (0fca9dc) | now |
 |---|---|---|
-| ACTIVE_NO_ADS: taps lucky bugs, uses free gifts and tornadoes, never an ad | 25:10 / 29–42 min | **18:45** / 22–34 min |
-| ACTIVE: the same plus a ×2 ad every 10 min | — | 15:49 / 18–27 min |
-| ACTIVE_UPGRADES_ONLY: ignores every extra | 26:57 / 29–42 min | 25:05 / 28–43 min |
-| CASUAL: holds half the time, shops every 10 s | 41:47 / 49–68 min | 34:04 / 34–55 min |
+| ACTIVE_NO_ADS: taps lucky bugs, uses free gifts and tornadoes, never an ad | 25:10 / 29–42 min | **18:14** / 19–31 min (five farms 1:51:03) |
+| ACTIVE: the same plus a ×2 ad every 10 min | — | 16:10 / 16–24 min (1:32:02) |
+| ACTIVE_UPGRADES_ONLY: ignores every extra | 26:57 / 29–42 min | 25:08 / 28–43 min |
+| CASUAL: holds half the time, shops every 10 s | 41:47 / 49–68 min | 34:04 / 30–47 min |
 | IDLE: never holds, shops every 5 min | 2:30 h | 1:20 h (buys autopilot with coins) |
 
-- The late game (70 % → finish) clears at a median 95 % of the mid game's (25–70 %) rate for ACTIVE_NO_ADS over five
-  farms × three seeds (worst farm 80 %); before, it was 32–52 % of the early rate and CASUAL Pumpkin crawled at
-  0.7 %/min with ~100 s between events. Longest late gap between meaningful events (purchase, route growth, new level,
-  bonus, fence): ≤ 41 s; typical longest stretch with nothing affordable 50 s (worst 66 s).
+The farm-finished ×2 charge accounts for about 11 min of the five-farm total (three seeds: 1:59:37 without it,
+1:48:25 with it, for ACTIVE_NO_ADS): each later farm opens 2–3 min faster.
+
+- The late game (70 % → finish) clears at a median 91 % of the mid game's (25–70 %) rate for ACTIVE_NO_ADS over five
+  farms × three seeds (worst farm 64 %; ACTIVE 98 % / 77 %); before, it was 32–52 % of the early rate and CASUAL
+  Pumpkin crawled at 0.7 %/min with ~100 s between events. Longest late gap between meaningful events (purchase, route
+  growth, new level, bonus, fence): ≤ 41 s; typical longest stretch with nothing affordable 45 s (worst 66 s).
+- Meadow by quarter (ACTIVE_NO_ADS, before → now): 0–25 % 4:23 → 3:50, 25–50 % 6:00 → 5:48, 50–70 % 5:54 → 4:54,
+  70–80 % 4:44 → 2:26, 80 % → finish 4:11 (to 90 %) → 1:18 (to 85 %).
 - Opening unchanged: first chunk / unload / ADD 0:02 / 0:09 / 0:25, first route growth 1:03, zones 2/3/4 at
-  2:30 / 4:45 / 10:06 (ACTIVE_NO_ADS).
+  2:30 / 4:45 / 9:47 (ACTIVE_NO_ADS).
 - Crop HP per chunk 36 / 161 / 637 / 2230 by tier (was 36 × 3.5^t: 36 / 126 / 441 / 1544): with the late game fixed the
   later fields can afford to be tougher, so a farm is enjoyed rather than rushed.
 - OVERDRIVE pulsed perfectly (ACTIVE_TWO_FINGER): ~12 % faster.
@@ -189,8 +194,8 @@ leads when the coins are there, otherwise the ad does. A skipped or failed ad gi
 so it mostly swept bare ground (0–20 crops). It now races out to the densest patch of living crops within 14 units
 (what the camera shows): 45–75 crops, finishing the farm 22–102 s sooner.
 
-What a rewarded ad is worth (bots, seconds of progress): ×2 coins ≈ 110 s per ad (ACTIVE watching one every 10 min vs
-ACTIVE_NO_ADS, five farms: 1:44:43 vs 2:05:08 with 11 ads); a tornado 22–102 s (forked runs); autopilot ~60 s for a
+What a rewarded ad is worth (bots, seconds of progress): ×2 coins ≈ 114 s per ad (ACTIVE watching one every 10 min vs
+ACTIVE_NO_ADS, five farms: 1:32:02 vs 1:51:03 with 10 ads); a tornado 22–102 s (forked runs); autopilot ~60 s for a
 casual player and little for one who holds anyway — the dialog says what it does, so active players simply skip it.
 
 ## Monetization rules (src/platform/ads/AdPolicy.ts)
