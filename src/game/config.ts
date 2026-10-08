@@ -6,12 +6,16 @@ export const SIM = { HZ: 30, DT: 1 / 30, MAX_STEPS: 10 } as const;
 
 export const MOVE = {
   V_BASE: 3.0,
-  V_PER_LVL: 0.1,
+  /** Every SPEED level is this much faster than the one before (compounding: each level is felt)… */
+  V_STEP: 1.07,
+  /** …and every MILESTONE_EVERY-th level adds a bigger jump on top (Lv 5, 10, 15). */
+  V_MILESTONE: 0.08,
+  MILESTONE_EVERY: 5,
   IDLE_FRAC: 0.2,
   TAU_UP: 0.35,
   TAU_DOWN: 0.45,
   LOAD_K: 0.8,
-  MAX_LVL: 25,
+  MAX_LVL: 15,
 } as const;
 
 /**
@@ -66,8 +70,18 @@ export const TERRITORY = {
   BODY_PAD: 2.2,
   /** A zone's fence opens for free once the open area is this cleared. */
   ZONE_FREE_AT: 0.85,
-  /** FINISH unlocks at this cleared share of the whole farm. */
-  FINISH_AT: 0.9,
+  /** FINISH unlocks at this cleared share of the whole farm (the rest is optional clean-up). */
+  FINISH_AT: 0.85,
+} as const;
+
+/**
+ * FINAL HARVEST: from this cleared share on (until FINISH), the crawler is a little faster and bites a little harder —
+ * the last stretch of a farm is a climax, not a clean-up.
+ */
+export const FINAL = {
+  AT: 0.75,
+  SPEED: 1.15,
+  POWER: 1.25,
 } as const;
 
 export const DEPOT = {
@@ -92,7 +106,10 @@ export const unloadAt = (k: number, n: number): number => {
 
 /** HP removed per world unit travelled while a crop is within reach. */
 export const power = (level: number): number => 4 * 2.4 ** (level - 1);
-export const vMax = (speedLevel: number): number => MOVE.V_BASE * (1 + MOVE.V_PER_LVL * (speedLevel - 1));
+export const vMax = (speedLevel: number): number =>
+  MOVE.V_BASE * MOVE.V_STEP ** (speedLevel - 1) * (1 + MOVE.V_MILESTONE * Math.floor(speedLevel / MOVE.MILESTONE_EVERY));
+/** True when buying the next SPEED level reaches a milestone (a bigger jump). */
+export const speedMilestone = (nextLevel: number): boolean => nextLevel % MOVE.MILESTONE_EVERY === 0;
 /** Each body segment carries its own basket; CAPACITY upgrades every basket. */
 export const capacityPerSegment = (capLevel: number): number => Math.round(10 * 1.35 ** (capLevel - 1));
 export const capacity = (capLevel: number, segments: number): number => capacityPerSegment(capLevel) * Math.max(1, segments);
@@ -101,14 +118,35 @@ export const capacityOf = (st: { progress: { capacityLevel: number; segments: re
 /** Stack height (blocks per segment) when the basket is 100% full. */
 export const maxBlocks = (capLevel: number): number => Math.min(8 + capLevel, 18);
 
-/** Upgrade cost curves; multiplied by the farm's costMult. */
+/**
+ * Upgrade prices (multiplied by the farm's costMult). They mostly depend on what the caterpillar *is* — how many
+ * segments, which level is merged, the SPEED/CAPACITY level. A gentle climb per purchase keeps ADD/MERGE from
+ * turning into a tap-fest once the income is large; it used to be 1.025/1.03, which compounded to ×6–7 by the end of a
+ * farm and made its last fifth a grind.
+ */
+export const COST = {
+  ADD: 15,
+  ADD_GROWTH: 1.32,
+  /** Per ADD bought on this farm. */
+  ADD_CLIMB: 1.01,
+  MERGE: 50,
+  MERGE_GROWTH: 2.9,
+  MERGE_CLIMB: 1.012,
+  /** ADD and MERGE per open zone (1 = none: pricing by zone brought the late-game grind straight back). */
+  ZONE_GROWTH: 1,
+  SPEED: 60,
+  SPEED_GROWTH: 1.6,
+  CAPACITY: 35,
+  CAPACITY_GROWTH: 1.55,
+} as const;
+
 export const cost = {
-  /** Priced by how many segments you have now (merging makes refilling cheaper) plus a mild lifetime climb. */
-  add: (segments: number, addCount: number): number => 15 * 1.32 ** (segments - 1) * 1.025 ** addCount,
-  /** Priced by the level of the pair being merged (fair ROI: power grows 2.4×/level) plus a mild per-merge climb. */
-  merge: (pairLevel: number, m: number): number => 50 * 2.9 ** (pairLevel - 1) * 1.03 ** m,
-  speed: (level: number): number => 60 * 1.65 ** (level - 1),
-  capacity: (level: number): number => 35 * 1.55 ** (level - 1),
+  /** Priced by how many segments you have now (merging makes refilling cheaper). */
+  add: (segments: number, adds = 0, zone = 0): number => COST.ADD * COST.ADD_GROWTH ** (segments - 1) * COST.ADD_CLIMB ** adds * COST.ZONE_GROWTH ** zone,
+  /** Priced by the level of the pair being merged (power grows 2.4× per level, the price 2.9×). */
+  merge: (pairLevel: number, merges = 0, zone = 0): number => COST.MERGE * COST.MERGE_GROWTH ** (pairLevel - 1) * COST.MERGE_CLIMB ** merges * COST.ZONE_GROWTH ** zone,
+  speed: (level: number): number => COST.SPEED * COST.SPEED_GROWTH ** (level - 1),
+  capacity: (level: number): number => COST.CAPACITY * COST.CAPACITY_GROWTH ** (level - 1),
 };
 
 export const crop = {

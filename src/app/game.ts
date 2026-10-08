@@ -261,6 +261,9 @@ export class GameController {
       case 'tornadoGranted':
         this.toasts.show(t('toast.tornadoDrop'));
         break;
+      case 'finalHarvest':
+        this.toasts.banner(t('banner.final'), t('banner.finalSub'));
+        break;
       default:
         break;
     }

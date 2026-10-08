@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Sim, newGameState } from './sim.ts';
-import { BODY, DEPOT, MOVE, OVERDRIVE, SIM, TERRITORY, capacityOf, power, unloadAt, vMax } from './config.ts';
+import { BODY, DEPOT, FINAL, MOVE, OVERDRIVE, SIM, TERRITORY, capacityOf, power, unloadAt, vMax } from './config.ts';
 import { sampleAt } from './path.ts';
 import { findMergePair } from './caterpillar.ts';
 import { offlineReward } from './economy.ts';
@@ -426,6 +426,38 @@ describe('upgrades and zones', () => {
     expect(sim.state.progress.zone).toBe(3);
     expect(sim.check('expand').reason).toBe('finalZone');
     expect(sim.check('finish').reason).toBe('notCleared');
+  });
+  it('FINISH unlocks at FINISH_AT cleared (the last pockets are optional), not a crop earlier', () => {
+    const sim = new Sim();
+    sim.execute({ c: 'grantCoins', amount: 1e15, reason: 'debug' });
+    for (let k = 0; k < 3; k++) sim.execute({ c: 'buy', id: 'expand' });
+    expect(sim.state.progress.zone).toBe(3);
+    const f = sim.field;
+    const need = Math.ceil(f.count * TERRITORY.FINISH_AT);
+    const kill = (n: number) => {
+      for (let i = 0; i < f.count && n > 0; i++) if (!f.dead[i]) ((f.dead[i] = 1), sim.terr.zoneDead[f.tier[i]]++, n--);
+    };
+    kill(need - 1);
+    expect(sim.check('finish').reason).toBe('notCleared');
+    kill(1);
+    expect(sim.check('finish').ok).toBe(true);
+    expect(TERRITORY.FINISH_AT).toBeLessThanOrEqual(0.88);
+  });
+  it('FINAL HARVEST: from FINAL.AT cleared the crawler is faster and bites harder, announced once', () => {
+    const sim = new Sim();
+    barren(sim);
+    run(sim, 3, true);
+    const v0 = sim.state.v;
+    const f = sim.field;
+    // Mark enough of the farm destroyed (bookkeeping only) to cross the threshold.
+    for (let i = 0, n = Math.ceil(f.count * FINAL.AT); i < f.count && n > 0; i++) (sim.terr.zoneDead[f.tier[i]]++, n--);
+    const ev: SimEvent[] = [];
+    run(sim, 3, true, (e) => ev.push(e));
+    expect(ev.filter((e) => e.t === 'finalHarvest').length).toBe(1);
+    expect(sim.state.v).toBeCloseTo(v0 * FINAL.SPEED, 2);
+    expect(sim.final).toBe(true);
+    run(sim, 3, true, (e) => ev.push(e));
+    expect(ev.filter((e) => e.t === 'finalHarvest').length).toBe(1);
   });
   it('finish unlocks the next farm; travel keeps coins and each farm keeps its cleared land', () => {
     const sim = new Sim();

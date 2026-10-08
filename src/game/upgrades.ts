@@ -28,10 +28,10 @@ export function upgradeCost(st: GameState, farm: FarmDef, terr: Territory, id: U
   const p = st.progress;
   switch (id) {
     case 'add':
-      return Math.ceil(cost.add(p.segments.length, p.addCount) * m);
+      return Math.ceil(cost.add(p.segments.length, p.addCount, p.zone) * m);
     case 'merge': {
       const pair = findMergePair(p.segments);
-      return Math.ceil(cost.merge(pair ? pair.level : 1, p.mergeCount) * m);
+      return Math.ceil(cost.merge(pair ? pair.level : 1, p.mergeCount, p.zone) * m);
     }
     case 'speed':
       return Math.ceil(cost.speed(p.speedLevel) * m);

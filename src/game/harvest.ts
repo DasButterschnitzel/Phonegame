@@ -17,6 +17,8 @@ export interface HarvestCtx {
   terr: Territory;
   valueMult: number;
   events: SimEvent[];
+  /** Bite power multiplier (FINAL HARVEST). */
+  power?: number;
 }
 
 export function chunkValue(ctx: HarvestCtx, i: number): number {
@@ -94,7 +96,7 @@ export function harvestStep(ctx: HarvestCtx, ds: number): void {
     const s = wrap(st.headS - bodyOffset(b), path.length);
     sampleAt(path, s, tmp);
     const bin = Math.min(bins.n - 1, Math.floor(s / bins.binLen));
-    const dmg = bodyPower(st, b) * ds;
+    const dmg = bodyPower(st, b) * ds * (ctx.power ?? 1);
     for (let k = bins.start[bin]; k < bins.start[bin + 1]; k++) {
       const i = bins.items[k];
       if (field.dead[i]) continue;

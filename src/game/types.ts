@@ -179,4 +179,6 @@ export type SimEvent =
   | { t: 'coins'; delta: number; reason: CoinReason }
   | { t: 'boost'; id: BoostId; seconds: number }
   | { t: 'tornadoGranted'; n: number }
-  | { t: 'buyFailed'; id: UpgradeId };
+  | { t: 'buyFailed'; id: UpgradeId }
+  /** The farm's last stretch began (FINAL HARVEST: faster, harder bites until FINISH). */
+  | { t: 'finalHarvest' };

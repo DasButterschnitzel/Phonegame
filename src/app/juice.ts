@@ -97,6 +97,16 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       haptics.fire('heavy');
       break;
     }
+    case 'finalHarvest': {
+      // The last stretch: a golden ring rolls out from the head, a bright run, the hand feels it.
+      const hp = r.cat.poses[0];
+      r.waves.spawn(hp.x, hp.z, 0xffd23f, 11, now, 1.3);
+      r.fx.ring(hp.x, 0.5, hp.z, 0xffd23f, 22, 1.2);
+      r.rig.addKick(0.05);
+      audio.finalHarvest();
+      haptics.fire('success');
+      break;
+    }
     case 'unloadStart':
       // The wave starts: each segment tips its stack so it lands as that segment is paid.
       r.stacks.beginUnload(e.segs, e.elapsed, now);

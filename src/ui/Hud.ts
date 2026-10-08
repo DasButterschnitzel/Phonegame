@@ -4,6 +4,7 @@ import { button, h, setText, toggleClass } from './dom.ts';
 import { icon, type IconName } from './icons.ts';
 import { fmt, t, type I18nKey } from '../platform/i18n/i18n.ts';
 import { formatDuration } from '../shared/format.ts';
+import { TERRITORY } from '../game/config.ts';
 
 export interface HudActions {
   buy(id: UpgradeId, free: boolean): void;
@@ -296,6 +297,8 @@ export class Hud {
     this.dots.forEach((d, i) => toggleClass(d, 'on', i <= vm.zone));
     // Farm progress: how much of the farm has been cleared.
     setStyle(this.progFill, 'transform', `scaleX(${Math.min(1, vm.cleared).toFixed(3)})`);
+    // FINAL HARVEST: the progress bar turns gold for the farm's last stretch.
+    toggleClass(this.progFill.parentElement!.parentElement!, 'final', vm.final);
     setText(this.progText, `${Math.floor(vm.cleared * 100)}%`);
     // transform (not height) so the fill animates on the compositor without layout.
     setStyle(this.basketFill, 'transform', `scaleY(${Math.min(1, vm.fill).toFixed(3)})`);
@@ -312,7 +315,8 @@ export class Hud {
       setStyle(this.goalCostRow, 'display', travel ? 'none' : '');
       // OPEN FIELD: a coin price that drops to FREE once the open area is mostly cleared. FINISH: clearing progress.
       const free = !travel && g.id === 'expand' && g.cost === 0;
-      if (!travel) setText(this.goalCost, g.id === 'finish' ? `${Math.floor(g.progress * 90)}% / 90%` : free ? t('up.free') : fmt(g.cost));
+      const finishAt = Math.round(TERRITORY.FINISH_AT * 100);
+      if (!travel) setText(this.goalCost, g.id === 'finish' ? `${Math.floor(g.progress * finishAt)}% / ${finishAt}%` : free ? t('up.free') : fmt(g.cost));
       toggleClass(this.goalCostRow, 'progress-only', g.id === 'finish' || free);
       toggleClass(this.goal, 'travel', travel);
       toggleClass(this.goal, 'ready', g.ok && !travel);

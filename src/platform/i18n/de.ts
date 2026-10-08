@@ -132,6 +132,8 @@ export const de: Record<I18nKey, string> = {
   'banner.zone': 'NEUES FELD!',
   'banner.newCrop': 'Neue Pflanze: {crop}',
   'banner.newFarm': 'Willkommen auf: {farm}!',
+  'banner.final': 'FINALE ERNTE!',
+  'banner.finalSub': 'Schneller krabbeln, härter zubeißen',
   'end.title': 'Alle Höfe abgeschlossen!',
   'end.body': 'Du bist eine Ernte-Legende! Deine Höfe verdienen weiter – fusioniere weiter, um alle Segmente zu entdecken.',
   'boost.max': 'Dieser Boost ist bereits voll',

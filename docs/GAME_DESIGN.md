@@ -80,21 +80,46 @@ damage is independent of speed, so going faster always means more harvest per se
 Resources are finite (≈ 100 K coins of crops on Meadow); costs are scaled so a player spends everything and still
 needs time to clear the farm.
 - Crop tier `t` (= zone): HP/chunk `36 × 3.5^t`, value/chunk `4^t`; golden crops 1.5 % (×10, may drop a tornado).
-- Head power 7; capacity per segment `10 × 1.35^(lvl−1)`; speed `3 × (1 + 0.1 (lvl−1))` units/s.
-- Costs (× farm multiplier `25^i × 1.2^i`): ADD `15 × 1.32^(segments−1) × 1.025^adds`, MERGE `50 × 2.9^(pairLevel−1) × 1.03^merges`,
-  SPEED `60 × 1.65^(lvl−1)`, CAPACITY `35 × 1.55^(lvl−1)`, OPEN FIELD `[900, 12K, 110K]` (or free at 85 %).
+- Head power 7; capacity per segment `10 × 1.35^(lvl−1)`.
+- **SPEED** `3 × 1.07^(lvl−1) × (1 + 0.08 × ⌊lvl/5⌋)` units/s, Lv 1–15: every level is 7 % faster (felt, not
+  +0.3 u/s), Lv 5/10/15 are milestones (+15 %); 3.0 → 9.6 units/s. It used to be `3 × (1 + 0.1 (lvl−1))` up to Lv 25:
+  +5 % per level late on, at ever higher prices.
+- Costs (× farm multiplier `25^i × 1.2^i`): ADD `15 × 1.32^(segments−1) × 1.01^adds`, MERGE `50 × 2.9^(pairLevel−1) ×
+  1.012^merges`, SPEED `60 × 1.6^(lvl−1)`, CAPACITY `35 × 1.55^(lvl−1)`, OPEN FIELD `[900, 12K, 110K]` (or free at 85 %).
+  The per-purchase climbs were 1.025 / 1.03 — they compounded to ×6–7 by the end of a farm, which is what made its
+  last fifth a grind. Pricing ADD/MERGE by zone instead was tried and brought the grind straight back.
+- **FINISH FARM** unlocks at **85 %** cleared (was 90 %): the last isolated pockets are optional clean-up (they keep
+  paying if you stay). 85 / 88 / 90 % changed the five-farm ACTIVE time by only 117 / 120 / 123 min once the late game
+  was fixed — the threshold mostly decides how much pocket-hunting is required.
+- **FINAL HARVEST** from **75 %** cleared until FINISH: +15 % speed, +25 % bite power, a banner, a golden ring and a
+  gold progress bar — the farm ends on a climax. Without it the late game clears ~20 % slower (Pumpkin's longest gap
+  between events 48 s → 81 s).
 - Segment caps per open zone: 8 / 14 / 22 / 32 (and what fits on the loop).
 - Finished farms pay **3 % of the income rate at completion** forever (also offline).
 
-### Pacing (balance bot, `npm run balance -- --profile all --assert`)
-| Milestone (active) | Time |
-|---|---|
-| First chunk / unload / ADD | 0:02 / 0:09 / 0:25 |
-| First route growth | ~1:00 |
-| Meadow zone 2 / 3 / 4 opened | 2:32 / 7:17 / 13:11 |
-| Meadow finished | ~27 min (casual ~41 min, idle-only ~2.5 h — no softlock) |
-| Other farms (active) | 38–55 min each |
-A plot is claimed every ~20–40 s in the late game; the longest stretch without growth is ~2 min (asserted ≤ 4 min).
+### Pacing (bots, `npm run balance -- --profile all --farms 5 --bands --assert`)
+| Farm time | before (0fca9dc) | now |
+|---|---|---|
+| ACTIVE (taps lucky bugs, uses tornadoes) Meadow / other farms | 25:10 / 28–42 min | **18:25** / 21–31 min |
+| ACTIVE_NO_ADS (no extras at all) | 26:57 / 29–42 min | **19:32** / 22–34 min |
+| CASUAL (holds half the time, shops every 10 s) | 41:47 / 49–68 min | **32:33** / 32–51 min |
+| IDLE (never touches the screen, shops every 5 min) | 2:30 h | 2:05 h (no softlock on any farm) |
+
+| Meadow, ACTIVE_NO_ADS: time / clear rate | 0–25 % | 25–50 % | 50–70 % | 70–80 % | 80 % → finish |
+|---|---|---|---|---|---|
+| before (finish at 90 %) | 6:16 / 4.0 %/min | 6:14 / 4.0 | 6:00 / 3.3 | 4:33 / 2.2 | 4:34 / 2.2 |
+| now (finish at 85 %) | 6:12 / 4.0 | 5:21 / 4.7 | 4:36 / 4.4 | 2:27 / 4.1 | 0:58 / 5.2 |
+
+- Late game (70 % → finish) vs the first half, ACTIVE, per farm: before 32–52 % of the early clear rate (CASUAL Pumpkin
+  0.7 %/min with ~100 s between events); now 71–113 %. Longest late gap between meaningful events (purchase, route
+  growth, new level, bonus, fence): 11–27 s. Longest stretch with nothing affordable: ACTIVE 25–30 s, NO_ADS ≤ 71 s,
+  CASUAL ≤ 88 s.
+- First chunk / unload / ADD 0:02 / 0:09 / 0:25, first route growth 1:03, zones 2/3/4 at 2:30 / 6:29 / 11:22 (ACTIVE).
+- OVERDRIVE pulsed perfectly (ACTIVE_TWO_FINGER): ~12 % faster; one occasional rewarded ×2 every 5 min
+  (ACTIVE_OCCASIONAL_REWARDED) saves ~90 s per ad.
+- Assertions (`--assert`, `src/game/balance.test.ts`): Meadow 15–24 min, no-ads ≤ +20 %, late clear rate ≥ 70 % of
+  early, no late gap > 60 s, no drought > 90 s, every SPEED level ≥ 7 % (milestones ≥ 14 %), late SPEED levels cost
+  ≤ 2 min of income, every profile finishes.
 
 ## Retention
 - Offline earnings: 50 % of the recent income rate + passive income, up to 2 h, ×3 with a rewarded ad.

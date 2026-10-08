@@ -460,7 +460,8 @@ export function runBot(profile: Profile, opt: RunOptions): RunReport {
         event();
       }
     }
-    if (profile.tornadoes && st.tornadoes > 0 && st.basket.mass < capacityOf(st) * 0.5 && frontierLeft() > 30) {
+    // Tornadoes once the game has shown them (the tutorial introduces the free one after ~100 s of play).
+    if (profile.tornadoes && st.tornadoes > 0 && st.simTime > 110 && st.basket.mass < capacityOf(st) * 0.5 && frontierLeft() > 30) {
       sim.execute({ c: 'useTornado' });
       band.decisions++;
       event();

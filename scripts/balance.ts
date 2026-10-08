@@ -140,7 +140,8 @@ console.log(out.join('\n'));
 
 if (doAssert) {
   const errors: string[] = [];
-  const a = reports.find((r) => r.profile.id === 'active');
+  const byId = (id: ProfileId) => reports.find((r) => r.profile.id === id);
+  const a = byId('active');
   if (a) {
     const t = (n: string) => a.milestones.find(([m]) => m.startsWith(n))?.[1] ?? Infinity;
     const check = (name: string, lo: number, hi: number) => {
@@ -151,12 +152,31 @@ if (doAssert) {
     check('ADD #1', 3, 45);
     check('first route growth', 25, 90);
     check('Lv 2 unlocked', 30, 300);
-    check(`${startFarm} zone 2`, 120, 420);
-    check(`${startFarm} zone 3`, 360, 900);
-    check(`${startFarm} zone 4`, 720, 1500);
-    check(`${startFarm} FINISHED`, 1500, 3000);
-    const f = a.farms[0];
-    if (f && f.longestNoGrowth > 240) errors.push(`longest stretch without route growth: ${f.longestNoGrowth.toFixed(0)}s > 240s`);
+    check(`${startFarm} zone 2`, 90, 300);
+    check(`${startFarm} zone 3`, 240, 660);
+    check(`${startFarm} zone 4`, 480, 1080);
+    check(`${startFarm} FINISHED`, 900, 1440);
+    for (const f of a.farms) {
+      if (f.longestNoGrowth > 150) errors.push(`${f.farm}: longest stretch without route growth ${f.longestNoGrowth.toFixed(0)}s > 150s`);
+      if (f.longestDrought > 90) errors.push(`${f.farm}: longest stretch with nothing affordable ${f.longestDrought.toFixed(0)}s > 90s`);
+      // No waiting room at the end: the last stretch clears at least ~3/4 as fast as the first half, with events.
+      const rate = (names: string[]) => {
+        const bs = f.bands.filter((b) => names.includes(b.name) && b.seconds > 5);
+        return bs.reduce((s, b) => s + b.clearPerMin * b.seconds, 0) / Math.max(1e-9, bs.reduce((s, b) => s + b.seconds, 0));
+      };
+      const early = rate(['0–25%', '25–50%']);
+      const late = rate(['70–80%', '80–90%']);
+      if (late < early * 0.7) errors.push(`${f.farm}: late game clears ${late.toFixed(1)} %/min vs ${early.toFixed(1)} early (< 70 %)`);
+      const lateGap = Math.max(0, ...f.bands.filter((b) => b.name === '70–80%' || b.name === '80–90%').map((b) => b.longestEventGap));
+      if (lateGap > 60) errors.push(`${f.farm}: ${lateGap.toFixed(0)}s without a meaningful event in the late game (> 60s)`);
+    }
+  }
+  // No ads needed: the no-ad player is at most 20 % slower than the one who taps lucky bugs and uses tornadoes.
+  const na = byId('noAds');
+  if (a && na) {
+    const ta = a.farms.reduce((s, f) => s + f.seconds, 0);
+    const tn = na.farms.reduce((s, f) => s + f.seconds, 0);
+    if (tn > ta * 1.2) errors.push(`ACTIVE_NO_ADS takes ${fmtT(tn)} vs ACTIVE ${fmtT(ta)} (> +20 %)`);
   }
   // No softlock: every profile finishes eventually.
   for (const r of reports) if (!r.finishedAll) errors.push(`${r.profile.label} never finished ${farms} farm(s) from ${startFarm} in ${minutes} min`);

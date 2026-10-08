@@ -536,6 +536,15 @@ export class AudioEngine {
     [0, 7, 12, 19].forEach((s, i) => this.tone(midi(55 + s), 0.3, 'triangle', 0.12, 0.1 + i * 0.09));
   }
 
+  /** FINAL HARVEST begins: a bright rising run and a held top note (the last stretch of the farm). */
+  finalHarvest(): void {
+    if (!this.ctx) return;
+    this.duck(0.25, 1.4);
+    [0, 4, 7, 11, 12, 16].forEach((s, i) => this.tone(midi(64 + s), 0.16, 'triangle', 0.11, i * 0.06));
+    this.tone(midi(88), 0.7, 'sine', 0.07, 0.38);
+    this.sweep(0.5, 900, 5200, 2, 0.06, 0.05);
+  }
+
   gift(): void {
     if (!this.ctx) return;
     [0, 7, 12, 16].forEach((s, i) => this.tone(midi(84 + s), 0.15, 'sine', 0.1, i * 0.05));

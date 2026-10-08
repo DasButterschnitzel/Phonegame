@@ -1,7 +1,7 @@
 import type { CoinReason, Command, DepotPass, FarmId, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
 import { FARM_ORDER } from './types.ts';
 import { FARMS, type FarmDef } from './farms/index.ts';
-import { DEPOT, FIELD, MISC, OVERDRIVE, TERRITORY, capacityOf, farmEco, overdriveShare, unloadAt, vMax } from './config.ts';
+import { DEPOT, FIELD, FINAL, MISC, OVERDRIVE, TERRITORY, capacityOf, farmEco, overdriveShare, unloadAt, vMax } from './config.ts';
 import { buildBins, buildField, buildRoute, computeReach, markDirty } from './field.ts';
 import { nearestS, sampleAt, type PathSample } from './path.ts';
 import { bodyOffset, findMergePair, sortSegments, updateSpeed } from './caterpillar.ts';
@@ -85,6 +85,8 @@ export class Sim {
   private events: SimEvent[] = [];
   /** OVERDRIVE boost share applied in the last step (0 = none, 1 = full). */
   overdrive = 0;
+  /** FINAL HARVEST was on last step (it is announced once, when it starts during play). */
+  private wasFinal = false;
 
   constructor(state: GameState = newGameState()) {
     this.state = state;
@@ -104,6 +106,7 @@ export class Sim {
     this.restoreField(st.progress.field);
     this.path = buildRoute(this.farm, t);
     this.afterRouteChange(false);
+    this.wasFinal = this.final;
     if (!Number.isFinite(st.headS)) {
       // Spawn so the first depot pass comes quickly.
       st.headS = this.path.barnS - this.path.length * 0.55 + this.path.length * 1000;
@@ -203,7 +206,12 @@ export class Sim {
   }
 
   private ctx(): HarvestCtx {
-    return { st: this.state, path: this.path, field: this.field, terr: this.terr, valueMult: this.valueMult, events: this.events };
+    return { st: this.state, path: this.path, field: this.field, terr: this.terr, valueMult: this.valueMult, events: this.events, power: this.final ? FINAL.POWER : 1 };
+  }
+
+  /** FINAL HARVEST: the last stretch of an unfinished farm (faster, harder bites). */
+  get final(): boolean {
+    return !this.state.progress.finished && this.cleared >= FINAL.AT;
   }
 
   step(dt: number, input: SimInput): void {
@@ -221,8 +229,12 @@ export class Sim {
     this.overdrive = od ? overdriveShare(st.heat) : 0;
     const boost = 1 + (OVERDRIVE.MULT - 1) * this.overdrive;
 
+    const final = this.final;
+    if (final && !this.wasFinal) this.events.push({ t: 'finalHarvest' });
+    this.wasFinal = final;
+
     const cap = this.capacity;
-    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, (st.depot.active ? DEPOT.SLOW : 1) * boost);
+    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, (st.depot.active ? DEPOT.SLOW : 1) * boost * (final ? FINAL.SPEED : 1));
     st.prevHeadS = st.headS;
     const ds = st.v * dt;
     st.headS += ds;

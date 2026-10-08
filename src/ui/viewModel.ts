@@ -30,6 +30,8 @@ export interface HudVM {
   zone: number;
   /** Destroyed share of the whole farm (the farm progress metric). */
   cleared: number;
+  /** FINAL HARVEST is on (the farm's last stretch). */
+  final: boolean;
   farmId: Sim['farm']['id'];
   upgrades: Record<'add' | 'merge' | 'speed' | 'capacity', UpgradeVM>;
   /** `progress`: clearing progress towards the free fence / finishing (0..1). */
@@ -73,6 +75,7 @@ export function buildHud(sim: Sim): HudVM {
     overflow: st.basket.mass > cap,
     zone: p.zone,
     cleared: sim.cleared,
+    final: sim.final,
     farmId: sim.farm.id,
     upgrades: {
       add: up('add', p.addCount + 1, { a: p.segments.length, b: maxSegments(sim.farm, p.zone, sim.path) }),

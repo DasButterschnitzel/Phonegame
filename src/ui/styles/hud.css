@@ -150,6 +150,23 @@
   transition: transform 0.4s ease-out;
 }
 
+/* FINAL HARVEST: gold bar with a slow shimmer. */
+.farm-prog.final .farm-prog-fill {
+  background: linear-gradient(90deg, #ffb703, #ffd23f, #fff1a8, #ffd23f);
+  background-size: 200% 100%;
+  animation: final-shimmer 1.6s linear infinite;
+}
+
+.farm-prog.final .farm-prog-text {
+  color: var(--gold);
+}
+
+@keyframes final-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
 .farm-prog-text {
   font-size: 12px;
   font-weight: 700;
@@ -1358,7 +1375,8 @@
   .tornado-btn .ico,
   .chip.active > .ico,
   .coach-ring,
-  .goal.travel {
+  .goal.travel,
+  .farm-prog.final .farm-prog-fill {
     animation: none !important;
   }
 }
@@ -1393,6 +1411,7 @@
 .reduce-motion .chip.active > .ico,
 .reduce-motion .coach-ring,
 .reduce-motion .goal.travel,
+.reduce-motion .farm-prog.final .farm-prog-fill,
 .reduce-motion .banner {
   animation: none !important;
 }

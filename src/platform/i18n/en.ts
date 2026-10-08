@@ -130,6 +130,8 @@ export const en = {
   'banner.zone': 'NEW FIELD!',
   'banner.newCrop': 'New crop: {crop}',
   'banner.newFarm': 'Welcome to {farm}!',
+  'banner.final': 'FINAL HARVEST!',
+  'banner.finalSub': 'Faster crawler, harder bites',
   'end.title': 'All farms complete!',
   'end.body': 'You are a crop-crawling legend! Your farms keep earning — keep merging to discover every segment.',
   'boost.max': 'This boost is already maxed out',

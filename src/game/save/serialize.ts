@@ -3,6 +3,7 @@ import { newDepotPass, newFarmProgress, newGameState } from '../sim.ts';
 import type { FarmProgress, FieldSnapshot, GameState } from '../types.ts';
 import { FARM_ORDER } from '../types.ts';
 import { SAVE_VERSION, newMeta, type SaveData, type SaveMeta } from './schema.ts';
+import { MOVE } from '../config.ts';
 
 export function serialize(sim: Sim, meta: SaveMeta, settings: Record<string, unknown>, wallNow: number): SaveData {
   sim.syncField();
@@ -34,6 +35,8 @@ function validateProgress(p: Partial<FarmProgress> | undefined): FarmProgress {
   out.zone = Math.max(0, Math.min(3, Math.floor(isNum(out.zone) ? out.zone : 0)));
   for (const k of ['addCount', 'mergeCount'] as const) if (!isNum(out[k]) || out[k] < 0) out[k] = 0;
   for (const k of ['speedLevel', 'capacityLevel'] as const) if (!isNum(out[k]) || out[k] < 1) out[k] = 1;
+  // Older builds went up to SPEED Lv 25 on a flatter curve.
+  out.speedLevel = Math.min(MOVE.MAX_LVL, Math.floor(out.speedLevel));
   out.finished = out.finished === true;
   out.field = validateField(p.field);
   if (!out.field) delete out.field;
