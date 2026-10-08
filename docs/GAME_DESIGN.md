@@ -25,8 +25,8 @@ soil turns into meadow, and the farm visibly transforms from a dense field into 
 - **OVERDRIVE.** A second finger on the field (Shift + Space on a keyboard) pushes harder: top speed × 1.3 on top of
   the SPEED level (it multiplies upgrades, never replaces them). The motor heats up in 6 s — full boost for the
   first 3.6 s, then it fades — and cools down in 6 s, so it is a burst, not a mode: holding two fingers all the time
-  gains nothing. A player who pulses it perfectly finishes farms ~12 % sooner (bot ACTIVE_TWO_FINGER); the economy
-  is balanced for one finger.
+  gains nothing. A player who pulses it perfectly (5 s on, 5 s off) finishes farms 14–24 % sooner, five farms in
+  1:32:08 instead of 1:51:03 (bot ACTIVE_TWO_FINGER vs ACTIVE_NO_ADS); the economy is balanced for one finger.
 - Fingers on buttons never count, nor do fingers that land within 22 px of one (a near-miss must not surge the
   crawler); a third finger adds nothing; cancel, focus loss and backgrounding clear every finger.
 - Feedback: the head digs in and the antennae whip back on the next frame, the servo winds up, a light haptic tick,
@@ -120,7 +120,7 @@ The farm-finished ×2 charge accounts for about 11 min of the five-farm total (t
   2:30 / 4:45 / 9:47 (ACTIVE_NO_ADS).
 - Crop HP per chunk 36 / 161 / 637 / 2230 by tier (was 36 × 3.5^t: 36 / 126 / 441 / 1544): with the late game fixed the
   later fields can afford to be tougher, so a farm is enjoyed rather than rushed.
-- OVERDRIVE pulsed perfectly (ACTIVE_TWO_FINGER): ~12 % faster.
+- OVERDRIVE pulsed perfectly (ACTIVE_TWO_FINGER): ~17 % faster over five farms than the same player with one finger.
 - Assertions (`--assert`, `src/game/balance.test.ts`): Meadow 15–24 min without ads, each rewarded ×2 worth 40–200 s,
   late game ≥ 85 % of the mid game (median, three seeds) and ≥ 50 % on the worst farm, no late gap > 75 s, no drought
   > 120 s, every SPEED level ≥ 7 % (milestones ≥ 14 %), late SPEED levels ≤ 2 min of income, every profile finishes.
