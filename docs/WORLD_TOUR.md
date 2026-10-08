@@ -114,6 +114,15 @@ and dust) on top of their accepted look.
 | Lunar Farm *(legendary, Tour 3+)* | moon sprouts, space potatoes, pod lettuce, star-fruit trees (L) | glass domes, dishes, rovers, solar panels, craters, regolith, coolant channels, a black sky | lander · stardust |
 
 (L) large crops stand 2 × 2 in a plot, (H) huge ones fill a plot alone — the same HP and value per plot either way.
+
+Cleared ground keeps the place. Mid-farm the claimed territory fills most of the screen, so on a World Tour farm each
+family scatters its own small ground piece over cleared plots, in place of one bloom patch: fallen leaves, little
+sunflowers, berry bushes in the snow, young cacti, dry grass, seedlings, vine stakes with grapes, ferns with a
+hibiscus, fir saplings, petals, puna grass, lavender sprigs, glowing mushrooms, ash with embers, giant daisies, moon
+sprouts (≤ 64 triangles each, one instanced mesh, budget test). Families without flowers (desert, snow, the moon) get
+no flower clusters there, and families whose cleared ground looked alike were pulled apart (Tuscan Vineyard sage,
+Lavender Valley silvery sage, Lunar Farm grey regolith, Nordic Berry a more muted green). The hand-made Starter farms keep
+their accepted look.
 Rarity: Tour finales favour the rare and legendary families (a legendary finale about one Tour in five); elsewhere
 they almost never appear, so they stay special.
 

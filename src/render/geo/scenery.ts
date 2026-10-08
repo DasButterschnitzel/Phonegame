@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { LandmarkKind, PropKind, RockKind, TreeKind } from '../palette.ts';
+import type { LandmarkKind, PatchKind, PropKind, RockKind, TreeKind } from '../palette.ts';
 import { build, ball, box, cone, cyl, dodeca, lathe, octa, type Part } from './lowpoly.ts';
 
 /**
@@ -976,4 +976,93 @@ export function tuftGeometry(colors: readonly [number, number, number] = [0x4f9e
     { geo: cone(0.07, 0.36, 3), color: colors[1], pos: [0.08, 0.18, 0.04], rot: [0.2, 0, -0.3] },
     { geo: cone(0.06, 0.3, 3), color: colors[2], pos: [-0.07, 0.15, -0.03], rot: [-0.25, 0, 0.1] },
   ]);
+}
+
+/**
+ * A family's ground piece for cleared plots (one or two per plot): a few dozen triangles — sunflowers, lavender,
+ * glowing mushrooms, petals, ash with embers, regolith with moon sprouts… so the territory keeps the place's character
+ * once the crops are gone. `c`: the family's three colours.
+ */
+export function patchGeometry(kind: PatchKind, c: readonly [number, number, number]): THREE.BufferGeometry {
+  const parts: Part[] = [];
+  /** A flat, leaf-shaped piece lying on the ground. */
+  const flat = (x: number, z: number, s: number, color: number, a: number, y = 0.03): Part => ({ geo: octa(s), color, pos: [x, y, z], rot: [0, a, 0], scale: [1, 0.18, 0.55] });
+  const blade = (x: number, z: number, r: number, h: number, color: number, tx = 0, tz = 0): Part => ({ geo: cone(r, h, 3), color, pos: [x, h / 2, z], rot: [tx, 0, tz] });
+  switch (kind) {
+    case 'leaves':
+      [[0, 0, 0.13, 0.3], [0.2, 0.08, 0.11, 1.4], [-0.16, 0.12, 0.12, 2.2], [0.06, -0.18, 0.1, 0.9], [-0.1, -0.08, 0.11, 2.8]].forEach(([x, z, s, a], i) => parts.push(flat(x, z, s, c[i % 3], a)));
+      break;
+    case 'sunflowers':
+      for (const [x, z, h] of [[0, 0, 0.62], [0.2, 0.1, 0.46]]) {
+        parts.push(blade(x, z, 0.03, h, c[2]));
+        parts.push({ geo: octa(0.14), color: c[0], pos: [x, h, z + 0.02], rot: [-0.6, 0, 0], scale: [1, 0.3, 1] });
+        parts.push({ geo: octa(0.065), color: c[1], pos: [x, h + 0.01, z + 0.05], rot: [-0.6, 0, 0], scale: [1, 0.4, 1] });
+      }
+      parts.push(flat(0.1, -0.06, 0.12, c[2], 0.6, 0.18));
+      break;
+    case 'berries':
+      parts.push({ geo: octa(0.17), color: c[0], pos: [0, 0.05, 0], scale: [1, 0.45, 1] });
+      parts.push(flat(0.16, 0.06, 0.1, c[2], 0.4, 0.06), flat(-0.14, -0.04, 0.1, c[2], 2.1, 0.06));
+      [[0.05, 0.1], [-0.07, 0.06], [0.1, -0.06], [-0.02, -0.1]].forEach(([x, z]) => parts.push({ geo: octa(0.04), color: c[1], pos: [x, 0.12, z] }));
+      break;
+    case 'cacti':
+      parts.push({ geo: cone(0.075, 0.42, 4), color: c[0], pos: [0, 0.21, 0] });
+      parts.push({ geo: cone(0.045, 0.2, 4), color: c[0], pos: [0.08, 0.2, 0], rot: [0, 0, -0.7] });
+      [[0.18, 0.1], [-0.15, 0.08], [0.02, -0.17]].forEach(([x, z], i) => parts.push({ geo: octa(0.06), color: c[1 + (i % 2)], pos: [x, 0.03, z], scale: [1, 0.55, 1] }));
+      break;
+    case 'drygrass':
+      [[0, 0, 0.55, 0.1], [0.08, 0.06, 0.48, -0.25], [-0.07, 0.04, 0.5, 0.2], [0.05, -0.07, 0.42, -0.1], [-0.05, -0.05, 0.45, 0.3]].forEach(([x, z, h, t], i) => parts.push(blade(x, z, 0.035, h, c[i % 3], t, -t)));
+      break;
+    case 'seedlings':
+      [[0, 0], [0.16, 0], [-0.16, 0], [0, 0.16], [0, -0.16]].forEach(([x, z], i) => parts.push(blade(x, z, 0.025, 0.3 + 0.04 * (i % 2), c[i % 3], 0.1 * (i - 2), 0)));
+      break;
+    case 'vines':
+      parts.push(blade(0, 0, 0.025, 0.5, c[0]));
+      parts.push(flat(0.08, 0.02, 0.1, c[1], 0.3, 0.38), flat(-0.08, 0.03, 0.1, c[1], 2.4, 0.3), flat(0.02, -0.08, 0.09, c[1], 1.4, 0.44));
+      [[0.05, 0.06, 0.26], [0.09, 0.05, 0.22], [0.06, 0.1, 0.19]].forEach(([x, z, y]) => parts.push({ geo: octa(0.045), color: c[2], pos: [x, y, z] }));
+      break;
+    case 'ferns':
+      [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].forEach(([tx, tz], i) => parts.push(blade(tz * 0.12, -tx * 0.12, 0.05, 0.48, c[i % 2], tx, tz)));
+      parts.push({ geo: octa(0.08), color: c[2], pos: [0.14, 0.22, 0.1], scale: [1.2, 0.5, 1.2] }, { geo: octa(0.03), color: 0xffd23f, pos: [0.14, 0.24, 0.1] });
+      break;
+    case 'saplings':
+      parts.push({ geo: cone(0.16, 0.42, 5), color: c[0], pos: [0, 0.27, 0] }, { geo: cone(0.085, 0.13, 5), color: c[1], pos: [0, 0.45, 0] });
+      parts.push({ geo: octa(0.2), color: c[1], pos: [0, 0.03, 0], scale: [1, 0.2, 1] });
+      break;
+    case 'petals':
+      [[0, 0, 0.08, 0.2], [0.14, 0.05, 0.07, 1.1], [-0.12, 0.1, 0.07, 2.0], [0.06, -0.14, 0.06, 2.7], [-0.15, -0.08, 0.07, 0.6], [0.2, -0.04, 0.06, 1.8]].forEach(([x, z, s, a], i) => parts.push(flat(x, z, s, c[i % 3], a, 0.02)));
+      break;
+    case 'puna':
+      [[0, 0, 0.6, 0.15], [0.07, 0.05, 0.52, -0.2], [-0.06, 0.06, 0.55, 0.25], [0.02, -0.07, 0.48, -0.1]].forEach(([x, z, h, t], i) => parts.push(blade(x, z, 0.04, h, c[i % 2], t, -t)));
+      parts.push({ geo: octa(0.08), color: c[2], pos: [0.16, 0.03, -0.06], scale: [1.2, 0.45, 0.9] });
+      break;
+    case 'lavender':
+      [[0, 0], [0.1, 0.05], [-0.1, 0.04], [0.05, -0.08], [-0.05, -0.07]].forEach(([x, z], i) => parts.push({ geo: cone(0.045, 0.42, 4), color: c[i % 2], pos: [x, 0.25, z], rot: [z * 1.2, 0, -x * 1.2] }));
+      parts.push({ geo: octa(0.16), color: c[2], pos: [0, 0.05, 0], scale: [1, 0.35, 1] });
+      break;
+    case 'shrooms':
+      [[0, 0, 1], [0.13, 0.08, 0.75], [-0.1, 0.1, 0.65]].forEach(([x, z, s], i) => {
+        parts.push({ geo: cone(0.03 * s, 0.16 * s, 3), color: c[1], pos: [x, 0.08 * s, z] });
+        parts.push({ geo: cone(0.11 * s, 0.08 * s, 5), color: i === 1 ? c[2] : c[0], pos: [x, 0.19 * s, z] });
+      });
+      break;
+    case 'embers':
+      [[0, 0, 0.09], [0.15, 0.07, 0.07], [-0.12, 0.09, 0.06]].forEach(([x, z, s], i) => parts.push({ geo: octa(s), color: i === 1 ? c[2] : c[0], pos: [x, 0.03, z], scale: [1, 0.5, 1] }));
+      parts.push({ geo: octa(0.04), color: c[1], pos: [0.05, 0.05, -0.08] }, { geo: octa(0.035), color: c[1], pos: [-0.09, 0.04, -0.03] });
+      break;
+    case 'daisy':
+      parts.push(blade(0, 0, 0.035, 0.62, c[2]));
+      parts.push({ geo: octa(0.22), color: c[0], pos: [0, 0.62, 0.02], rot: [-0.5, 0, 0], scale: [1, 0.22, 1] });
+      parts.push({ geo: octa(0.085), color: c[1], pos: [0, 0.64, 0.05], rot: [-0.5, 0, 0], scale: [1, 0.45, 1] });
+      parts.push(flat(0.1, 0.02, 0.13, c[2], 0.5, 0.15));
+      break;
+    case 'sprouts':
+      for (const [x, z] of [[0, 0], [0.14, 0.07]]) {
+        parts.push(blade(x, z, 0.028, 0.26, c[0]));
+        parts.push(flat(x + 0.04, z, 0.06, c[2], 0.8, 0.24));
+      }
+      parts.push({ geo: octa(0.07), color: c[1], pos: [-0.14, 0.03, 0.04], scale: [1.2, 0.5, 1] }, { geo: octa(0.055), color: c[1], pos: [0.05, 0.03, -0.15], scale: [1, 0.5, 1.2] });
+      break;
+  }
+  return build(parts);
 }

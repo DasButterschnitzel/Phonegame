@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type * as THREE from 'three';
 import { cropMeshes } from './crops.ts';
-import { landmarkGeometry, propGeometry, rockGeometry, treeGeometry } from './scenery.ts';
+import { flowerClusterGeometry } from './world.ts';
+import { landmarkGeometry, patchGeometry, propGeometry, rockGeometry, treeGeometry } from './scenery.ts';
 import { CROP_IDS, cropFit } from '../../game/crops.ts';
-import { LANDMARK_KINDS, PROP_KINDS, ROCK_KINDS, TREE_KINDS } from '../palette.ts';
+import { LANDMARK_KINDS, PATCH_KINDS, PROP_KINDS, ROCK_KINDS, TREE_KINDS } from '../palette.ts';
 
 /**
  * Triangle budgets for content (each crop tier and each scenery kind is one instanced mesh, so every instance counts):
@@ -22,6 +23,12 @@ describe('content triangle budgets', () => {
     const over = CROP_IDS.map((id) => [id, tris(cropMeshes(id).intact) * cropFit(id).k ** 2] as const).filter(([, n]) => n > PLOT_BUDGET);
     expect(over).toEqual([]);
   });
+  it('a family ground piece for cleared plots is cheaper than the bloom patch it replaces (≤ 64 triangles)', () => {
+    const bloom = tris(flowerClusterGeometry(undefined, true));
+    const over = PATCH_KINDS.map((k) => [k, tris(patchGeometry(k, [0xffffff, 0x888888, 0x222222]))] as const).filter(([, n]) => n > Math.min(64, bloom));
+    expect(over).toEqual([]);
+  });
+
   it('trees ≤ 200, rocks ≤ 120, props ≤ 350, landmarks ≤ 700 triangles', () => {
     for (const k of TREES) expect(tris(treeGeometry(k)), k).toBeLessThanOrEqual(200);
     for (const k of ROCKS) expect(tris(rockGeometry(k)), k).toBeLessThanOrEqual(120);

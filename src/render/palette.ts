@@ -14,6 +14,15 @@ export const PROP_KINDS = [
   'cart', 'reeds', 'glowshroom', 'steamvent', 'obsidian', 'volcano', 'wateringcan', 'flowerpot', 'rover', 'solarpanel', 'crater',
 ] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
+
+/** Small ground pieces a World Tour family scatters over its cleared plots (the territory reads as that place). */
+export const PATCH_KINDS = ['leaves', 'sunflowers', 'berries', 'cacti', 'drygrass', 'seedlings', 'vines', 'ferns', 'saplings', 'petals', 'puna', 'lavender', 'shrooms', 'embers', 'daisy', 'sprouts'] as const;
+export type PatchKind = (typeof PATCH_KINDS)[number];
+export interface PatchSpec {
+  kind: PatchKind;
+  colors: readonly [number, number, number];
+  scale?: number;
+}
 /** Landmarks beyond the field corners (some have a spinning rotor). */
 export const LANDMARK_KINDS = [
   'windmill', 'windpump', 'granary', 'farmhouse', 'lookout', 'cabin', 'teahouse', 'stonehut', 'redhouse',
@@ -70,6 +79,8 @@ export interface Biome {
   /** Flower colours in the ring and on cleared plots (null: no flowers). */
   flowers?: readonly number[] | null;
   props?: readonly PropSpec[];
+  /** Ground pieces on cleared plots of the family's World Tour farms (the hand-made Starter farms keep theirs). */
+  patch?: PatchSpec;
   landmark?: LandmarkKind;
   weather?: WeatherKind;
   depot?: DepotSkin;
@@ -83,10 +94,10 @@ export const RED_BARN: DepotSkin = { wall: 0xd64545, roof: 0x5b3a29, trim: 0xfff
 export const BIOMES: Partial<Record<BiomeId, Biome>> = {
   // Tilled soil fields + sandy paths make crops and the caterpillar pop against the grass outside the fence.
   meadow: { sky: 0x8fd6ff, fog: 0xcdeeff, groundA: 0xb9864f, groundB: 0xad7b46, outside: 0x7cc56b, path: 0xf5d394, pathEdge: 0xd9a866, hemiSky: 0xffffff, hemiGround: 0x6d8f4a, sun: 0xfff1d6, decor: 'tree', yaw: Math.PI / 4, cleared: 0x8fd468, water: 0x5cc3f0, props: [{ kind: 'sheep', n: 9, dMin: 2.5, dMax: 10 }] },
-  pumpkin: { sky: 0xffcf96, fog: 0xffe6c8, groundA: 0x9f6d3c, groundB: 0x936435, outside: 0x9bb04a, path: 0xf0cb8e, pathEdge: 0xcf9d5f, hemiSky: 0xfff0dd, hemiGround: 0x7a6a3a, sun: 0xffe0b0, decor: 'birch', yaw: Math.PI / 4, cleared: 0xa9cc5c, water: 0x5bb8d6, props: [{ kind: 'scarecrow', n: 6, dMin: 2, dMax: 8 }, { kind: 'haybale', n: 6, dMin: 3, dMax: 10 }], weather: 'leaves' },
-  sunflower: { sky: 0x80d0ff, fog: 0xc5ecff, groundA: 0xc3955a, groundB: 0xb88a51, outside: 0x86c95a, path: 0xf7dea6, pathEdge: 0xdcb36f, hemiSky: 0xffffff, hemiGround: 0x6a9440, sun: 0xfff6dc, decor: 'tree', yaw: Math.PI / 4, cleared: 0x9bd66a, water: 0x5cc3f0, props: [{ kind: 'beehive', n: 8, dMin: 2, dMax: 8 }], weather: 'pollen' },
-  snowyberry: { sky: 0xbfe3ff, fog: 0xe8f3ff, groundA: 0xdfe8f4, groundB: 0xd2ddeb, outside: 0xdfe8f3, path: 0xb39a80, pathEdge: 0x8f7a64, hemiSky: 0xffffff, hemiGround: 0x9aa8b8, sun: 0xffffff, decor: 'pine', yaw: Math.PI / 4, cleared: 0xd3efd6, water: 0xb8e4ff, props: [{ kind: 'snowman', n: 10, dMin: 3, dMax: 9 }], weather: 'snow' },
-  desert: { sky: 0xffd49c, fog: 0xffe9c9, groundA: 0xf2cf8a, groundB: 0xe7c178, outside: 0xe3b66a, path: 0xc3864d, pathEdge: 0xa46e3d, hemiSky: 0xfff4e0, hemiGround: 0xa47d47, sun: 0xffe7c2, decor: 'cactus', yaw: Math.PI / 4, cleared: 0xc9d47a, water: 0x4fc1d6, flowers: null, rock: 'sandstone', weather: 'dust' },
+  pumpkin: { sky: 0xffcf96, fog: 0xffe6c8, groundA: 0x9f6d3c, groundB: 0x936435, outside: 0x9bb04a, path: 0xf0cb8e, pathEdge: 0xcf9d5f, hemiSky: 0xfff0dd, hemiGround: 0x7a6a3a, sun: 0xffe0b0, decor: 'birch', yaw: Math.PI / 4, cleared: 0xa9cc5c, water: 0x5bb8d6, props: [{ kind: 'scarecrow', n: 6, dMin: 2, dMax: 8 }, { kind: 'haybale', n: 6, dMin: 3, dMax: 10 }], weather: 'leaves', patch: { kind: 'leaves', colors: [0xe8742a, 0xd94a2a, 0xf0b030] } },
+  sunflower: { sky: 0x80d0ff, fog: 0xc5ecff, groundA: 0xc3955a, groundB: 0xb88a51, outside: 0x86c95a, path: 0xf7dea6, pathEdge: 0xdcb36f, hemiSky: 0xffffff, hemiGround: 0x6a9440, sun: 0xfff6dc, decor: 'tree', yaw: Math.PI / 4, cleared: 0x9bd66a, water: 0x5cc3f0, props: [{ kind: 'beehive', n: 8, dMin: 2, dMax: 8 }], weather: 'pollen', patch: { kind: 'sunflowers', colors: [0xffd23f, 0x6b4423, 0x4f9e3a] } },
+  snowyberry: { sky: 0xbfe3ff, fog: 0xe8f3ff, groundA: 0xdfe8f4, groundB: 0xd2ddeb, outside: 0xdfe8f3, path: 0xb39a80, pathEdge: 0x8f7a64, hemiSky: 0xffffff, hemiGround: 0x9aa8b8, sun: 0xffffff, decor: 'pine', yaw: Math.PI / 4, cleared: 0xd3efd6, water: 0xb8e4ff, props: [{ kind: 'snowman', n: 10, dMin: 3, dMax: 9 }], weather: 'snow', patch: { kind: 'berries', colors: [0xeef6fa, 0xd6336c, 0x3a7a4a] } },
+  desert: { sky: 0xffd49c, fog: 0xffe9c9, groundA: 0xf2cf8a, groundB: 0xe7c178, outside: 0xe3b66a, path: 0xc3864d, pathEdge: 0xa46e3d, hemiSky: 0xfff4e0, hemiGround: 0xa47d47, sun: 0xffe7c2, decor: 'cactus', yaw: Math.PI / 4, cleared: 0xc9d47a, water: 0x4fc1d6, flowers: null, rock: 'sandstone', weather: 'dust', patch: { kind: 'cacti', colors: [0x5a9a4a, 0xd9a066, 0xc48a52] } },
   // ——— World Tour families: each its own trees, props, landmark, rocks, barn, weather and light ———
   // Zambezi Orchard: red laterite soil, golden grass, baobabs and umbrella acacias, granite kopjes, a wind pump, warm dust.
   orchard: {
@@ -94,7 +105,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xfff3dc, hemiGround: 0x8a6a3a, sun: 0xffe0aa, decor: 'acacia', decor2: 'baobab', yaw: Math.PI / 4,
     cleared: 0xb2c45e, water: 0x6aa89a, rock: 'granite', tuft: [0x8f8a3a, 0xa39a42, 0x7d7a34], flowers: [0xffd23f, 0xff8c42, 0xffffff],
     props: [{ kind: 'termite', n: 16, dMin: 2.5, dMax: 12 }, { kind: 'tallgrass', n: 150, dMin: 1.2, dMax: 10 }],
-    landmark: 'windpump', weather: 'dust',
+    landmark: 'windpump', weather: 'dust', patch: { kind: 'drygrass', colors: [0xd8c070, 0xc8a850, 0xe8d08a] },
     depot: { wall: 0xd9a05b, roof: 0xb8c0c8, trim: 0x7a4a2a, door: 0x8a5a32, silo: 0xc9d0d6, siloTop: 0x9aa4ad, loft: 0xffe08a },
   },
   // Jade Rice Terraces: wet earth beds, jade paddies once cleared, bamboo and broadleaf trees, stilted granaries, mist.
@@ -103,16 +114,16 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xf0fff8, hemiGround: 0x4f7a4a, sun: 0xfff4e2, decor: 'broadleaf', decor2: 'bamboo', yaw: Math.PI / 4,
     cleared: 0x86cfa8, water: 0x7cc8bd, rock: 'mossy', tuft: [0x6cc26a, 0x84d47a, 0x5ab45a], flowers: [0xffffff, 0xff9ec4, 0xfff3a0],
     props: [{ kind: 'stonewall', n: 16, dMin: 2, dMax: 12 }, { kind: 'stilthut', n: 4, dMin: 5, dMax: 12 }],
-    landmark: 'granary', weather: 'mist',
+    landmark: 'granary', weather: 'mist', patch: { kind: 'seedlings', colors: [0x7ed67a, 0x5ab45a, 0x9ae08a] },
     depot: { wall: 0x7a5236, roof: 0xc9a45a, trim: 0x3e2a1c, door: 0x5e3e26, silo: 0xb08a5a, siloTop: 0xc9a45a, loft: 0xfff0b0 },
   },
   // Tuscan Vineyard: ochre soil, sage hills, cypress lanes and umbrella pines, limestone, a stone farmhouse, falling leaves.
   vineyard: {
     sky: 0x9fcff5, fog: 0xf4e6c8, groundA: 0xc49a62, groundB: 0xb98f58, outside: 0xa9b66a, path: 0xf0dcb0, pathEdge: 0xcfae7a,
     hemiSky: 0xfff8e8, hemiGround: 0x7d7a48, sun: 0xffe8c0, decor: 'cypress', decor2: 'stonepine', yaw: Math.PI / 4,
-    cleared: 0xb3c96a, water: 0x6fb2c9, rock: 'limestone', tuft: [0x9aae5a, 0xa8bc66, 0x8aa04e], flowers: [0xe63946, 0xffffff, 0xb39ddb],
+    cleared: 0x98b878, water: 0x6fb2c9, rock: 'limestone', tuft: [0x9aae5a, 0xa8bc66, 0x8aa04e], flowers: [0xe63946, 0xffffff, 0xb39ddb],
     props: [{ kind: 'haybale', n: 10, dMin: 3, dMax: 12 }, { kind: 'urn', n: 8, dMin: 2.5, dMax: 8 }],
-    landmark: 'farmhouse', weather: 'leaves',
+    landmark: 'farmhouse', weather: 'leaves', patch: { kind: 'vines', colors: [0x7a5432, 0x6a9a3a, 0x6a2a6a] },
     depot: { wall: 0xead2a4, roof: 0xc0603a, trim: 0x6b4a2e, door: 0x6e8a5a, silo: 0xe2cfa8, siloTop: 0xb85a36, loft: 0xffe6a8 },
   },
   // Tropical Plantation: rich red-brown soil, lush green, palms and tree ferns, hibiscus, a lagoon, butterflies.
@@ -121,7 +132,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xf0fffa, hemiGround: 0x4a8a4a, sun: 0xfff2d0, decor: 'palm', decor2: 'fern', yaw: Math.PI / 4,
     cleared: 0x7fd66a, water: 0x3fd0d0, rock: 'basalt', tuft: [0x3faa4a, 0x52bb55, 0x6cc85a], flowers: [0xff3b5c, 0xffd23f, 0xff8c42],
     props: [{ kind: 'hibiscus', n: 30, dMin: 1.6, dMax: 10 }, { kind: 'fruitcrate', n: 8, dMin: 2.5, dMax: 8 }],
-    landmark: 'lookout', weather: 'butterflies',
+    landmark: 'lookout', weather: 'butterflies', patch: { kind: 'ferns', colors: [0x2f9a3a, 0x46b84e, 0xff3b5c] },
     depot: { wall: 0x5fc9c0, roof: 0xc9a45a, trim: 0xffffff, door: 0x3a8a8a, silo: 0xe8e0c8, siloTop: 0xc9a45a, loft: 0xfff0b0 },
   },
   // Christmas Tree Farm: dark frozen beds in deep snow, firs, presents and sleds, warm lamps, a log cabin, snowfall.
@@ -130,7 +141,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xdfe8ff, hemiGround: 0x8a9ab0, sun: 0xffe6c8, decor: 'fir', decor2: 'pine', yaw: Math.PI / 4,
     cleared: 0xdbe8e4, water: 0xc8e8ff, rock: 'ice', tuft: [0xc8d8d0, 0xb8ccc4, 0xd8e4de], flowers: null,
     props: [{ kind: 'giftbox', n: 12, dMin: 2, dMax: 9 }, { kind: 'sled', n: 5, dMin: 2.5, dMax: 9 }, { kind: 'lamppost', n: 8, dMin: 1.6, dMax: 6 }],
-    landmark: 'cabin', weather: 'snow',
+    landmark: 'cabin', weather: 'snow', patch: { kind: 'saplings', colors: [0x2f6a4a, 0xf4f8fc, 0xd64545] },
     depot: { wall: 0x8b5a3c, roof: 0xf4f8fc, trim: 0xd64545, door: 0x6b3a2a, silo: 0xb89a78, siloTop: 0xf4f8fc, loft: 0xffd27a },
   },
   // Sakura Tea Garden: dark soil, moss, raked-gravel paths, cherry blossom and garden pines, stone lanterns, petals.
@@ -139,7 +150,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xfff6fa, hemiGround: 0x6a8a5a, sun: 0xfff0f0, decor: 'sakura', decor2: 'blackpine', yaw: Math.PI / 4,
     cleared: 0x9fd48a, water: 0x7fc0d8, rock: 'pebble', tuft: [0x6aaa5a, 0x7cbc66, 0x5a9a4e], flowers: [0xffffff, 0xffc0d8, 0xfff3a0],
     props: [{ kind: 'stonelantern', n: 9, dMin: 1.8, dMax: 8 }, { kind: 'bamboofence', n: 10, dMin: 2, dMax: 10 }],
-    landmark: 'teahouse', weather: 'petals',
+    landmark: 'teahouse', weather: 'petals', patch: { kind: 'petals', colors: [0xffb8d2, 0xffd8e8, 0xffffff] },
     depot: { wall: 0x8a5a3a, roof: 0x4a5260, trim: 0xe8dcc8, door: 0x6a4a2e, silo: 0xd8c8a8, siloTop: 0x4a5260, loft: 0xfff0c8 },
   },
   // Andean Terraces: deep blue sky, high grassland, stone walls, queñua and puya, alpacas, distant snowy peaks.
@@ -148,25 +159,25 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xffffff, hemiGround: 0x8a7a5a, sun: 0xfff8e8, decor: 'polylepis', decor2: 'puya', yaw: Math.PI / 4,
     cleared: 0xa8c070, water: 0x6ab8e0, rock: 'slate', tuft: [0xd8c070, 0xc8b060, 0xe0cc84], flowers: [0xffd23f, 0xff6b3a, 0xc8a8f0],
     props: [{ kind: 'alpaca', n: 14, dMin: 1.8, dMax: 9 }, { kind: 'stonewall', n: 16, dMin: 2, dMax: 11 }, { kind: 'peak', n: 9, dMin: 9, dMax: 16, scale: 1.6 }],
-    landmark: 'stonehut', weather: 'mist',
+    landmark: 'stonehut', weather: 'mist', patch: { kind: 'puna', colors: [0xe0c468, 0xc8ac58, 0x6a6a72] },
     depot: { wall: 0xc8a882, roof: 0xd8b860, trim: 0x7a5a3a, door: 0x2a6a8a, silo: 0xb89a78, siloTop: 0xd8b860, loft: 0xfff0c0 },
   },
   // Nordic Berry: peaty soil, birch meadows and spruce, lakes, a falu-red cottage, woodpiles and cairns, low gold sun.
   nordic: {
     sky: 0xa8d4f0, fog: 0xe0eef4, groundA: 0x6a5038, groundB: 0x5e4732, outside: 0x6aaa5a, path: 0xd8c8a0, pathEdge: 0xa8946a,
     hemiSky: 0xfff8e8, hemiGround: 0x5a7a4a, sun: 0xffe8b8, decor: 'whitebirch', decor2: 'spruce', yaw: Math.PI / 4,
-    cleared: 0x8acc6a, water: 0x5aa0d0, rock: 'granite', tuft: [0x5a9a4a, 0x6aaa54, 0x7aba5e], flowers: [0xffffff, 0xb39ddb, 0xffd23f],
+    cleared: 0x86b06a, water: 0x5aa0d0, rock: 'granite', tuft: [0x5a9a4a, 0x6aaa54, 0x7aba5e], flowers: [0xffffff, 0xb39ddb, 0xffd23f],
     props: [{ kind: 'woodpile', n: 8, dMin: 2.5, dMax: 9 }, { kind: 'cairn', n: 7, dMin: 2, dMax: 12 }],
-    landmark: 'redhouse', weather: 'none',
+    landmark: 'redhouse', weather: 'none', patch: { kind: 'berries', colors: [0x4f8a52, 0xc81e3a, 0x2f5a3a] },
     depot: { wall: 0xa83a2a, roof: 0x3a3a3a, trim: 0xffffff, door: 0x7a2a20, silo: 0xe8e0d0, siloTop: 0x3a3a3a, loft: 0xffe08a },
   },
   // Lavender Valley: ochre soil, sage grass, rows of purple, plane trees and cypresses, carts and hives, a distillery, bees.
   lavender: {
     sky: 0x8ccaf5, fog: 0xf0e4f4, groundA: 0xb08a5a, groundB: 0xa47f52, outside: 0x9fae86, path: 0xf0e2c0, pathEdge: 0xcfb88a,
     hemiSky: 0xfff6ff, hemiGround: 0x7a7a5a, sun: 0xfff0d8, decor: 'plane', decor2: 'cypress', yaw: Math.PI / 4,
-    cleared: 0xb0c47a, water: 0x6fb2c9, rock: 'limestone', tuft: [0x9aae7a, 0x8a9e6a, 0xaabe88], flowers: [0x9a7ac8, 0xb39ddb, 0xffffff],
+    cleared: 0xb4bea2, water: 0x6fb2c9, rock: 'limestone', tuft: [0x9aae7a, 0x8a9e6a, 0xaabe88], flowers: [0x9a7ac8, 0xb39ddb, 0xffffff],
     props: [{ kind: 'beehive', n: 8, dMin: 2, dMax: 8 }, { kind: 'cart', n: 4, dMin: 2.5, dMax: 8 }],
-    landmark: 'distillery', weather: 'bees',
+    landmark: 'distillery', weather: 'bees', patch: { kind: 'lavender', colors: [0x8a64c0, 0xa47ed6, 0x6a8a5a] },
     depot: { wall: 0xf2e4c8, roof: 0xb0603a, trim: 0x8a6ab8, door: 0x7a5aa8, silo: 0xe8dcc0, siloTop: 0xb0603a, loft: 0xffe6a8 },
   },
   // Mushroom Marsh (rare): a purple dusk, dark peat, moss, willows and dead trees, reeds and glowing mushrooms, fireflies.
@@ -175,7 +186,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xc8b8ff, hemiGround: 0x2a4a3a, sun: 0xd8c8ff, decor: 'willow', decor2: 'deadtree', yaw: Math.PI / 4,
     cleared: 0x5f8a6a, water: 0x4a7a6a, rock: 'mossy', tuft: [0x4a7a5a, 0x5a8a64, 0x3a6a4e], flowers: [0x8affc8, 0xc8ff8a, 0xb8a8ff],
     props: [{ kind: 'reeds', n: 40, dMin: 1.4, dMax: 10 }, { kind: 'glowshroom', n: 30, dMin: 1.4, dMax: 9 }],
-    landmark: 'mushhouse', weather: 'fireflies',
+    landmark: 'mushhouse', weather: 'fireflies', patch: { kind: 'shrooms', colors: [0x8affc8, 0xe8e0d0, 0xc8a8ff] },
     depot: { wall: 0x6a5a48, roof: 0xb8483a, trim: 0xe8e0c8, door: 0x4a3a2a, silo: 0x8a7a62, siloTop: 0xb8483a, loft: 0xe8ff9a },
   },
   // Volcanic Chili Farm (rare): black volcanic soil and ash, lava for water, charred trees, vents and obsidian, a volcano
@@ -185,7 +196,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xffd0b0, hemiGround: 0x5a3020, sun: 0xffc890, decor: 'charred', decor2: 'fern', yaw: Math.PI / 4,
     cleared: 0x6e6a58, water: 0xff6a20, rock: 'basalt', tuft: [0x6a6a4a, 0x7a7a52, 0x5a5a40], flowers: [0xff6a2a, 0xffd040, 0xe8202a],
     props: [{ kind: 'steamvent', n: 12, dMin: 2, dMax: 10 }, { kind: 'obsidian', n: 16, dMin: 1.6, dMax: 12 }, { kind: 'volcano', n: 3, dMin: 8, dMax: 12, scale: 2.2 }],
-    landmark: 'chilirack', weather: 'embers',
+    landmark: 'chilirack', weather: 'embers', patch: { kind: 'embers', colors: [0x2a2626, 0xff6a2a, 0x4a4440] },
     depot: { wall: 0x5a4a44, roof: 0x2a2420, trim: 0xff8a3a, door: 0x3a2a24, silo: 0x6a5a54, siloTop: 0xff6a2a, loft: 0xffa040 },
   },
   // Giant's Garden (legendary): everything oversized — daisies like trees, grass like poles, a watering can like a shed,
@@ -195,7 +206,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xffffff, hemiGround: 0x5a8a3a, sun: 0xfff4d8, decor: 'giantflower', decor2: 'grassblade', yaw: Math.PI / 4,
     cleared: 0x7cd65a, water: 0x5cc8f0, rock: 'pebble', tuft: [0x4fae3a, 0x5fbe46, 0x6cc85a], flowers: [0xffffff, 0xffd23f, 0xff6fb5],
     props: [{ kind: 'wateringcan', n: 3, dMin: 3, dMax: 9, scale: 1.6 }, { kind: 'flowerpot', n: 5, dMin: 3, dMax: 10, scale: 1.4 }],
-    landmark: 'gnome', weather: 'butterflies',
+    landmark: 'gnome', weather: 'butterflies', patch: { kind: 'daisy', colors: [0xffffff, 0xffd23f, 0x5fbe46], scale: 1.5 },
     depot: { wall: 0xe8a838, roof: 0x4a8ad8, trim: 0xffffff, door: 0xd84a3a, silo: 0xf0f0f0, siloTop: 0x4a8ad8, loft: 0xffffff },
   },
   // Lunar Farm (legendary): grey regolith under a black sky, glass domes and dishes, rovers and solar panels, craters,
@@ -203,9 +214,9 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
   lunar: {
     sky: 0x0a0a1a, fog: 0x1a1a2e, groundA: 0x8a8a90, groundB: 0x7e7e86, outside: 0xa8a8b0, path: 0xd0d0d8, pathEdge: 0x9090a0,
     hemiSky: 0xdfe8ff, hemiGround: 0x505060, sun: 0xffffff, decor: 'dome', decor2: 'dish', yaw: Math.PI / 4,
-    cleared: 0x9acf9a, water: 0x6ae0ff, rock: 'regolith', tuft: [0x9a9aa4, 0x8a8a94, 0xaaaab4], flowers: null,
+    cleared: 0xbcc4d0, water: 0x6ae0ff, rock: 'regolith', tuft: [0x9a9aa4, 0x8a8a94, 0xaaaab4], flowers: null,
     props: [{ kind: 'rover', n: 3, dMin: 3, dMax: 9 }, { kind: 'solarpanel', n: 12, dMin: 2, dMax: 10 }, { kind: 'crater', n: 14, dMin: 1.5, dMax: 12, scale: 1.4 }],
-    landmark: 'lander', weather: 'stardust',
+    landmark: 'lander', weather: 'stardust', patch: { kind: 'sprouts', colors: [0x8af0d0, 0x9a9aa4, 0x6ae0ff] },
     depot: { wall: 0xe8e8f0, roof: 0x8a8aa0, trim: 0xff8a2a, door: 0x3a3a4a, silo: 0xd8d8e0, siloTop: 0xff8a2a, loft: 0x8ae0ff },
   },
 };

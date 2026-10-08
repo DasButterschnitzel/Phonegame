@@ -13,6 +13,13 @@ const biomes = readyBiomes()
 
 const veteran = 'Object.assign(g.meta().tutorial, { add: true, merge: true, full: true, capacity: true, expand: true, tornado: true, grow: true })';
 const snap = (page: Page, name: string) => page.screenshot({ path: `e2e-screens/biome-${name}.png` });
+/**
+ * The debug clear claims dozens of plots in one go and every claim kicks up dust along the plot's edges: on a slow
+ * software renderer that burst (up to 600 bits) can outlast a fixed wait and litter the shot. Wait until it settles.
+ */
+const settle = async (page: Page) => {
+  for (let k = 0; k < 80 && (await g<number>(page, 'g.app.renderer.fx.n')) > 40; k++) await page.waitForTimeout(100);
+};
 /** Clear frontier plots (opening zones as needed) until the farm is `share` cleared. */
 const clearTo = (page: Page, share: number) =>
   g(page, `(() => { for (let k = 0; k < 300 && g.sim.cleared < ${share}; k++) { if (g.sim.state.progress.zone < 3) { g.grant(1e15); g.buy('expand'); } g.clearFrontier(3); g.fastForward(1.2, true); } return g.sim.cleared; })()`);
@@ -33,15 +40,18 @@ for (const id of biomes) {
     await clearTo(page, 0.25);
     await g(page, 'g.fastForward(2, true)');
     await page.waitForTimeout(500);
+    await settle(page);
     await snap(page, `${id}-2-25pct`);
     await clearTo(page, 0.7);
     await g(page, 'g.fastForward(2, true)');
     await page.waitForTimeout(500);
+    await settle(page);
     await snap(page, `${id}-3-70pct`);
     await clearTo(page, 0.97);
     await g(page, 'g.app.renderer.rig.baseWidth = 34');
     await g(page, 'g.fastForward(3, true)');
     await page.waitForTimeout(900);
+    await settle(page);
     await snap(page, `${id}-4-finish`);
   });
 }

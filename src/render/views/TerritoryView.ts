@@ -4,7 +4,7 @@ import { ROCK, VOID } from '../../game/farms/layout.ts';
 import { TERRITORY } from '../../game/config.ts';
 import { DEFAULT_TUFT, biomeLook } from '../palette.ts';
 import { fenceSegmentGeometry, flowerClusterGeometry, plotFrameGeometry } from '../geo/world.ts';
-import { rockGeometry, treeGeometry, tuftGeometry } from '../geo/scenery.ts';
+import { patchGeometry, rockGeometry, treeGeometry, tuftGeometry } from '../geo/scenery.ts';
 import { toon } from '../materials.ts';
 import { C, E, M4, Q, S, V, ZERO_SCALE } from '../scratch.ts';
 import { hashFloat } from '../../shared/hash.ts';
@@ -146,9 +146,14 @@ export class TerritoryView {
     this.beds.frustumCulled = false;
     this.group.add(this.beds);
 
-    // Dressing for cleared plots.
-    // Two meshes: grass tufts, and bloom patches (clover + a flower cluster) — few draw calls.
-    const dressGeos = [tuftGeometry(biome.tuft ?? DEFAULT_TUFT), flowerClusterGeometry(biome.flowers ?? undefined, true)];
+    // Dressing for cleared plots: grass tufts and bloom patches (clover + a flower cluster) — few draw calls. A World
+    // Tour family adds its own ground piece (sunflowers, lavender, glowing mushrooms, embers…) in place of one bloom
+    // patch, and a family without flowers (desert, snow, the moon) gets none there either. The hand-made Starter farms
+    // keep their accepted look.
+    const world = farm.tour > 0;
+    const patch = world ? biome.patch : undefined;
+    const blooms = !(world && biome.flowers === null);
+    const dressGeos = [tuftGeometry(biome.tuft ?? DEFAULT_TUFT), flowerClusterGeometry(biome.flowers ?? undefined, true), ...(patch ? [patchGeometry(patch.kind, patch.colors)] : [])];
     const perPlot = this.lowQuality ? [2, 1] : [4, 2];
     const counts = dressGeos.map(() => 0);
     this.dressByPlot = [];
@@ -173,7 +178,12 @@ export class TerritoryView {
           k++;
         };
         for (let j = 0; j < perPlot[0]; j++) add(0, 0.9 + 0.5 * hashFloat(p, 500 + j, farm.seed));
-        for (let j = 0; j < perPlot[1]; j++) add(1, 0.9 + 0.4 * hashFloat(p, 600 + j, farm.seed));
+        for (let j = 0; j < perPlot[1]; j++) {
+          // The family's piece takes the first bloom slot (on the low tier, most plots' only one).
+          const piece = !!patch && j === 0 && (!this.lowQuality || hashFloat(p, 700, farm.seed) < 0.7);
+          if (piece) add(2, (patch.scale ?? 1) * (0.85 + 0.3 * hashFloat(p, 650, farm.seed)));
+          else if (blooms) add(1, 0.9 + 0.4 * hashFloat(p, 600 + j, farm.seed));
+        }
       }
       this.dressByPlot.push(items);
     }
