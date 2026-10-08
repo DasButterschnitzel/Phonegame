@@ -9,17 +9,25 @@ export interface AdPolicyCfg {
   maxInterstitialsPerHour: number;
   minUnloadsBetween: number;
   throttleQuietSec: number;
+  /** Never right after a big moment (route growth, merge, new field, FINAL HARVEST, farm finished). */
+  bigMomentQuietSec: number;
   rewardedCooldownSec: Partial<Record<Placement, number>>;
 }
 
+/**
+ * Interstitials are rare and only at natural breaks. Simulated with the balance bots (every profile, five farms):
+ * the old rules (2 min apart, 10/hour) let every kind of player hit 10 an hour, mostly after lucky-bug dialogs; these
+ * allow at most 4 an hour, 8 minutes apart, and none for 5 minutes after a rewarded ad.
+ */
 export const DEFAULT_POLICY: AdPolicyCfg = {
   firstPlayGraceSec: 300,
-  sessionWarmupSec: 60,
-  interstitialCooldownSec: 120,
-  afterRewardedQuietSec: 90,
-  maxInterstitialsPerHour: 10,
-  minUnloadsBetween: 2,
-  throttleQuietSec: 2,
+  sessionWarmupSec: 120,
+  interstitialCooldownSec: 480,
+  afterRewardedQuietSec: 300,
+  maxInterstitialsPerHour: 4,
+  minUnloadsBetween: 3,
+  throttleQuietSec: 3,
+  bigMomentQuietSec: 10,
   rewardedCooldownSec: { free_upgrade: 120, free_tornado: 180 },
 };
 
@@ -55,6 +63,8 @@ export interface BreakCtx {
   wallNow: number;
   /** App backgrounded / portal-paused: never show an ad the player can't see coming. */
   paused?: boolean;
+  /** Seconds since the last big moment (route growth, merge, new field, FINAL HARVEST, farm finished). */
+  sinceBigMoment?: number;
 }
 
 export function canShowInterstitial(st: AdPolicyState, cfg: AdPolicyCfg, now: number, ctx: BreakCtx): { ok: boolean; reason?: string } {
@@ -64,6 +74,7 @@ export function canShowInterstitial(st: AdPolicyState, cfg: AdPolicyCfg, now: nu
   if (now - st.lastInterstitial < cfg.interstitialCooldownSec) return { ok: false, reason: 'cooldown' };
   if (now - st.lastRewarded < cfg.afterRewardedQuietSec) return { ok: false, reason: 'afterRewarded' };
   if (ctx.tutorialActive) return { ok: false, reason: 'tutorial' };
+  if ((ctx.sinceBigMoment ?? Infinity) < cfg.bigMomentQuietSec) return { ok: false, reason: 'bigMoment' };
   if (ctx.kind === 'barn_unload') {
     if (ctx.modalOpen) return { ok: false, reason: 'modal' };
     if (ctx.sinceThrottle < cfg.throttleQuietSec) return { ok: false, reason: 'throttle' };

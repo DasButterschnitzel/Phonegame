@@ -69,6 +69,7 @@ test('rewarded ad through the AdMob plugin grants the boost', async ({ page }) =
   const chip = page.locator('.chip-incomeX2');
   await expect(chip).toBeVisible({ timeout: 8000 });
   await chip.click();
+  await page.locator('.modal-bonus .bonus-ad').click();
   await expect(chip).toHaveClass(/active/, { timeout: 5000 });
   expect(await native<string[]>(page, 'n.calls')).toContain('AdMob.showRewardVideoAd');
 });

@@ -1,13 +1,13 @@
-import type { CoinReason, Command, DepotPass, FarmId, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
+import type { BoostId, CoinReason, Command, DepotPass, FarmId, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
 import { FARM_ORDER } from './types.ts';
 import { FARMS, type FarmDef } from './farms/index.ts';
-import { DEPOT, FIELD, FINAL, MISC, OVERDRIVE, TERRITORY, capacityOf, farmEco, overdriveShare, unloadAt, vMax } from './config.ts';
+import { BONUS, DEPOT, FIELD, FINAL, MISC, OVERDRIVE, TERRITORY, capacityOf, farmEco, overdriveShare, unloadAt, vMax } from './config.ts';
 import { buildBins, buildField, buildRoute, computeReach, markDirty } from './field.ts';
 import { nearestS, sampleAt, type PathSample } from './path.ts';
 import { bodyOffset, findMergePair, sortSegments, updateSpeed } from './caterpillar.ts';
 import { harvestStep, kill, tornado, type HarvestCtx } from './harvest.ts';
 import { canBuy, farmCleared, zoneOpensFree } from './upgrades.ts';
-import { finishReward, giftReward, passiveRate, tickIncome, trackIncome } from './economy.ts';
+import { autopilotPrice, finishReward, giftReward, passiveRate, tickIncome, tornadoPrice, trackIncome, zoneBonus } from './economy.ts';
 import { nextRandom, randRange } from './rng.ts';
 import {
   clearedUpTo,
@@ -62,6 +62,7 @@ export function newGameState(seed = 0x5eed): GameState {
     basket: { mass: 0, value: 0, massByTier: [0, 0, 0, 0, 0] },
     depot: newDepotPass(),
     boosts: { incomeX2: 0, autopilot: 0 },
+    charges: { incomeX2: 0, autopilot: 0 },
     tornadoes: 1,
     maxLevelReached: 1,
     economy: { ema: 0, winTime: 0, winCoins: 0, passive: {} },
@@ -107,6 +108,9 @@ export class Sim {
     this.path = buildRoute(this.farm, t);
     this.afterRouteChange(false);
     this.wasFinal = this.final;
+    // Saves from before the bonus milestones: no retroactive gifts for progress already made.
+    const p = st.progress;
+    if (p.bonusClaimed === undefined) p.bonusClaimed = BONUS.MILESTONES.filter((m) => this.cleared >= m).length;
     if (!Number.isFinite(st.headS)) {
       // Spawn so the first depot pass comes quickly.
       st.headS = this.path.barnS - this.path.length * 0.55 + this.path.length * 1000;
@@ -232,6 +236,7 @@ export class Sim {
     const final = this.final;
     if (final && !this.wasFinal) this.events.push({ t: 'finalHarvest' });
     this.wasFinal = final;
+    this.milestones();
 
     const cap = this.capacity;
     updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, (st.depot.active ? DEPOT.SLOW : 1) * boost * (final ? FINAL.SPEED : 1));
@@ -401,6 +406,72 @@ export class Sim {
     for (let p = 0; p < t.claimed.length; p++) if (updateReady(t, p, st.progress.zone, st.simTime)) this.events.push({ t: 'plotReady', plot: p });
   }
 
+  // ── Bonus economy ────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Farm progress milestones each give one free charge (no ad, no coins). */
+  private milestones(): void {
+    const p = this.state.progress;
+    const k = p.bonusClaimed ?? 0;
+    if (k >= BONUS.MILESTONES.length || this.cleared < BONUS.MILESTONES[k]) return;
+    p.bonusClaimed = k + 1;
+    const kind = BONUS.MILESTONE_KINDS[k];
+    if (kind === 'tornado') this.state.tornadoes++;
+    else this.state.charges[kind]++;
+    this.events.push({ t: 'freebie', kind, reason: 'progress', at: BONUS.MILESTONES[k] });
+  }
+
+  /**
+   * Where a tornado does the most good: the densest patch of living crops in the open fields within sight of the
+   * head (the camera follows the head). Centred on the head it mostly swept already-cleared ground — the route is the
+   * edge of the cleared land — and often hit only a handful of crops. Deterministic: same state, same spot.
+   */
+  tornadoSpot(): { x: number; z: number; fromX: number; fromZ: number } {
+    const f = this.field;
+    const t = this.terr;
+    const zone = this.state.progress.zone;
+    const h = this.headPosition({ x: 0, z: 0, tx: 0, tz: 0 });
+    const r2 = MISC.TORNADO_R ** 2;
+    const reach2 = MISC.TORNADO_AIM ** 2;
+    let best = { x: h.x + h.tx * 2.5, z: h.z + h.tz * 2.5, score: -Infinity };
+    const consider = (x: number, z: number) => {
+      const d2 = (x - h.x) ** 2 + (z - h.z) ** 2;
+      if (d2 > reach2) return;
+      let n = 0;
+      for (let i = 0; i < f.count; i++) if (!f.dead[i] && f.tier[i] <= zone && (f.x[i] - x) ** 2 + (f.z[i] - z) ** 2 <= r2) n++;
+      // Nearer is better between equals (it should feel like it came out of the crawler).
+      const score = n - 0.05 * Math.sqrt(d2);
+      if (score > best.score) best = { x, z, score };
+    };
+    consider(best.x, best.z);
+    for (let p = 0; p < t.claimed.length; p++) {
+      if (t.claimed[p] || t.cropsIn[p] === 0 || t.deadIn[p] >= t.cropsIn[p]) continue;
+      const [x0, z0, x1, z1] = plotRect(t, p, 0);
+      consider((x0 + x1) / 2, (z0 + z1) / 2);
+    }
+    return { x: best.x, z: best.z, fromX: h.x, fromZ: h.z };
+  }
+
+  /** Coin price of a 3-minute autopilot right now. */
+  get autopilotPrice(): number {
+    return autopilotPrice(this.state, this.valueMult);
+  }
+
+  /** Coin price of one tornado right now. */
+  get tornadoPrice(): number {
+    return tornadoPrice(this.state, this.valueMult);
+  }
+
+  /** A boost can take another 3 minutes (it stacks up to BOOST_CAP_S). */
+  boostRoom(id: BoostId): boolean {
+    return this.state.boosts[id] <= MISC.BOOST_CAP_S - MISC.BOOST_ADD_S;
+  }
+
+  private startBoost(id: BoostId, seconds: number): void {
+    const st = this.state;
+    st.boosts[id] = Math.min(MISC.BOOST_CAP_S, st.boosts[id] + seconds);
+    this.events.push({ t: 'boost', id, seconds: st.boosts[id] });
+  }
+
   // ── Misc ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
   private spawnGift(): void {
@@ -431,8 +502,8 @@ export class Sim {
       case 'useTornado':
         if (st.tornadoes > 0) {
           st.tornadoes--;
-          const h = this.headPosition();
-          const direct = tornado(this.ctx(), h.x + h.tx * 2.5, h.z + h.tz * 2.5);
+          const spot = this.tornadoSpot();
+          const direct = tornado(this.ctx(), spot.x, spot.z, spot.fromX, spot.fromZ);
           if (direct > 0) {
             trackIncome(st, direct * this.incomeMult);
             this.grant(direct * this.incomeMult, 'tornado');
@@ -440,9 +511,36 @@ export class Sim {
         }
         break;
       case 'boost':
-        st.boosts[c.id] = Math.min(MISC.BOOST_CAP_S, st.boosts[c.id] + c.seconds);
-        this.events.push({ t: 'boost', id: c.id, seconds: st.boosts[c.id] });
+        this.startBoost(c.id, c.seconds);
         break;
+      case 'grantCharge':
+        st.charges[c.id] += c.n;
+        break;
+      case 'useCharge':
+        if (st.charges[c.id] > 0 && this.boostRoom(c.id)) {
+          st.charges[c.id]--;
+          this.startBoost(c.id, MISC.BOOST_ADD_S);
+        }
+        break;
+      case 'buyBoost': {
+        const price = this.autopilotPrice;
+        if (st.coins >= price && this.boostRoom(c.id)) {
+          st.coins -= price;
+          this.events.push({ t: 'bought', what: 'autopilot', cost: price });
+          this.startBoost(c.id, MISC.BOOST_ADD_S);
+        }
+        break;
+      }
+      case 'buyTornado': {
+        const price = this.tornadoPrice;
+        if (st.coins >= price) {
+          st.coins -= price;
+          st.tornadoes++;
+          st.progress.tornadoesBought = (st.progress.tornadoesBought ?? 0) + 1;
+          this.events.push({ t: 'bought', what: 'tornado', cost: price });
+        }
+        break;
+      }
       case 'grantCoins':
         this.grant(c.amount, c.reason);
         break;
@@ -569,6 +667,10 @@ export class Sim {
     st.progress.zone++;
     this.afterRouteChange(false);
     this.events.push({ t: 'zoneOpened', zone: st.progress.zone, free });
+    // A new field pays a little welcome bonus.
+    const amount = zoneBonus(st, this.valueMult);
+    this.grant(amount, 'zoneBonus');
+    this.events.push({ t: 'freebie', kind: 'coins', reason: 'zone', amount });
   }
 
   /** True when EXPAND would cost nothing right now. */
@@ -595,8 +697,9 @@ export class Sim {
     this.depotFlush();
     this.syncField();
     st.farmsProgress[st.farmId] = st.progress;
+    const firstVisit = !st.farmsProgress[id];
     st.progress = st.farmsProgress[id] ?? newFarmProgress(st.nextSegId);
-    if (!st.farmsProgress[id]) st.nextSegId += MISC.START_SEGMENTS;
+    if (firstVisit) st.nextSegId += MISC.START_SEGMENTS;
     delete st.farmsProgress[id];
     st.farmId = id;
     // Sell whatever is still in the basket instead of silently discarding it.
@@ -612,6 +715,11 @@ export class Sim {
     st.v = 0;
     this.loadFarm(id);
     this.events.push({ t: 'traveled', farm: id });
+    // Every new farm starts with a tornado in hand.
+    if (firstVisit) {
+      st.tornadoes++;
+      this.events.push({ t: 'freebie', kind: 'tornado', reason: 'newFarm' });
+    }
   }
 
   /** Arc position of body b, wrapped into [0, L). */

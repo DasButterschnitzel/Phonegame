@@ -442,26 +442,6 @@
   height: 34px;
 }
 
-.chip .ad-ico {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 26px;
-  height: 26px;
-  background: #ff5d5d;
-  border-radius: 9px;
-  padding: 3px;
-  border: 2px solid #fff;
-}
-
-.chip .ad-ico svg rect {
-  fill: transparent;
-}
-
-.chip .ad-ico svg path {
-  fill: #fff;
-}
-
 .chip .label {
   display: none;
 }
@@ -528,38 +508,79 @@
 }
 
 .tornado-btn.empty .count {
-  background: #6d7987;
-  color: #fff;
-}
-
-.tornado-btn .ad-ico {
   display: none;
+}
+
+/*
+ * Bonus tag on the boost chips and the tornado: how to get it — FREE (green), a coin price (dimmed while
+ * unaffordable) or nothing — plus a small ad mark when an ad can pay. The button itself shows the feature.
+ */
+.bonus-tag {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 26px;
-  height: 26px;
-  background: #ff5d5d;
-  border-radius: 9px;
-  padding: 3px;
+  top: -10px;
+  right: -12px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 6px 0 4px;
+  border-radius: 11px;
+  background: var(--ink);
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 700;
   border: 2px solid #fff;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
 }
 
-.tornado-btn .ad-ico svg rect {
-  fill: transparent;
+.bonus-tag.hidden,
+.bonus-tag .tag-coin,
+.bonus-tag .tag-ad {
+  display: none;
 }
 
-.tornado-btn .ad-ico svg path {
-  fill: #fff;
-}
-
-/* Empty but a free (ad) tornado is on offer: clearly labelled as an ad. */
-.tornado-btn.offer .ad-ico {
+.bonus-tag.coin .tag-coin,
+.bonus-tag.ad .tag-ad {
   display: block;
 }
 
-.tornado-btn.offer .count {
+.bonus-tag .ico {
+  width: 14px;
+  height: 14px;
+}
+
+.bonus-tag.poor {
+  color: #c6ccd4;
+}
+
+.bonus-tag .tag-ad svg rect {
+  fill: transparent;
+}
+
+.bonus-tag .tag-ad svg path {
+  fill: #fff;
+}
+
+/* Only an ad can pay: just the small ad mark. */
+.bonus-tag.ad:not(.coin):not(.free) {
+  background: #ff5d5d;
+  padding: 0 3px;
+}
+
+.bonus-tag.free {
   background: var(--green);
+  color: #fff;
+  padding: 0 7px;
+  animation: wiggle 1.2s ease-in-out infinite;
+}
+
+/* The tornado's tag sits on the bottom edge, where its count is when it has one. */
+.tornado-btn .bonus-tag {
+  top: auto;
+  right: auto;
+  bottom: -12px;
 }
 
 /* ——— Goal button (EXPAND / FINISH) with progress fill ——— */
@@ -973,6 +994,22 @@
   will-change: transform;
 }
 
+/* A free charge flying to its button. */
+.gift-fly {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  padding: 6px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--green), 0 6px 14px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  will-change: transform;
+  z-index: 40;
+}
+
 /* ——— Toasts, tutorial ——— */
 .toasts {
   position: absolute;
@@ -1368,6 +1405,7 @@
   .goal.ready,
   .full-badge,
   .free-badge,
+  .bonus-tag.free,
   .hold-hint .ico,
   .shine::after,
   .badge-dot,
@@ -1403,6 +1441,7 @@
 .reduce-motion .goal.ready,
 .reduce-motion .full-badge,
 .reduce-motion .free-badge,
+.reduce-motion .bonus-tag.free,
 .reduce-motion .hold-hint .ico,
 .reduce-motion .shine::after,
 .reduce-motion .badge-dot,

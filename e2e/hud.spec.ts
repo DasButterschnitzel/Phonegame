@@ -33,6 +33,9 @@ test('German UI', async ({ page }, info) => {
 test('rewarded boost via simulated ad', async ({ page }) => {
   await ready(page, '&adms=1500');
   await page.locator('.chip-incomeX2').click();
+  // The dialog spells out the reward; the ad is one way to pay for it.
+  await expect(page.locator('.modal-bonus .bonus-desc')).toBeVisible();
+  await page.locator('.modal-bonus .bonus-ad').click();
   await expect(page.locator('.ad-overlay')).toBeVisible();
   await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });
   expect(await g<number>(page, 'g.state().boosts.incomeX2')).toBeGreaterThan(150);
@@ -42,6 +45,7 @@ test('closing a rewarded ad early gives no reward', async ({ page }) => {
   await page.goto('/?seed=1&adms=5000');
   await page.waitForFunction(() => (window as any).__game?.ready);
   await page.locator('.chip-autopilot').click();
+  await page.locator('.modal-bonus .bonus-ad').click();
   await page.locator('.ad-overlay button').click();
   await expect(page.locator('.toast')).toBeVisible();
   expect(await g<number>(page, 'g.state().boosts.autopilot')).toBe(0);

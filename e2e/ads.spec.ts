@@ -30,7 +30,7 @@ test('no interstitial during the first minutes of play', async ({ page }) => {
 test('interstitial at a barn break once the policy allows it', async ({ page }) => {
   await ready(page);
   await g(page, skipTutorial);
-  await g(page, '(g.setPlaytime(600), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5)');
+  await g(page, '(g.setPlaytime(600), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5, g.app.game.lastBigMomentAt = -1e12)');
   await unloadWithoutThrottle(page);
   await page.waitForFunction(() => (window as any).__game.app.ads.lastCheck !== null, null, { timeout: 4000 });
   expect(await g(page, 'g.app.ads.lastCheck')).toMatchObject({ ok: true, kind: 'barn_unload' });
@@ -45,9 +45,11 @@ test('interstitial at a barn break once the policy allows it', async ({ page }) 
 
 test('no interstitial right after a rewarded ad', async ({ page }) => {
   await ready(page);
-  await g(page, '(g.setPlaytime(600), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5)');
+  await g(page, '(g.setPlaytime(600), g.app.ads.policy.sessionStart = -1000, g.app.ads.policy.unloadsSinceInterstitial = 5, g.app.game.lastBigMomentAt = -1e12)');
   await page.locator('.chip-incomeX2').click();
+  await page.locator('.modal-bonus .bonus-ad').click();
   await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });
+  expect(await g<number>(page, 'g.state().boosts.incomeX2')).toBeGreaterThan(0);
   await unloadWithoutThrottle(page);
   await page.waitForTimeout(1600);
   await expect(page.locator('.ad-overlay')).toHaveCount(0);
@@ -67,10 +69,58 @@ test('free upgrade offer appears when stuck and grants the upgrade', async ({ pa
   expect(cls).toContain('up-');
 });
 
-test('ads failing to load hide ad-only offers gracefully', async ({ page }) => {
+test('ads failing to load hide ad-only offers gracefully; coins still work', async ({ page }) => {
   await ready(page, '&ads=fail');
   await page.locator('.tornado-btn').click(); // uses the free tornado
-  await page.locator('.tornado-btn').click(); // needs an ad → not available
+  await g(page, 'g.state().coins = 0');
+  await page.locator('.tornado-btn').click(); // none left: coins (none) or an ad (not available)
+  await expect(page.locator('.modal-bonus')).toBeVisible();
+  await expect(page.locator('.modal-bonus .bonus-ad')).toBeHidden();
+  await expect(page.locator('.modal-bonus .bonus-buy')).toHaveClass(/grey/);
+  await page.locator('.modal-bonus .bonus-buy').click();
   await expect(page.locator('.toast')).toBeVisible();
+  await page.locator('.modal-bonus .close-x').click();
+  // ×2 can only be paid by an ad (or a free charge): with no ads and no charge the chip is hidden.
   await expect(page.locator('.chip-incomeX2')).toBeHidden();
+});
+
+test('a free charge starts its boost with one tap — no ad, no coins', async ({ page }) => {
+  await ready(page);
+  await g(page, "g.sim.execute({ c: 'grantCharge', id: 'incomeX2', n: 1 })");
+  await expect(page.locator('.chip-incomeX2 .bonus-tag.free')).toBeVisible();
+  const coins = await g<number>(page, 'g.state().coins');
+  await page.locator('.chip-incomeX2').click();
+  await expect(page.locator('.modal-bonus')).toHaveCount(0);
+  await expect(page.locator('.ad-overlay')).toHaveCount(0);
+  expect(await g<number>(page, 'g.state().boosts.incomeX2')).toBeGreaterThan(170);
+  expect(await g<number>(page, 'g.state().charges.incomeX2')).toBe(0);
+  expect(await g<number>(page, 'g.state().coins')).toBeGreaterThanOrEqual(coins);
+});
+
+test('autopilot: pay with coins (the price is shown) or an ad; a skipped ad gives nothing and costs nothing', async ({ page }) => {
+  await ready(page, '&ads=noreward');
+  await g(page, 'g.grant(100000)');
+  const coins = await g<number>(page, 'g.state().coins');
+  const price = await g<number>(page, 'g.sim.autopilotPrice');
+  // Skipped ad: no autopilot, coins untouched.
+  await page.locator('.chip-autopilot').click();
+  await page.locator('.modal-bonus .bonus-ad').click();
+  await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });
+  expect(await g<number>(page, 'g.state().boosts.autopilot')).toBe(0);
+  expect(await g<number>(page, 'g.state().coins')).toBeGreaterThanOrEqual(coins);
+  // Coins: the price is taken, autopilot runs.
+  await page.locator('.chip-autopilot').click();
+  await page.locator('.modal-bonus .bonus-buy').click();
+  await expect.poll(() => g<number>(page, 'g.state().boosts.autopilot')).toBeGreaterThan(170);
+  expect(await g<number>(page, 'g.state().coins')).toBeLessThan(coins - price + 1000);
+});
+
+test('tornado: bought with coins when none are left, then it fires', async ({ page }) => {
+  await ready(page);
+  await g(page, '(g.state().tornadoes = 0, g.grant(100000))');
+  const used = await g<number>(page, 'g.state().stats.tornadoesUsed');
+  await expect(page.locator('.tornado-btn .bonus-tag.coin')).toBeVisible();
+  await page.locator('.tornado-btn').click();
+  await page.locator('.modal-bonus .bonus-buy').click();
+  await expect.poll(() => g<number>(page, 'g.state().stats.tornadoesUsed')).toBe(used + 1);
 });

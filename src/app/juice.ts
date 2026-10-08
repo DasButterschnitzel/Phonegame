@@ -192,7 +192,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       }
       r.fx.burst(e.x, 0.3, e.z, DUST, 30, 6, 0.2, 1.2, 4, 5);
       r.rig.addShake(0.3);
-      r.tornado.play(e.x, e.z, now, colors);
+      r.tornado.play(e.x, e.z, now, colors, e.fromX, e.fromZ);
       r.waves.spawn(e.x, e.z, 0xdfe8f2, 7, now, 0.8);
       audio.tornado();
       haptics.fire('heavy');

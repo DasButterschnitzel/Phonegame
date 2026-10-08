@@ -81,6 +81,8 @@ export class TornadoView {
   private uniforms = { uTime: { value: 0 }, uLift: { value: 0 }, uAlpha: { value: 1 } };
   private t0 = -1;
   private readonly dur = 1.8;
+  private from = new THREE.Vector3();
+  private to = new THREE.Vector3();
   private delays = new Float32Array(DEBRIS);
   private radii = new Float32Array(DEBRIS);
 
@@ -104,8 +106,11 @@ export class TornadoView {
   }
 
   /** `colors`: what gets swept up (the farm's crop colours) for the debris. */
-  play(x: number, z: number, now: number, colors: readonly number[] = [0x6cc24a, 0xc9a27a]): void {
-    this.group.position.set(x, 0, z);
+  /** Spin up at the head (fromX, fromZ) and race out to the target (x, z) it sweeps. */
+  play(x: number, z: number, now: number, colors: readonly number[] = [0x6cc24a, 0xc9a27a], fromX = x, fromZ = z): void {
+    this.from.set(fromX, 0, fromZ);
+    this.to.set(x, 0, z);
+    this.group.position.copy(this.from);
     this.t0 = now;
     this.group.visible = true;
     for (let k = 0; k < DEBRIS; k++) {
@@ -126,6 +131,9 @@ export class TornadoView {
     }
     const t = now - this.t0;
     this.uniforms.uTime.value = t;
+    // It leaves the crawler and races to its patch during the snap-up (ease-out).
+    const travel = Math.min(1, u / 0.18);
+    this.group.position.lerpVectors(this.from, this.to, 1 - (1 - travel) ** 3);
     // Anticipation → snap up out of the ground → sustain → lift off and fade.
     const grow = u < 0.16 ? easeOutBack(u / 0.16) : 1;
     const leave = u > 0.72 ? (u - 0.72) / 0.28 : 0;

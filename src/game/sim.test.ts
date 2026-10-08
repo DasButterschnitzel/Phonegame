@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Sim, newGameState } from './sim.ts';
-import { BODY, DEPOT, FINAL, MOVE, OVERDRIVE, SIM, TERRITORY, capacityOf, power, unloadAt, vMax } from './config.ts';
+import { BODY, BONUS, DEPOT, FINAL, MISC, MOVE, OVERDRIVE, SIM, TERRITORY, capacityOf, power, unloadAt, vMax } from './config.ts';
 import { sampleAt } from './path.ts';
 import { findMergePair } from './caterpillar.ts';
 import { offlineReward } from './economy.ts';
@@ -115,6 +115,83 @@ describe('overdrive (second finger)', () => {
     expect(ends).toBeGreaterThan(3);
     expect(segs).toBeGreaterThanOrEqual(ends * 14);
     expect(paid + sim.state.basket.value).toBeCloseTo(filled, 6);
+  });
+});
+
+describe('bonus economy', () => {
+  const killShare = (sim: Sim, share: number) => {
+    const f = sim.field;
+    let n = Math.ceil(f.count * share) - f.deadCount;
+    for (let i = 0; i < f.count && n > 0; i++) if (!f.dead[i]) ((f.dead[i] = 1), f.deadCount++, sim.terr.zoneDead[f.tier[i]]++, n--);
+  };
+  it('progress milestones give each free charge once per farm (×2 at 25 %, tornado at 50 %, autopilot at 75 %)', () => {
+    const sim = new Sim();
+    const ev: SimEvent[] = [];
+    const t0 = sim.state.tornadoes;
+    killShare(sim, BONUS.MILESTONES[0]);
+    run(sim, 0.5, false, (e) => ev.push(e));
+    expect(sim.state.charges.incomeX2).toBe(1);
+    killShare(sim, BONUS.MILESTONES[2]);
+    run(sim, 0.5, false, (e) => ev.push(e));
+    expect(sim.state.tornadoes).toBe(t0 + 1);
+    expect(sim.state.charges.autopilot).toBe(1);
+    run(sim, 2, false, (e) => ev.push(e));
+    expect(ev.filter((e) => e.t === 'freebie' && e.reason === 'progress').map((e) => (e as { kind: string }).kind)).toEqual(['incomeX2', 'tornado', 'autopilot']);
+  });
+  it('a free charge starts its boost once, with no ad and no coins', () => {
+    const sim = new Sim();
+    sim.execute({ c: 'grantCharge', id: 'incomeX2', n: 1 });
+    const coins = sim.state.coins;
+    sim.execute({ c: 'useCharge', id: 'incomeX2' });
+    expect(sim.state.boosts.incomeX2).toBe(MISC.BOOST_ADD_S);
+    expect(sim.state.charges.incomeX2).toBe(0);
+    sim.execute({ c: 'useCharge', id: 'incomeX2' });
+    expect(sim.state.boosts.incomeX2).toBe(MISC.BOOST_ADD_S);
+    expect(sim.state.coins).toBe(coins);
+  });
+  it('coins can pay for autopilot and tornadoes — never without enough coins; each tornado on a farm costs more', () => {
+    const sim = new Sim();
+    sim.state.coins = sim.autopilotPrice - 1;
+    sim.execute({ c: 'buyBoost', id: 'autopilot' });
+    expect(sim.state.boosts.autopilot).toBe(0);
+    expect(sim.state.coins).toBe(sim.autopilotPrice - 1);
+    sim.state.coins = 1e9;
+    const p = sim.autopilotPrice;
+    sim.execute({ c: 'buyBoost', id: 'autopilot' });
+    expect(sim.state.boosts.autopilot).toBe(MISC.BOOST_ADD_S);
+    expect(sim.state.coins).toBe(1e9 - p);
+    const t1 = sim.tornadoPrice;
+    const n = sim.state.tornadoes;
+    sim.execute({ c: 'buyTornado' });
+    expect(sim.state.tornadoes).toBe(n + 1);
+    expect(sim.tornadoPrice).toBeGreaterThan(t1);
+  });
+  it('opening a field pays a small bonus; a new farm starts with a tornado; old saves get no retroactive gifts', () => {
+    const sim = new Sim();
+    sim.execute({ c: 'grantCoins', amount: 1e12, reason: 'debug' });
+    const ev: SimEvent[] = [];
+    sim.execute({ c: 'buy', id: 'expand' });
+    ev.push(...sim.drainEvents());
+    expect(ev.some((e) => e.t === 'freebie' && e.kind === 'coins' && (e.amount ?? 0) > 0)).toBe(true);
+    // Finish Meadow and travel: a tornado for the new farm.
+    sim.execute({ c: 'buy', id: 'expand' });
+    sim.execute({ c: 'buy', id: 'expand' });
+    killShare(sim, 0.99);
+    sim.execute({ c: 'buy', id: 'finish' });
+    const before = sim.state.tornadoes;
+    sim.execute({ c: 'travel', farm: 'pumpkin' });
+    expect(sim.state.tornadoes).toBe(before + 1);
+    expect(sim.drainEvents().some((e) => e.t === 'freebie' && e.reason === 'newFarm')).toBe(true);
+    // A save from before the milestones existed, already 60 % cleared: nothing is handed out on load.
+    const st = newGameState();
+    const old = new Sim(st);
+    killShare(old, 0.6);
+    old.syncField();
+    delete st.progress.bonusClaimed;
+    const reloaded = new Sim(st);
+    run(reloaded, 1, false);
+    expect(reloaded.state.charges.incomeX2).toBe(0);
+    expect(reloaded.state.progress.bonusClaimed).toBe(2);
   });
 });
 

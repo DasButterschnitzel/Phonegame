@@ -1,5 +1,5 @@
 import type { GameState } from './types.ts';
-import { MISC } from './config.ts';
+import { BONUS, MISC } from './config.ts';
 
 const ALPHA = 1 - Math.exp(-MISC.EMA_WINDOW_S / MISC.EMA_HORIZON_S);
 
@@ -46,3 +46,22 @@ export function giftReward(st: GameState, valueMult: number): number {
 export function finishReward(st: GameState, valueMult: number): number {
   return Math.max(Math.floor(st.economy.ema * MISC.FINISH_INCOME_S), Math.floor(2000 * valueMult));
 }
+
+/** Rounds a price up to two significant digits (2.5K, 180, 37 — easy to read and compare). */
+export function nicePrice(x: number): number {
+  if (!(x > 0)) return 0;
+  const mag = 10 ** Math.max(0, Math.floor(Math.log10(x)) - 1);
+  return Math.ceil(x / mag) * mag;
+}
+
+const income = (st: GameState, valueMult: number): number => Math.max(st.economy.ema, (BONUS.PRICE_FLOOR * valueMult) / BONUS.AUTOPILOT_S);
+
+/** Coin price of a 3-minute autopilot (the ad is the other way to pay). */
+export const autopilotPrice = (st: GameState, valueMult: number): number => nicePrice(income(st, valueMult) * BONUS.AUTOPILOT_S);
+
+/** Coin price of one more tornado on this farm (each one bought costs more). */
+export const tornadoPrice = (st: GameState, valueMult: number): number =>
+  nicePrice(income(st, valueMult) * BONUS.TORNADO_S * BONUS.TORNADO_CLIMB ** (st.progress.tornadoesBought ?? 0));
+
+/** Coins for opening a field (a small burst, not a jackpot). */
+export const zoneBonus = (st: GameState, valueMult: number): number => Math.floor(Math.max(st.economy.ema * BONUS.ZONE_COINS_S, 20 * valueMult));

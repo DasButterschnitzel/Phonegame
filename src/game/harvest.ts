@@ -112,7 +112,7 @@ export function harvestStep(ctx: HarvestCtx, ds: number): void {
  * Tornado: destroys every living crop of an open zone within TORNADO_R of (hx, hz). Chunks fill the basket (up to
  * TORNADO_OVERFLOW × capacity); whatever doesn't fit is blown straight to the barn and paid at once.
  */
-export function tornado(ctx: HarvestCtx, hx: number, hz: number): number {
+export function tornado(ctx: HarvestCtx, hx: number, hz: number, fromX = hx, fromZ = hz): number {
   const { field, st, events } = ctx;
   const r2 = MISC.TORNADO_R ** 2;
   const limit = capacityOf(st) * MISC.TORNADO_OVERFLOW;
@@ -139,6 +139,6 @@ export function tornado(ctx: HarvestCtx, hx: number, hz: number): number {
   // Keep kill/plot/tornado-drop events but fold per-chunk events into one tornado event.
   for (const e of sub) if (e.t === 'kill' || e.t === 'tornadoGranted' || e.t === 'plotReady') events.push(e);
   st.stats.tornadoesUsed++;
-  events.push({ t: 'tornado', x: hx, z: hz, crops, value: st.basket.value - v0 + direct });
+  events.push({ t: 'tornado', x: hx, z: hz, fromX, fromZ, crops, value: st.basket.value - v0 + direct });
   return direct;
 }

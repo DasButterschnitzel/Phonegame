@@ -79,7 +79,7 @@ export const TERRITORY = {
  * the last stretch of a farm is a climax, not a clean-up.
  */
 export const FINAL = {
-  AT: 0.75,
+  AT: 0.7,
   SPEED: 1.15,
   POWER: 1.25,
 } as const;
@@ -149,9 +149,15 @@ export const cost = {
   capacity: (level: number): number => COST.CAPACITY * COST.CAPACITY_GROWTH ** (level - 1),
 };
 
+const HP_PER_CHUNK = [36, 161, 637, 2230] as const;
+
 export const crop = {
   /** HP per yield chunk (a crop drops CHUNKS chunks as it is chomped down). */
-  hpPerChunk: (tier: number): number => 36 * 3.5 ** tier,
+  /**
+   * Roughly 36 × 3.5^tier: the opening field as it always was, the later ones tougher (×1.28, ×1.44, ×1.44) so a farm
+   * isn't over before it has been enjoyed now that the late game no longer drags.
+   */
+  hpPerChunk: (tier: number): number => HP_PER_CHUNK[Math.max(0, Math.min(3, tier))],
   chunkValue: (tier: number): number => 4 ** tier,
 };
 
@@ -167,10 +173,34 @@ export const farmEco = (index: number): FarmEco => ({
   costMult: 25 ** index * 1.2 ** index,
 });
 
+/**
+ * Bonus economy. Freebies come from understandable moments (no ad, no coins, no dice): farm progress milestones grant
+ * a free charge, opening a field pays a little bonus, every new farm starts with a tornado. Autopilot and tornadoes
+ * can be paid with coins *or* an ad; their prices follow the current income, so the ad is an alternative way to pay,
+ * never the only sensible one. ×2 income is ad-or-free only: buying income with income would be a chore every
+ * optimiser has to repeat.
+ */
+export const BONUS = {
+  /** Farm cleared share → free charge. */
+  MILESTONES: [0.25, 0.5, 0.75],
+  MILESTONE_KINDS: ['incomeX2', 'tornado', 'autopilot'],
+  /** Opening a field pays this many seconds of income at once. */
+  ZONE_COINS_S: 15,
+  /** Coin prices, in seconds of current income (autopilot is a convenience: ~all you earn while it runs). */
+  AUTOPILOT_S: 180,
+  TORNADO_S: 90,
+  /** Each tornado bought with coins on a farm costs this much more than the one before. */
+  TORNADO_CLIMB: 1.6,
+  /** Price floor (× the farm's value multiplier) while the income is still tiny. */
+  PRICE_FLOOR: 60,
+} as const;
+
 export const MISC = {
   GOLDEN_P: 0.015,
   GOLDEN_MULT: 10,
   TORNADO_R: 6,
+  /** A tornado aims at the densest living patch within this distance of the head (about what the camera shows). */
+  TORNADO_AIM: 14,
   TORNADO_OVERFLOW: 2,
   TORNADO_DROP_P: 0.05,
   OFFLINE_EFF: 0.5,

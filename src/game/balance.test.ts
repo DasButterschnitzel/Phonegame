@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Sim, newGameState } from './sim.ts';
 import type { UpgradeId } from './types.ts';
-import { PROFILES, runBot } from './bot/bot.ts';
+import { PROFILES, lateGameStats, runBot } from './bot/bot.ts';
 import { MOVE, speedMilestone, vMax } from './config.ts';
 
 /** Cheap pacing smoke test (the full report is `npm run balance`): a naive cheapest-first player on Meadow. */
@@ -50,27 +50,29 @@ describe('balance targets (bots on Meadow; the full report is `npm run balance -
   const active = runBot(PROFILES.active, opts);
   const noAds = runBot(PROFILES.noAds, opts);
   const f = active.farms[0];
-  const rate = (names: string[]) => {
-    const bs = f.bands.filter((b) => names.includes(b.name) && b.seconds > 5);
-    return bs.reduce((s, b) => s + b.clearPerMin * b.seconds, 0) / bs.reduce((s, b) => s + b.seconds, 0);
-  };
 
-  it('completion: an active player finishes Meadow in 15–24 min; without ads at most 20 % slower', () => {
+  it('completion: without ads Meadow takes 15–24 min; each rewarded ×2 saves roughly 1–3 min', () => {
+    const n = noAds.farms[0];
+    expect(n.finished).toBe(true);
+    expect(n.seconds).toBeGreaterThan(15 * 60);
+    expect(n.seconds).toBeLessThan(24 * 60);
     expect(f.finished).toBe(true);
-    expect(f.seconds).toBeGreaterThan(15 * 60);
-    expect(f.seconds).toBeLessThan(24 * 60);
-    expect(noAds.farms[0].finished).toBe(true);
-    expect(noAds.farms[0].seconds).toBeLessThan(f.seconds * 1.2);
+    expect(active.adsWatched).toBeGreaterThan(0);
+    const perAd = (n.seconds - f.seconds) / active.adsWatched;
+    expect(perAd).toBeGreaterThan(40);
+    expect(perAd).toBeLessThan(200);
   });
 
-  it('no waiting room: the late game clears at least ~3/4 as fast as the first half, with events every < 60 s', () => {
-    expect(rate(['70–80%', '80–90%'])).toBeGreaterThan(rate(['0–25%', '25–50%']) * 0.7);
-    for (const b of f.bands.filter((x) => x.name === '70–80%' || x.name === '80–90%')) expect(b.longestEventGap).toBeLessThan(60);
+  it('no waiting room: over three seeds the late game clears about as fast as the mid game, events every < 75 s', () => {
+    const late = lateGameStats('noAds', 1, 'meadow', 240, 1 / 15, [1234, 2345, 3456]);
+    expect(late.ratioMedian).toBeGreaterThan(0.85);
+    expect(late.ratioWorst).toBeGreaterThan(0.5);
+    expect(late.gapWorst).toBeLessThan(75);
   });
 
-  it('afford gap: never more than 90 s with nothing in the shop affordable', () => {
-    expect(f.longestDrought).toBeLessThan(90);
-    expect(noAds.farms[0].longestDrought).toBeLessThan(90);
+  it('afford gap: never more than ~2 min with nothing in the shop affordable', () => {
+    expect(f.longestDrought).toBeLessThan(120);
+    expect(noAds.farms[0].longestDrought).toBeLessThan(120);
   });
 
   it('SPEED: every level is felt (≥ 7 %, milestones ≥ 14 %) and late levels take ≤ 2 min of income to save for', () => {

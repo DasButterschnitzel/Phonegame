@@ -77,6 +77,10 @@ export interface FarmProgress {
   segments: Segment[];
   /** Cleared ground and crop damage; written on save and when leaving the farm. */
   field?: FieldSnapshot;
+  /** Progress milestones (BONUS.MILESTONES) already rewarded on this farm. */
+  bonusClaimed?: number;
+  /** Tornadoes bought with coins on this farm (each costs more). */
+  tornadoesBought?: number;
 }
 
 /** A rolling unload in progress: each segment empties its share as it passes the depot chute. */
@@ -120,6 +124,8 @@ export interface GameState {
   basket: Basket;
   depot: DepotPass;
   boosts: Record<BoostId, number>;
+  /** Free boost charges (milestones, daily): one tap starts the boost, no ad, no coins. */
+  charges: Record<BoostId, number>;
   tornadoes: number;
   maxLevelReached: number;
   economy: {
@@ -147,6 +153,13 @@ export type Command =
   | { c: 'boost'; id: BoostId; seconds: number }
   | { c: 'grantCoins'; amount: number; reason: CoinReason }
   | { c: 'grantTornado'; n: number }
+  | { c: 'grantCharge'; id: BoostId; n: number }
+  /** Start a boost from a free charge. */
+  | { c: 'useCharge'; id: BoostId }
+  /** Pay coins for autopilot (the ad is the other way to pay). */
+  | { c: 'buyBoost'; id: 'autopilot' }
+  /** Pay coins for one tornado charge. */
+  | { c: 'buyTornado' }
   | { c: 'claimGift'; mult: number }
   | { c: 'travel'; farm: FarmId }
   | { c: 'fillBasket'; frac: number }
@@ -155,7 +168,7 @@ export type Command =
   | { c: 'clearFrontier'; n: number }
   | { c: 'clearAll' };
 
-export type CoinReason = 'offline' | 'gift' | 'daily' | 'farmComplete' | 'travel' | 'tornado' | 'debug';
+export type CoinReason = 'offline' | 'gift' | 'daily' | 'farmComplete' | 'travel' | 'tornado' | 'zoneBonus' | 'debug';
 
 export type SimEvent =
   | { t: 'chunk'; crop: number; body: number; value: number; golden: boolean; tier: number }
@@ -173,7 +186,8 @@ export type SimEvent =
   | { t: 'upgraded'; id: 'speed' | 'capacity'; level: number }
   | { t: 'farmFinished'; farm: FarmId; reward: number; next: FarmId | null }
   | { t: 'traveled'; farm: FarmId }
-  | { t: 'tornado'; x: number; z: number; crops: number[]; value: number }
+  /** A tornado swept (x, z); it set off from the head at (fromX, fromZ). */
+  | { t: 'tornado'; x: number; z: number; fromX: number; fromZ: number; crops: number[]; value: number }
   | { t: 'giftSpawn'; kind: 'butterfly' | 'ladybug' }
   | { t: 'giftClaimed'; amount: number }
   | { t: 'coins'; delta: number; reason: CoinReason }
@@ -181,4 +195,8 @@ export type SimEvent =
   | { t: 'tornadoGranted'; n: number }
   | { t: 'buyFailed'; id: UpgradeId }
   /** The farm's last stretch began (FINAL HARVEST: faster, harder bites until FINISH). */
-  | { t: 'finalHarvest' };
+  | { t: 'finalHarvest' }
+  /** Something for free: a charge or a tornado at a progress milestone, coins for a new field, a tornado on a new farm. */
+  | { t: 'freebie'; kind: BoostId | 'tornado' | 'coins'; reason: 'progress' | 'zone' | 'newFarm'; at?: number; amount?: number }
+  /** A boost or tornado paid with coins. */
+  | { t: 'bought'; what: 'autopilot' | 'tornado'; cost: number };

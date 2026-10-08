@@ -63,6 +63,8 @@ export class Hud {
   private farmName: HTMLElement;
   private dots: HTMLElement[];
   private progFill: HTMLElement;
+  /** The farm progress bar (milestone gifts fly out of it). */
+  readonly progressEl: HTMLElement;
   private progText: HTMLElement;
   private basket: HTMLElement;
   private basketFill: HTMLElement;
@@ -76,7 +78,9 @@ export class Hud {
   private goalCost: HTMLElement;
   readonly tornadoBtn: HTMLButtonElement;
   private tornadoCount: HTMLElement;
-  private chips: Record<BoostId, { el: HTMLButtonElement; label: HTMLElement; timer: HTMLElement }>;
+  private chips: Record<BoostId, { el: HTMLButtonElement; label: HTMLElement; timer: HTMLElement; tag: HTMLElement; tagText: HTMLElement }>;
+  private tornadoTag: HTMLElement;
+  private tornadoTagText: HTMLElement;
   private dailyDot: HTMLElement;
   readonly holdHint: HTMLElement;
   private holdText: HTMLElement;
@@ -96,6 +100,7 @@ export class Hud {
     this.farmName = h('div', { class: 'farm-name' });
     this.dots = [0, 1, 2, 3].map(() => h('i'));
     this.progFill = h('div', { class: 'farm-prog-fill' });
+    this.progressEl = this.progFill;
     this.progText = h('span', { class: 'farm-prog-text' });
     const top = h(
       'div',
@@ -134,18 +139,23 @@ export class Hud {
     const mkChip = (id: BoostId, ico: IconName) => {
       const label = h('span', { class: 'label' });
       const timer = h('span', { class: 'timer' });
-      const el = button(`g3d chip chip-${id}`, () => actions.boost(id), icon(ico), label, timer, icon('ad', 'ico ad-ico'));
-      return { el, label, timer };
+      // The button shows the feature; the small tag says how to get it: FREE, a coin price, or a small ad mark.
+      const tagText = h('span');
+      const tag = h('span', { class: 'bonus-tag' }, icon('coin', 'ico tag-coin'), tagText, icon('ad', 'ico tag-ad'));
+      const el = button(`g3d chip chip-${id}`, () => actions.boost(id), icon(ico), label, timer, tag);
+      return { el, label, timer, tag, tagText };
     };
     this.chips = { incomeX2: mkChip('incomeX2', 'x2'), autopilot: mkChip('autopilot', 'autopilot') };
     this.tornadoCount = h('span', { class: 'count' }, '0');
+    this.tornadoTagText = h('span');
+    this.tornadoTag = h('span', { class: 'bonus-tag' }, icon('coin', 'ico tag-coin'), this.tornadoTagText, icon('ad', 'ico tag-ad'));
     this.tornadoBtn = button(
       'g3d tornado-btn',
       () => actions.tornado(),
       icon('tornado'),
       h('span', { class: 'outline' }, t('tornado')),
       this.tornadoCount,
-      icon('ad', 'ico ad-ico'),
+      this.tornadoTag,
     );
     const railL = h('div', { class: 'rail-left' }, this.chips.incomeX2.el, this.chips.autopilot.el);
     const railR = h('div', { class: 'rail-right' }, this.tornadoBtn);
@@ -168,7 +178,8 @@ export class Hud {
       const costText = h('span');
       const cost = h('div', { class: 'cost' }, h('i', { class: 'afford' }), icon('coin'), costText);
       // The FREE badge lives on the wrapper (not inside the clipped button) and lets taps fall through.
-      const free = h('div', { class: 'free-badge', style: 'display:none' }, icon('ad'), t('up.free'));
+      // An ad pays for one level: shown as the ad mark and "+1" (never "FREE" when an ad is the price).
+      const free = h('div', { class: 'free-badge', style: 'display:none' }, icon('ad'), t('up.adOffer'));
       const btn = button(`g3d up up-${u.id}`, () => {
         const isFree = this.freeOffer === u.id && !this.lastVm?.upgrades[u.id].affordable;
         actions.buy(u.id, isFree);
@@ -201,7 +212,7 @@ export class Hud {
     this.setToggleMode(this.toggleMode);
     setText(this.tornadoBtn.querySelector('.outline') as HTMLElement, t('tornado'));
     for (const id of ['incomeX2', 'autopilot'] as BoostId[]) setText(this.chips[id].label, t(id === 'incomeX2' ? 'boost.incomeX2' : 'boost.autopilot'));
-    for (const e of this.ups.values()) setText(e.free.lastChild as unknown as HTMLElement, t('up.free'));
+    for (const e of this.ups.values()) setText(e.free.lastChild as unknown as HTMLElement, t('up.adOffer'));
     if (this.lastVm) this.update(this.lastVm, this.freeOffer, false);
   }
 
@@ -324,18 +335,48 @@ export class Hud {
       const fill = travel ? 0 : g.id === 'finish' ? g.progress : Math.max(g.progress, Math.min(1, vm.coins / Math.max(1, g.cost)));
       setStyle(this.goalFill, 'transform', `scaleX(${fill.toFixed(3)})`);
     }
-    setText(this.tornadoCount, vm.tornadoes > 0 ? String(vm.tornadoes) : this.adsAvailable && this.tornadoAd ? '+1' : '0');
-    toggleClass(this.tornadoBtn, 'empty', vm.tornadoes === 0);
-    toggleClass(this.tornadoBtn, 'offer', vm.tornadoes === 0 && this.adsAvailable && this.tornadoAd);
+    // Tornado: the count while you have some; when empty its coin price, with a small ad mark when an ad can pay.
+    const tEmpty = vm.tornadoes === 0;
+    setText(this.tornadoCount, tEmpty ? '' : String(vm.tornadoes));
+    toggleClass(this.tornadoBtn, 'empty', tEmpty);
+    this.setTag(this.tornadoTag, this.tornadoTagText, tEmpty ? 'coin' : 'none', fmt(vm.tornadoPrice), tEmpty && this.adsAvailable && this.tornadoAd, vm.coins >= vm.tornadoPrice);
     for (const id of ['incomeX2', 'autopilot'] as BoostId[]) {
       const c = this.chips[id];
       const left = id === 'incomeX2' ? vm.incomeX2 : vm.autopilot;
+      const free = vm.charges[id] > 0;
       setText(c.label, t(id === 'incomeX2' ? 'boost.incomeX2' : 'boost.autopilot'));
       setText(c.timer, left > 0 ? formatDuration(left) : '+3:00');
       toggleClass(c.el, 'active', left > 0);
-      setStyle(c.el, 'display', this.adsAvailable || left > 0 ? '' : 'none');
+      // ×2 is paid by ad (or free); autopilot by coins or an ad.
+      const mode = left > 0 ? 'none' : free ? 'free' : id === 'autopilot' ? 'coin' : 'none';
+      this.setTag(c.tag, c.tagText, mode, free ? t('bonus.free') : fmt(vm.autopilotPrice), left <= 0 && !free && this.adsAvailable, vm.coins >= vm.autopilotPrice);
+      setStyle(c.el, 'display', this.adsAvailable || left > 0 || free || id === 'autopilot' ? '' : 'none');
     }
     this.setDailyAvailable(dailyAvailable);
+  }
+
+  /** Bonus tag: FREE (green), a coin price (dimmed while unaffordable), or nothing — plus a small ad mark. */
+  private setTag(tag: HTMLElement, text: HTMLElement, mode: 'free' | 'coin' | 'none', label: string, ad: boolean, affordable: boolean): void {
+    toggleClass(tag, 'free', mode === 'free');
+    toggleClass(tag, 'coin', mode === 'coin');
+    toggleClass(tag, 'poor', mode === 'coin' && !affordable);
+    toggleClass(tag, 'ad', ad);
+    toggleClass(tag, 'hidden', mode === 'none' && !ad);
+    setText(text, mode === 'none' ? '' : label);
+  }
+
+  /** A free charge just arrived on this button: it bounces and its FREE tag flashes. */
+  popBonus(id: BoostId | 'tornado'): void {
+    const el = id === 'tornado' ? this.tornadoBtn : this.chips[id].el;
+    el.animate(
+      [{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-6deg)', offset: 0.35 }, { transform: 'scale(0.94)', offset: 0.7 }, { transform: 'scale(1)' }],
+      { duration: 520, easing: 'ease-out' },
+    );
+  }
+
+  /** Element a bonus targets (for flying icons). */
+  bonusTarget(id: BoostId | 'tornado'): HTMLElement {
+    return id === 'tornado' ? this.tornadoBtn : this.chips[id].el;
   }
 
   private updateUp(e: UpEls, u: UpgradeVM, free: boolean, coins: number): void {

@@ -38,6 +38,10 @@ function validateProgress(p: Partial<FarmProgress> | undefined): FarmProgress {
   // Older builds went up to SPEED Lv 25 on a flatter curve.
   out.speedLevel = Math.min(MOVE.MAX_LVL, Math.floor(out.speedLevel));
   out.finished = out.finished === true;
+  // Missing on saves from before the bonus milestones: the Sim fills it in from the cleared share.
+  if (!isNum(out.bonusClaimed) || out.bonusClaimed < 0) delete out.bonusClaimed;
+  else out.bonusClaimed = Math.min(3, Math.floor(out.bonusClaimed));
+  if (!isNum(out.tornadoesBought) || out.tornadoesBought < 0) out.tornadoesBought = 0;
   out.field = validateField(p.field);
   if (!out.field) delete out.field;
   return out;
@@ -62,6 +66,11 @@ export function validateGame(g: Partial<GameState> | undefined): GameState {
   for (const k of Object.keys(dp) as (keyof typeof dp)[]) if (g.depot && k in g.depot) (dp as unknown as Record<string, unknown>)[k] = (g.depot as unknown as Record<string, unknown>)[k];
   out.depot = Object.values(dp).every((x) => typeof x === 'boolean' || isNum(x)) && (!dp.active || dp.segs >= 1) ? dp : newDepotPass();
   out.boosts = { ...d.boosts, ...(g.boosts ?? {}) };
+  out.charges = { ...d.charges };
+  for (const k of Object.keys(d.charges) as (keyof typeof d.charges)[]) {
+    const v = g.charges?.[k];
+    if (isNum(v) && v > 0) out.charges[k] = Math.min(99, Math.floor(v));
+  }
   out.economy = { ...d.economy, ...(g.economy ?? {}), passive: { ...(g.economy?.passive ?? {}) } };
   out.gift = { ...d.gift, ...(g.gift ?? {}) };
   out.stats = { ...d.stats, ...(g.stats ?? {}) };

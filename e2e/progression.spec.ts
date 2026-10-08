@@ -87,8 +87,9 @@ test('tornado clears its radius, overfills the basket and pays the rest', async 
   expect(await g<number>(page, 'g.state().basket.mass')).toBeGreaterThan(await g<number>(page, 'g.sim.capacity'));
   expect(await g<number>(page, 'g.state().coins')).toBeGreaterThan(coins);
   await shot(page, 'tornado', info.project.name);
-  // No tornado left → watch an ad for a free one.
+  // No tornado left → coins or an ad (here: the ad).
   await page.locator('.tornado-btn').click();
+  await page.locator('.modal-bonus .bonus-ad').click();
   await expect(page.locator('.ad-overlay')).toBeVisible();
   await expect(page.locator('.ad-overlay')).toBeHidden({ timeout: 5000 });
   expect(await g<number>(page, 'g.state().stats.tornadoesUsed')).toBe(2);

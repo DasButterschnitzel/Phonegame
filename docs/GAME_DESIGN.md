@@ -79,7 +79,8 @@ damage is independent of speed, so going faster always means more harvest per se
 ## Economy (src/game/config.ts)
 Resources are finite (≈ 100 K coins of crops on Meadow); costs are scaled so a player spends everything and still
 needs time to clear the farm.
-- Crop tier `t` (= zone): HP/chunk `36 × 3.5^t`, value/chunk `4^t`; golden crops 1.5 % (×10, may drop a tornado).
+- Crop tier `t` (= zone): HP/chunk 36 / 161 / 637 / 2230, value/chunk `4^t`; golden crops 1.5 % (×10, may drop a
+  tornado).
 - Head power 7; capacity per segment `10 × 1.35^(lvl−1)`.
 - **SPEED** `3 × 1.07^(lvl−1) × (1 + 0.08 × ⌊lvl/5⌋)` units/s, Lv 1–15: every level is 7 % faster (felt, not
   +0.3 u/s), Lv 5/10/15 are milestones (+15 %); 3.0 → 9.6 units/s. It used to be `3 × (1 + 0.1 (lvl−1))` up to Lv 25:
@@ -91,35 +92,33 @@ needs time to clear the farm.
 - **FINISH FARM** unlocks at **85 %** cleared (was 90 %): the last isolated pockets are optional clean-up (they keep
   paying if you stay). 85 / 88 / 90 % changed the five-farm ACTIVE time by only 117 / 120 / 123 min once the late game
   was fixed — the threshold mostly decides how much pocket-hunting is required.
-- **FINAL HARVEST** from **75 %** cleared until FINISH: +15 % speed, +25 % bite power, a banner, a golden ring and a
+- **FINAL HARVEST** from **70 %** cleared until FINISH: +15 % speed, +25 % bite power, a banner, a golden ring and a
   gold progress bar — the farm ends on a climax. Without it the late game clears ~20 % slower (Pumpkin's longest gap
-  between events 48 s → 81 s).
+  between events 48 s → 81 s); starting it at 70 % rather than 75 % keeps it clear of the 75 % gift.
 - Segment caps per open zone: 8 / 14 / 22 / 32 (and what fits on the loop).
 - Finished farms pay **3 % of the income rate at completion** forever (also offline).
 
 ### Pacing (bots, `npm run balance -- --profile all --farms 5 --bands --assert`)
-| Farm time | before (0fca9dc) | now |
+| Farm time (Meadow / other farms) | before (0fca9dc) | now |
 |---|---|---|
-| ACTIVE (taps lucky bugs, uses tornadoes) Meadow / other farms | 25:10 / 28–42 min | **18:25** / 21–31 min |
-| ACTIVE_NO_ADS (no extras at all) | 26:57 / 29–42 min | **19:32** / 22–34 min |
-| CASUAL (holds half the time, shops every 10 s) | 41:47 / 49–68 min | **32:33** / 32–51 min |
-| IDLE (never touches the screen, shops every 5 min) | 2:30 h | 2:05 h (no softlock on any farm) |
+| ACTIVE_NO_ADS: taps lucky bugs, uses free gifts and tornadoes, never an ad | 25:10 / 29–42 min | **18:45** / 22–34 min |
+| ACTIVE: the same plus a ×2 ad every 10 min | — | 15:49 / 18–27 min |
+| ACTIVE_UPGRADES_ONLY: ignores every extra | 26:57 / 29–42 min | 25:05 / 28–43 min |
+| CASUAL: holds half the time, shops every 10 s | 41:47 / 49–68 min | 34:04 / 34–55 min |
+| IDLE: never holds, shops every 5 min | 2:30 h | 1:20 h (buys autopilot with coins) |
 
-| Meadow, ACTIVE_NO_ADS: time / clear rate | 0–25 % | 25–50 % | 50–70 % | 70–80 % | 80 % → finish |
-|---|---|---|---|---|---|
-| before (finish at 90 %) | 6:16 / 4.0 %/min | 6:14 / 4.0 | 6:00 / 3.3 | 4:33 / 2.2 | 4:34 / 2.2 |
-| now (finish at 85 %) | 6:12 / 4.0 | 5:21 / 4.7 | 4:36 / 4.4 | 2:27 / 4.1 | 0:58 / 5.2 |
-
-- Late game (70 % → finish) vs the first half, ACTIVE, per farm: before 32–52 % of the early clear rate (CASUAL Pumpkin
-  0.7 %/min with ~100 s between events); now 71–113 %. Longest late gap between meaningful events (purchase, route
-  growth, new level, bonus, fence): 11–27 s. Longest stretch with nothing affordable: ACTIVE 25–30 s, NO_ADS ≤ 71 s,
-  CASUAL ≤ 88 s.
-- First chunk / unload / ADD 0:02 / 0:09 / 0:25, first route growth 1:03, zones 2/3/4 at 2:30 / 6:29 / 11:22 (ACTIVE).
-- OVERDRIVE pulsed perfectly (ACTIVE_TWO_FINGER): ~12 % faster; one occasional rewarded ×2 every 5 min
-  (ACTIVE_OCCASIONAL_REWARDED) saves ~90 s per ad.
-- Assertions (`--assert`, `src/game/balance.test.ts`): Meadow 15–24 min, no-ads ≤ +20 %, late clear rate ≥ 70 % of
-  early, no late gap > 60 s, no drought > 90 s, every SPEED level ≥ 7 % (milestones ≥ 14 %), late SPEED levels cost
-  ≤ 2 min of income, every profile finishes.
+- The late game (70 % → finish) clears at a median 95 % of the mid game's (25–70 %) rate for ACTIVE_NO_ADS over five
+  farms × three seeds (worst farm 80 %); before, it was 32–52 % of the early rate and CASUAL Pumpkin crawled at
+  0.7 %/min with ~100 s between events. Longest late gap between meaningful events (purchase, route growth, new level,
+  bonus, fence): ≤ 41 s; typical longest stretch with nothing affordable 50 s (worst 66 s).
+- Opening unchanged: first chunk / unload / ADD 0:02 / 0:09 / 0:25, first route growth 1:03, zones 2/3/4 at
+  2:30 / 4:45 / 10:06 (ACTIVE_NO_ADS).
+- Crop HP per chunk 36 / 161 / 637 / 2230 by tier (was 36 × 3.5^t: 36 / 126 / 441 / 1544): with the late game fixed the
+  later fields can afford to be tougher, so a farm is enjoyed rather than rushed.
+- OVERDRIVE pulsed perfectly (ACTIVE_TWO_FINGER): ~12 % faster.
+- Assertions (`--assert`, `src/game/balance.test.ts`): Meadow 15–24 min without ads, each rewarded ×2 worth 40–200 s,
+  late game ≥ 85 % of the mid game (median, three seeds) and ≥ 50 % on the worst farm, no late gap > 75 s, no drought
+  > 120 s, every SPEED level ≥ 7 % (milestones ≥ 14 %), late SPEED levels ≤ 2 min of income, every profile finishes.
 
 ## Retention
 - Offline earnings: 50 % of the recent income rate + passive income, up to 2 h, ×3 with a rewarded ad.
@@ -138,17 +137,54 @@ needs time to clear the farm.
   (docs/DEVICE_TESTING.md).
 - First-time hints teach by reaction: ADD → MERGE → full basket → depot → the first route growth → OPEN FIELD → tornado.
 
+## Bonus economy: generous without ads (src/game/config.ts `BONUS`)
+Freebies come from moments the player understands — no ad, no coins, no dice:
+| Moment | Gift |
+|---|---|
+| 25 % of a farm cleared | free ×2-coins charge (3 min, start it when you like) |
+| 50 % | free tornado |
+| 75 % | free autopilot charge |
+| every field you open | coins: 15 s of income, bursting from the head into the counter |
+| arriving on a new farm | a tornado to start with |
+| (existing) lucky bugs, daily calendar, offline earnings | unchanged |
+
+The reason is spelled out ("50 % CLEARED! Free tornado!") and the gift flies from the progress bar to its button, which
+carries a green FREE tag until used; a free charge is one tap. Old saves get no retroactive gifts.
+
+**Pay coins or watch an ad** (the ad is a way to pay, never the only sensible one):
+| Action | Coins | Ad |
+|---|---|---|
+| Autopilot 3:00 | 180 s of current income (a convenience: about all you earn while it drives) | yes |
+| Tornado | 90 s of income, ×1.6 for each one bought on the same farm | yes (3 min cooldown) |
+| ×2 coins 3:00 | — (buying income with income would be a chore every optimiser repeats) | yes, or the free charge |
+| One upgrade when stuck 20 s | the normal price | yes (badge "▶ +1", never "FREE") |
+
+The buttons show the feature first; a small tag says how to get it: FREE, a coin price (dimmed while unaffordable), a
+small ad mark. A tap with a free charge acts at once; otherwise a compact dialog spells out the reward — the coin button
+leads when the coins are there, otherwise the ad does. A skipped or failed ad gives nothing and costs nothing.
+
+**Tornadoes aim.** A tornado used to spin up 2.5 units ahead of the head — the route is the edge of the cleared land,
+so it mostly swept bare ground (0–20 crops). It now races out to the densest patch of living crops within 14 units
+(what the camera shows): 45–75 crops, finishing the farm 22–102 s sooner.
+
+What a rewarded ad is worth (bots, seconds of progress): ×2 coins ≈ 110 s per ad (ACTIVE watching one every 10 min vs
+ACTIVE_NO_ADS, five farms: 1:44:43 vs 2:05:08 with 11 ads); a tornado 22–102 s (forked runs); autopilot ~60 s for a
+casual player and little for one who holds anyway — the dialog says what it does, so active players simply skip it.
+
 ## Monetization rules (src/platform/ads/AdPolicy.ts)
 Rewarded (always opt-in, reward stated on the button): ×2 coins (3 min, stacks to 15), Autopilot (full speed hands-free,
-3 min), free tornado (3 min cooldown), free upgrade on the cheapest unaffordable upgrade after 20 s of being stuck
-(2 min cooldown), offline ×3, gift ×3, farm complete ×2, daily ×2.
+3 min), tornado, one upgrade when stuck (2 min cooldown), offline ×3, gift ×3, farm complete ×2, daily ×2.
 
 Interstitials — forced ads are the #1 complaint in Train Miner reviews, so they are rare and only at natural breaks
-(after a barn unload once the coins landed, or after closing a reward dialog):
-- never in the first 5 minutes of total play or the first minute of a session,
-- at least 2 minutes apart, none within 90 s after a rewarded ad,
-- not while the player is steering (2 s quiet) or a tutorial hint is shown, at least 2 unloads between,
-- at most 10 per hour. No banners.
+(after a depot unload once the coins landed, or after closing a reward dialog):
+- never in the first 5 minutes of total play or the first 2 minutes of a session,
+- at least 8 minutes apart, none within 5 minutes after a rewarded ad,
+- never within 10 s of a big moment (route growth, merge, new field, FINAL HARVEST, farm finished), not while the
+  player is steering (3 s quiet) or a tutorial hint is shown, at least 3 unloads between,
+- at most 4 per hour. No banners.
+Replaying the bots through the policy: the old rules (2 min apart, 10/hour) let every kind of player hit 10 an hour,
+mostly after lucky-bug dialogs; now ACTIVE sees 1 in its first hour, CASUAL/IDLE 4, a player who watches rewarded ads
+every 5 minutes none.
 
 ## Ideas for later
 Rewarded "no interstitials for 20 minutes", remove-ads IAP / ad-skip tokens, more farms (data-driven), segment

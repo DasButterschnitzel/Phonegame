@@ -39,6 +39,11 @@ export interface HudVM {
   tornadoes: number;
   incomeX2: number;
   autopilot: number;
+  /** Free boost charges (milestone gifts): the next activation costs nothing. */
+  charges: Record<'incomeX2' | 'autopilot', number>;
+  /** Coin prices (the alternative to an ad). */
+  autopilotPrice: number;
+  tornadoPrice: number;
   giftActive: boolean;
 }
 
@@ -87,6 +92,9 @@ export function buildHud(sim: Sim): HudVM {
     tornadoes: st.tornadoes,
     incomeX2: st.boosts.incomeX2,
     autopilot: st.boosts.autopilot,
+    charges: st.charges,
+    autopilotPrice: sim.autopilotPrice,
+    tornadoPrice: sim.tornadoPrice,
     giftActive: sim.giftActive,
   };
 }

@@ -4,7 +4,7 @@
  */
 import type { Sim } from '../sim.ts';
 import type { UpgradeId } from '../types.ts';
-import { fork } from './bot.ts';
+import { Player, fork, type Profile } from './bot.ts';
 import { findMergePair } from '../caterpillar.ts';
 import { FIELD, MISC, crop as cropCfg } from '../config.ts';
 import { upgradeValues } from '../advisor.ts';
@@ -93,4 +93,38 @@ export function measureRoi(sim: Sim, held: (t: number) => boolean, horizon = 240
     });
   }
   return rows;
+}
+
+export type RewardKind = 'incomeX2' | 'autopilot' | 'tornado' | 'upgrade';
+
+/** Applies a rewarded-ad reward to a game (the same thing the app does after a completed ad). */
+export function applyReward(s: Sim, kind: RewardKind): void {
+  if (kind === 'incomeX2' || kind === 'autopilot') s.execute({ c: 'boost', id: kind, seconds: MISC.BOOST_ADD_S });
+  else if (kind === 'tornado') {
+    s.execute({ c: 'grantTornado', n: 1 });
+    s.execute({ c: 'useTornado' });
+  } else {
+    const best = upgradeValues(s, 0).filter((u) => !u.blocked).sort((a, b) => a.payback - b.payback)[0];
+    if (best) s.execute({ c: 'buy', id: best.id, free: true });
+  }
+}
+
+/**
+ * Seconds of progression an ad's reward is worth: the game is forked, one fork gets the reward, both are played on
+ * by the same kind of player until the farm is finished, and the difference in finishing time is taken (coins only
+ * turn into progress once they are spent, so a short horizon would miss most of ×2's value).
+ */
+export function measureReward(sim: Sim, profile: Profile, kind: RewardKind, maxT = 3 * 3600, dt = 1 / 15): number {
+  const until = (s: Sim): number => {
+    const p = new Player(profile);
+    p.arrived(s);
+    const t0 = s.state.simTime;
+    while (s.state.simTime - t0 < maxT && !s.state.progress.finished) p.step(s, dt);
+    return s.state.simTime - t0;
+  };
+  const base = fork(sim);
+  const rewarded = fork(sim);
+  applyReward(rewarded, kind);
+  rewarded.drainEvents();
+  return until(base) - until(rewarded);
 }

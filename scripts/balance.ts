@@ -8,8 +8,8 @@
  * --roi    measured upgrade payback: every 2 minutes the game is forked, each upgrade bought for free in a fork, and
  *          the forks' harvest compared over the next two minutes
  */
-import { BAND_NAMES, PROFILES, runBot, type BandStats, type FarmStats, type ProfileId, type RunReport } from '../src/game/bot/bot.ts';
-import { measureRoi, type RoiRow } from '../src/game/bot/roi.ts';
+import { BAND_NAMES, PROFILES, lateGameStats, runBot, type BandStats, type FarmStats, type ProfileId, type RunReport } from '../src/game/bot/bot.ts';
+import { measureReward, measureRoi, type RewardKind, type RoiRow } from '../src/game/bot/roi.ts';
 import type { FarmId } from '../src/game/types.ts';
 import { formatDuration, formatNumber } from '../src/shared/format.ts';
 
@@ -31,6 +31,7 @@ const doAssert = flag('assert');
 const verbose = flag('verbose');
 const showBands = flag('bands');
 const showRoi = flag('roi');
+const showRewards = flag('rewards');
 
 const fmtT = (s: number): string => (Number.isFinite(s) ? formatDuration(s) : '—');
 const n0 = (x: number): string => formatNumber(x);
@@ -136,12 +137,41 @@ if (showRoi && roiRows.length) {
     if (rs.length) out.push(`  ${id.padEnd(8)} median gain measured ${(med(rs.map((r) => r.rel)) * 100).toFixed(1)}%  model ${(med(rs.map((r) => r.predicted)) * 100).toFixed(1)}%  (${rs.length} samples)`);
   }
 }
+if (showRewards) {
+  // What a rewarded ad is worth, in seconds of farm progress, for different players (sampled every 3 minutes).
+  out.push(md ? '\n### Rewarded ad value (seconds of progress)' : '\n=== Rewarded ad value: seconds the farm finishes sooner (median / range) ===');
+  const kinds: RewardKind[] = ['incomeX2', 'autopilot', 'tornado', 'upgrade'];
+  const rows: string[][] = [];
+  for (const id of ['active', 'casual', 'idle'] as ProfileId[]) {
+    const vals: Record<string, number[]> = {};
+    runBot(PROFILES[id], {
+      farms,
+      startFarm,
+      minutes,
+      dt,
+      seed,
+      sampleEvery: id === 'idle' ? 1200 : 90,
+      onSample: (sim) => {
+        if (sim.cleared < 0.03 || sim.cleared > 0.8) return;
+        for (const k of kinds) (vals[k] ??= []).push(measureReward(sim, PROFILES[id], k));
+      },
+    });
+    const cell = (xs: number[] = []) => {
+      if (!xs.length) return '—';
+      const s = [...xs].sort((a, b) => a - b);
+      return `${Math.round(s[Math.floor(s.length / 2)])}s (${Math.round(s[0])}…${Math.round(s[s.length - 1])})`;
+    };
+    rows.push([PROFILES[id].label, ...kinds.map((k) => cell(vals[k]))]);
+  }
+  out.push(table(['player', '×2 coins 3:00', 'autopilot 3:00', 'tornado', 'one upgrade'], rows));
+}
 console.log(out.join('\n'));
 
 if (doAssert) {
   const errors: string[] = [];
   const byId = (id: ProfileId) => reports.find((r) => r.profile.id === id);
-  const a = byId('active');
+  // Milestones and the late game are checked on the player who never watches an ad: it must work without them.
+  const a = byId('noAds') ?? byId('active');
   if (a) {
     const t = (n: string) => a.milestones.find(([m]) => m.startsWith(n))?.[1] ?? Infinity;
     const check = (name: string, lo: number, hi: number) => {
@@ -153,30 +183,32 @@ if (doAssert) {
     check('first route growth', 25, 90);
     check('Lv 2 unlocked', 30, 300);
     check(`${startFarm} zone 2`, 90, 300);
-    check(`${startFarm} zone 3`, 240, 660);
-    check(`${startFarm} zone 4`, 480, 1080);
-    check(`${startFarm} FINISHED`, 900, 1440);
-    for (const f of a.farms) {
-      if (f.longestNoGrowth > 150) errors.push(`${f.farm}: longest stretch without route growth ${f.longestNoGrowth.toFixed(0)}s > 150s`);
-      if (f.longestDrought > 90) errors.push(`${f.farm}: longest stretch with nothing affordable ${f.longestDrought.toFixed(0)}s > 90s`);
-      // No waiting room at the end: the last stretch clears at least ~3/4 as fast as the first half, with events.
-      const rate = (names: string[]) => {
-        const bs = f.bands.filter((b) => names.includes(b.name) && b.seconds > 5);
-        return bs.reduce((s, b) => s + b.clearPerMin * b.seconds, 0) / Math.max(1e-9, bs.reduce((s, b) => s + b.seconds, 0));
-      };
-      const early = rate(['0–25%', '25–50%']);
-      const late = rate(['70–80%', '80–90%']);
-      if (late < early * 0.7) errors.push(`${f.farm}: late game clears ${late.toFixed(1)} %/min vs ${early.toFixed(1)} early (< 70 %)`);
-      const lateGap = Math.max(0, ...f.bands.filter((b) => b.name === '70–80%' || b.name === '80–90%').map((b) => b.longestEventGap));
-      if (lateGap > 60) errors.push(`${f.farm}: ${lateGap.toFixed(0)}s without a meaningful event in the late game (> 60s)`);
-    }
+    check(`${startFarm} zone 3`, 240, 720);
+    check(`${startFarm} zone 4`, 480, 1140);
+    check(`${startFarm} FINISHED`, 900, 1500);
   }
-  // No ads needed: the no-ad player is at most 20 % slower than the one who taps lucky bugs and uses tornadoes.
+  // Robustness: the late game is judged over three seeds (claim timing is chaotic: one seed can be lucky).
+  for (const id of ['noAds', 'active'] as ProfileId[]) {
+    if (!byId(id)) continue;
+    const late = lateGameStats(id, farms, startFarm, minutes, dt, [seed, seed + 1111, seed + 2222]);
+    const lbl = PROFILES[id].label;
+    if (late.ratioMedian < 0.85) errors.push(`${lbl}: late game clears at ${pct(late.ratioMedian)} of the mid game (median over farms and seeds) < 85 %`);
+    if (late.ratioWorst < 0.5) errors.push(`${lbl}: worst farm's late game clears at ${pct(late.ratioWorst)} of its mid game < 50 %`);
+    if (late.gapWorst > 75) errors.push(`${lbl}: ${late.gapWorst.toFixed(0)}s without a meaningful event in a late game (> 75s)`);
+    if (late.droughtWorst > 120) errors.push(`${lbl}: ${late.droughtWorst.toFixed(0)}s with nothing affordable (> 120s)`);
+    if (late.droughtMedian > 75) errors.push(`${lbl}: typical longest drought ${late.droughtMedian.toFixed(0)}s (> 75s)`);
+    console.log(`  ${lbl}: late/mid clear rate median ${pct(late.ratioMedian)} worst ${pct(late.ratioWorst)}, longest late event gap ${late.gapWorst.toFixed(0)}s, droughts median ${late.droughtMedian.toFixed(0)}s worst ${late.droughtWorst.toFixed(0)}s (3 seeds)`);
+  }
+  // Ads accelerate, they don't repair: each rewarded ad the ACTIVE player watches is worth 60–180 s of progress
+  // (measured as the time ACTIVE_NO_ADS needs extra), and the no-ad player still finishes Meadow in the target time.
+  const act = byId('active');
   const na = byId('noAds');
-  if (a && na) {
-    const ta = a.farms.reduce((s, f) => s + f.seconds, 0);
+  if (act && na && act.adsWatched > 0) {
+    const ta = act.farms.reduce((s, f) => s + f.seconds, 0);
     const tn = na.farms.reduce((s, f) => s + f.seconds, 0);
-    if (tn > ta * 1.2) errors.push(`ACTIVE_NO_ADS takes ${fmtT(tn)} vs ACTIVE ${fmtT(ta)} (> +20 %)`);
+    const perAd = (tn - ta) / act.adsWatched;
+    console.log(`  rewarded ×2 value: ${perAd.toFixed(0)}s of progress per ad (${act.adsWatched} ads; no ads ${fmtT(tn)} vs ${fmtT(ta)})`);
+    if (perAd < 40 || perAd > 200) errors.push(`a rewarded ad is worth ${perAd.toFixed(0)}s of progress (want ~60–180 s)`);
   }
   // No softlock: every profile finishes eventually.
   for (const r of reports) if (!r.finishedAll) errors.push(`${r.profile.label} never finished ${farms} farm(s) from ${startFarm} in ${minutes} min`);

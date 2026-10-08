@@ -132,7 +132,7 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
     if (!['offline', 'daily', 'farmcomplete', 'gift'].includes(name)) return;
     setTimeout(() => {
       if (game.modals.open) return;
-      void ads.maybeInterstitial({ kind: 'dialog_closed', sinceThrottle: 99, tutorialActive: game.tutorialActive(), modalOpen: false });
+      void ads.maybeInterstitial({ kind: 'dialog_closed', sinceThrottle: 99, tutorialActive: game.tutorialActive(), modalOpen: false, sinceBigMoment: game.sinceBigMoment() });
     }, 350);
   });
 

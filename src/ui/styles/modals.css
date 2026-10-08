@@ -527,3 +527,42 @@
     transform: scaleX(0.55);
   }
 }
+
+/* "Pay coins or watch an ad": compact, the reward spelled out. */
+.modal-bonus .bonus-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+}
+
+.modal-bonus .bonus-head .ico {
+  width: 46px;
+  height: 46px;
+}
+
+.modal-bonus h2 {
+  margin: 0;
+}
+
+.modal-bonus .bonus-desc {
+  margin: 4px 0 10px;
+  text-align: center;
+}
+
+.modal-bonus .bonus-hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  opacity: 0.75;
+  text-align: center;
+}
+
+/* The coin button leads when it can pay (the ad button's own order rule would put it first). */
+.modal-bonus .btn-big.bonus-buy.go {
+  order: -2;
+}
+
+.modal-bonus .btn-big.bonus-ad.soft {
+  --c: #b4bdc8;
+  --cd: #7d8794;
+}

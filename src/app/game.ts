@@ -9,12 +9,13 @@ import { Hud } from '../ui/Hud.ts';
 import { Floaters } from '../ui/Floaters.ts';
 import { Toasts } from '../ui/Toasts.ts';
 import { UnloadCounter } from '../ui/UnloadCounter.ts';
-import { coinFly } from '../ui/CoinFly.ts';
+import { coinFly, iconFly } from '../ui/CoinFly.ts';
 import { ModalStack } from '../ui/modals/ModalStack.ts';
 import { openSettings } from '../ui/modals/Settings.ts';
+import { openBonusChoice } from '../ui/modals/BonusChoice.ts';
 import { buildHud } from '../ui/viewModel.ts';
 import { h } from '../ui/dom.ts';
-import { icon } from '../ui/icons.ts';
+import { ICONS, icon } from '../ui/icons.ts';
 import type { AdManager } from '../platform/ads/AdManager.ts';
 import type { Placement } from '../platform/ads/AdService.ts';
 import { fmt, onLangChange, setLang, t, type I18nKey } from '../platform/i18n/i18n.ts';
@@ -59,6 +60,12 @@ export class GameController {
   private unloadSegs = 1;
   /** Last HUD purchase/boost tap (an interstitial must never interrupt a tapping spree). */
   private lastActionAt = -Infinity;
+  /** Last big moment (route growth, merge, new field, FINAL HARVEST, farm finished): no interstitial right after. */
+  lastBigMomentAt = -Infinity;
+  /** Seconds since the last big moment. */
+  sinceBigMoment(): number {
+    return (performance.now() - this.lastBigMomentAt) / 1000;
+  }
   private lastToastAt = 0;
 
   constructor(d: GameDeps) {
@@ -140,6 +147,10 @@ export class GameController {
     this.hud.popUpgrade(id, this.d.settings.reduceMotion);
   }
 
+  /**
+   * Tornado: use one when you have it; otherwise a quick choice — pay coins (each one on a farm costs more) or watch
+   * an ad (on its own cooldown). A failed or skipped ad gives nothing and costs nothing.
+   */
   async tornado(): Promise<void> {
     const sim = this.d.sim;
     this.lastActionAt = performance.now();
@@ -147,26 +158,67 @@ export class GameController {
       sim.execute({ c: 'useTornado' });
       return;
     }
-    if (!this.d.ads.canOffer('free_tornado')) {
-      this.hud.shake('tornado');
-      this.nag(this.d.ads.rewardedAvailable ? 'ad.later' : 'ad.notReady');
-      return;
-    }
-    if (await this.rewarded('free_tornado')) {
-      sim.execute({ c: 'grantTornado', n: 1 });
-      sim.execute({ c: 'useTornado' });
-    }
+    const adOk = () => this.d.ads.canOffer('free_tornado');
+    openBonusChoice(this.modals, {
+      kind: 'tornado',
+      price: sim.tornadoPrice,
+      coins: () => sim.state.coins,
+      adAvailable: adOk,
+      notEnough: (el) => this.notEnough(el),
+      buy: () => {
+        sim.execute({ c: 'buyTornado' });
+        if (sim.state.tornadoes > 0) sim.execute({ c: 'useTornado' });
+      },
+      watchAd: async () => {
+        if (!adOk()) return this.nag(this.d.ads.rewardedAvailable ? 'ad.later' : 'ad.notReady');
+        if (await this.rewarded('free_tornado')) {
+          sim.execute({ c: 'grantTornado', n: 1 });
+          sim.execute({ c: 'useTornado' });
+        }
+      },
+    });
   }
 
+  /**
+   * Boosts: a free charge starts at once (one tap); otherwise a quick choice. Autopilot can be paid with coins or an
+   * ad; ×2 coins only with an ad (buying income with income would be a chore) — or the free charge every farm gives.
+   */
   async boost(id: BoostId): Promise<void> {
+    const sim = this.d.sim;
     this.lastActionAt = performance.now();
-    // Only offer the ad when it can add its full value.
-    if (this.d.sim.state.boosts[id] > MISC.BOOST_CAP_S - MISC.BOOST_ADD_S) {
+    // Only offer more when it can add its full value.
+    if (!sim.boostRoom(id)) {
       this.hud.shake(id);
       this.nag('boost.max');
       return;
     }
-    if (await this.rewarded(id === 'incomeX2' ? 'income_x2' : 'autopilot')) this.d.sim.execute({ c: 'boost', id, seconds: MISC.BOOST_ADD_S });
+    if (sim.state.charges[id] > 0) {
+      sim.execute({ c: 'useCharge', id });
+      this.hud.popBonus(id);
+      return;
+    }
+    const placement = id === 'incomeX2' ? 'income_x2' : 'autopilot';
+    if (id === 'incomeX2' && !this.d.ads.rewardedAvailable) {
+      this.hud.shake(id);
+      this.nag('bonus.noAdX2');
+      return;
+    }
+    openBonusChoice(this.modals, {
+      kind: id,
+      price: id === 'autopilot' ? sim.autopilotPrice : null,
+      coins: () => sim.state.coins,
+      adAvailable: () => this.d.ads.rewardedAvailable,
+      notEnough: (el) => this.notEnough(el),
+      buy: () => sim.execute({ c: 'buyBoost', id: 'autopilot' }),
+      watchAd: async () => {
+        if (await this.rewarded(placement)) sim.execute({ c: 'boost', id, seconds: MISC.BOOST_ADD_S });
+      },
+    });
+  }
+
+  private notEnough(el: HTMLElement): void {
+    el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-7px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
+    this.nag('bonus.notEnough');
   }
 
   openSettings(): void {
@@ -213,6 +265,7 @@ export class GameController {
 
   onEvent(e: SimEvent): void {
     const { renderer, sim } = this.d;
+    if (e.t === 'routeGrew' || e.t === 'merged' || e.t === 'zoneOpened' || e.t === 'finalHarvest' || e.t === 'farmFinished') this.lastBigMomentAt = performance.now();
     switch (e.t) {
       case 'chunk': {
         const a = this.agg.get(e.body);
@@ -261,6 +314,9 @@ export class GameController {
       case 'tornadoGranted':
         this.toasts.show(t('toast.tornadoDrop'));
         break;
+      case 'freebie':
+        this.showFreebie(e);
+        break;
       case 'finalHarvest':
         this.toasts.banner(t('banner.final'), t('banner.finalSub'));
         break;
@@ -268,6 +324,34 @@ export class GameController {
         break;
     }
     for (const l of this.listeners) l(e);
+  }
+
+  /**
+   * Something for free: the reason is spelled out and the gift flies from where it was earned (the farm progress, a
+   * new field) to the button it now sits on, which bounces with a FREE tag.
+   */
+  private showFreebie(e: Extract<SimEvent, { t: 'freebie' }>): void {
+    const { renderer } = this.d;
+    const rm = this.d.settings.reduceMotion;
+    if (e.kind === 'coins') {
+      // A new field's bonus: coins burst from the head into the counter.
+      const h = renderer.cat.poses[0];
+      if (!renderer.project(h.x, 1.6, h.z, tmpP)) return;
+      this.floaters.spawn(tmpP.x, tmpP.y - 30, `+${fmt(e.amount ?? 0)}`, 'big', 1.3);
+      coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, this.hud.center(this.hud.coinPill), 8, () => this.hud.bumpCoins(true), rm, (i) => this.onCoinLand(i));
+      return;
+    }
+    const kind = e.kind;
+    const show = () => {
+      const msg = e.reason === 'newFarm' ? t('bonus.newFarm') : t(`bonus.got.${kind}` as I18nKey);
+      this.toasts.show(e.reason === 'progress' ? `${t('bonus.milestone', { n: Math.round((e.at ?? 0) * 100) })}  ${msg}` : msg, 3200);
+      const target = this.hud.bonusTarget(kind);
+      const from = e.reason === 'progress' ? this.hud.center(this.hud.progressEl) : { x: innerWidth / 2, y: innerHeight * 0.45 };
+      iconFly(this.fxLayer, from, this.hud.center(target), ICONS[kind === 'incomeX2' ? 'x2' : kind === 'autopilot' ? 'autopilot' : 'tornado'], () => this.hud.popBonus(kind), rm);
+    };
+    // On a new farm the gift waits for the travel curtain to lift.
+    if (e.reason === 'newFarm') setTimeout(show, 2200);
+    else show();
   }
 
   /** Per rendered frame. */
@@ -310,6 +394,7 @@ export class GameController {
           sinceThrottle: Math.min(t0 - input.lastHeldAt, t0 - this.lastActionAt) / 1000,
           tutorialActive: this.tutorialActive(),
           modalOpen: this.modals.open,
+          sinceBigMoment: this.sinceBigMoment(),
         });
       }, 1100);
     }

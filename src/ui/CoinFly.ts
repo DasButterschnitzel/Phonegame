@@ -42,3 +42,30 @@ export function coinFly(
     };
   }
 }
+
+/** A gift icon (free charge) flies in a high arc from `from` to its button, growing as it leaves and landing small. */
+export function iconFly(layer: HTMLElement, from: { x: number; y: number }, to: { x: number; y: number }, svg: string, onArrive: () => void, reduceMotion = false): void {
+  if (reduceMotion || typeof Element.prototype.animate !== 'function') {
+    onArrive();
+    return;
+  }
+  const el = document.createElement('div');
+  el.className = 'gift-fly';
+  el.innerHTML = svg;
+  layer.append(el);
+  const mx = (from.x + to.x) / 2;
+  const my = Math.min(from.y, to.y) - 90;
+  const anim = el.animate(
+    [
+      { transform: `translate(${from.x - 22}px, ${from.y - 22}px) scale(0.3)`, opacity: 0 },
+      { transform: `translate(${from.x - 22}px, ${from.y - 40}px) scale(1.5)`, opacity: 1, offset: 0.2 },
+      { transform: `translate(${mx - 22}px, ${my - 22}px) scale(1.2)`, offset: 0.55 },
+      { transform: `translate(${to.x - 22}px, ${to.y - 22}px) scale(0.8)`, opacity: 1 },
+    ],
+    { duration: 950, easing: 'cubic-bezier(.45,0,.55,1)' },
+  );
+  anim.onfinish = () => {
+    el.remove();
+    onArrive();
+  };
+}
