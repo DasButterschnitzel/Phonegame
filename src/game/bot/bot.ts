@@ -565,7 +565,8 @@ export function runBot(profile: Profile, opt: RunOptions): RunReport {
         break;
       }
       sim.execute({ c: 'travel', farm: finishedFarm.next });
-      sim.drainEvents();
+      // The arrival's events (travel, new-farm gift) go to the listeners too.
+      for (const e of sim.drainEvents()) opt.onEvent?.(e, st.simTime);
       player.arrived(sim);
       newFarm();
       continue;

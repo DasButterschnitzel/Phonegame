@@ -152,6 +152,32 @@ Listening clips and spectrograms for a human: `CAPTURE=1 npx playwright test cap
   World Tour with a fanfare and a three-line explainer. The ×2 is an offer; no interstitial can land while travelling
   or during the entrance.
 
+## Ads over long sessions (`npm run sessions`)
+The bot plays (seed 1), the real interstitial policy decides, replayed over sessions that start on a fresh install,
+on the Starter Tour (farm #3), at the World Tour's start and at farm #20. Interstitials per session:
+
+```
+profile                    session starts at        30 min  1 h  2 h  max/rolling h
+ACTIVE_NO_ADS              fresh install                 2    4    7              4
+ACTIVE_NO_ADS              Starter Tour, farm #3         2    4    8              4
+ACTIVE_NO_ADS              World Tour start (#6)         2    4    7              4
+ACTIVE_NO_ADS              farm #20                      2    4    7              4
+ACTIVE                     Starter Tour, farm #3         0    3    4              3
+ACTIVE                     World Tour start (#6)         0    1    2              2
+CASUAL                     Starter Tour, farm #3         3    4    8              4
+CASUAL                     World Tour start (#6)         3    4    8              4
+ACTIVE_OCCASIONAL_REWARDED Starter Tour, farm #3         1    2    2              2
+ACTIVE_OCCASIONAL_REWARDED World Tour start (#6)         0    0    0              0
+IDLE                       Starter Tour, farm #3         4    4    8              4
+IDLE                       World Tour start (#6)         4    4    8              4
+ACTIVE_TWO_FINGER          Starter Tour, farm #3         1    4    5              4
+ACTIVE_TWO_FINGER          World Tour start (#6)         0    1    5              4
+```
+
+Longer sessions mean more hours, never more ads per hour: the cap (4 an hour, 8 minutes apart) holds in every
+session, and the World Tour sees as many or fewer interstitials than the Starter Tour for the same player. Players who
+never take a break from the throttle (ACTIVE) or who watch rewarded ads (5 quiet minutes after each) see fewer.
+
 ## Save v3
 `v2 → v3`: `farmId` stays the key (starter ids are valid keys); a `journey` is created from the starter progress
 (completed count, discovered biomes, World Tour unlocked when all five are done); everything else carries over.

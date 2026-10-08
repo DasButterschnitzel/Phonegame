@@ -38,6 +38,10 @@ jobs:
         run: |
           echo '## Balance report (greedy bots)' >> "$GITHUB_STEP_SUMMARY"
           npm run --silent balance -- --profile all --md >> "$GITHUB_STEP_SUMMARY"
+      - name: Long sessions and interstitials
+        run: |
+          npm run --silent sessions -- --hours 6 --md "$RUNNER_TEMP/sessions.md" --assert
+          { echo '## Long sessions and interstitials'; cat "$RUNNER_TEMP/sessions.md"; } >> "$GITHUB_STEP_SUMMARY"
       - name: Package portal builds
         run: npm run package:portals
       - uses: actions/upload-artifact@v4
