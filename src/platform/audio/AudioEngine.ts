@@ -353,13 +353,18 @@ export class AudioEngine {
   }
 
   /** The pass is over: a ka-ching sized to the load. */
-  unload(n: number): void {
+  /** The ka-ching at the end of an unload; `tier` (payout size vs recent income) adds a coin cascade and a held top. */
+  unload(n: number, tier = 0): void {
     if (!this.ctx || !this.can('unload', 300)) return;
-    this.duck(0.3, 0.6);
+    this.duck(0.3 + 0.1 * tier, 0.6 + 0.3 * tier);
     this.tone(1568, 0.09, 'square', 0.07);
     this.tone(2093, 0.22, 'square', 0.07, 0.07);
     this.noiseHit(0.25, 7000, 0.8, 0.05, 0.07);
-    if (n > 40) this.tone(midi(88), 0.3, 'triangle', 0.08, 0.16);
+    if (n > 40 || tier >= 1) this.tone(midi(88), 0.3, 'triangle', 0.08, 0.16);
+    if (tier >= 2) {
+      [0, 4, 7, 12, 16].forEach((s, i) => this.tone(midi(84 + s), 0.12, 'sine', 0.06, 0.2 + i * 0.05));
+      this.tone(midi(100), 0.5, 'sine', 0.04, 0.48);
+    }
   }
 
   /** The hopper opens as the wave starts: a wooden clack, a flap of air and a little electric rise. */
@@ -543,6 +548,17 @@ export class AudioEngine {
     [0, 4, 7, 11, 12, 16].forEach((s, i) => this.tone(midi(64 + s), 0.16, 'triangle', 0.11, i * 0.06));
     this.tone(midi(88), 0.7, 'sine', 0.07, 0.38);
     this.sweep(0.5, 900, 5200, 2, 0.06, 0.05);
+  }
+
+  /** The farm is finished: a boom and a cymbal, a rising run, then a held major chord — the biggest cue in the game. */
+  farmComplete(): void {
+    if (!this.ctx) return;
+    this.duck(0.15, 2.4);
+    this.noiseHit(0.5, 150, 1, 0.5);
+    this.noiseHit(1.3, 6500, 0.7, 0.14, 0.02);
+    [0, 4, 7, 12, 16, 19].forEach((s, i) => this.tone(midi(60 + s), 0.16, 'square', 0.06, i * 0.07));
+    [0, 4, 7, 12].forEach((s) => this.tone(midi(72 + s), 1.1, 'triangle', 0.075, 0.48));
+    this.tone(midi(96), 0.9, 'sine', 0.045, 0.52);
   }
 
   gift(): void {

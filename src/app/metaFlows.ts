@@ -17,12 +17,17 @@ import { fmt, t } from '../platform/i18n/i18n.ts';
 import { FARM_ORDER } from '../game/types.ts';
 import { clearedOfSnapshot } from '../game/sim.ts';
 
+/** How long the farm-finished celebration plays before its dialog (ms). */
+const CELEBRATE_MS = 1600;
+
 /** Map / travel, farm completion, daily calendar and lucky-bug gifts. */
 export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta, saves: SaveManager): { frame: () => void; maybeShowDaily: () => void } {
   const ads = game.d.ads;
   const ui = document.getElementById('ui')!;
 
-  game.openMap = () =>
+  game.openMap = () => {
+    // The farm-finished celebration plays out first (its dialog leads to the map anyway).
+    if (game.celebrating) return;
     openMap(game.modals, {
       current: sim.state.farmId,
       unlocked: sim.state.unlockedFarms,
@@ -35,6 +40,7 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
           void saves.saveNow();
         }),
     });
+  };
 
   const dailyCoins = (r: DailyReward) =>
     r.kind === 'coins' ? Math.max(Math.floor(sim.state.economy.ema * r.incomeSeconds), Math.floor(r.incomeSeconds * 2 * sim.valueMult)) : 0;
@@ -94,19 +100,27 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
   game.listeners.push((e: SimEvent) => {
     if (e.t === 'giftSpawn') gift.show(e.kind, MISC.GIFT_LIFETIME_S);
     if (e.t === 'farmFinished') {
-      openFarmComplete(game.modals, {
-        reward: e.reward,
-        passive: sim.state.economy.passive[e.farm] ?? 0,
-        next: e.next,
-        allDone: sim.state.completedFarms.length >= FARM_ORDER.length,
-        adAvailable: () => ads.rewardedAvailable,
-        double: async () => {
-          if (!(await game.rewarded('farm_complete_x2'))) return false;
-          sim.execute({ c: 'grantCoins', amount: e.reward, reason: 'farmComplete' });
-          return true;
-        },
-        openMap: () => game.openMap(),
-      });
+      // The celebration plays first (juice: pull-back, sparkles, fanfare; the crawler coasts). The dialog — and any
+      // ad break after it — waits until it's over.
+      game.celebrateUntil = performance.now() + CELEBRATE_MS;
+      const passive = sim.state.economy.passive[e.farm] ?? 0;
+      const allDone = sim.state.completedFarms.length >= FARM_ORDER.length;
+      setTimeout(() => {
+        openFarmComplete(game.modals, {
+          reward: e.reward,
+          passive,
+          next: e.next,
+          allDone,
+          gift: true,
+          adAvailable: () => ads.rewardedAvailable,
+          double: async () => {
+            if (!(await game.rewarded('farm_complete_x2'))) return false;
+            sim.execute({ c: 'grantCoins', amount: e.reward, reason: 'farmComplete' });
+            return true;
+          },
+          openMap: () => game.openMap(),
+        });
+      }, CELEBRATE_MS);
       void saves.saveNow();
     }
   });

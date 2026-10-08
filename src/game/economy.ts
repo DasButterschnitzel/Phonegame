@@ -65,3 +65,13 @@ export const tornadoPrice = (st: GameState, valueMult: number): number =>
 
 /** Coins for opening a field (a small burst, not a jackpot). */
 export const zoneBonus = (st: GameState, valueMult: number): number => Math.floor(Math.max(st.economy.ema * BONUS.ZONE_COINS_S, 20 * valueMult));
+
+/**
+ * How big a depot payout feels: 0 routine, 1 good, 2 big — relative to ~30 s of the current income, so the same
+ * load is "big" early on and routine later, and the feedback scales with it (not with the raw number).
+ */
+export function payoutTier(value: number, st: GameState, valueMult: number): 0 | 1 | 2 {
+  const ref = Math.max(st.economy.ema * 30, 20 * valueMult);
+  const r = value / ref;
+  return r >= 2.2 ? 2 : r >= 0.8 ? 1 : 0;
+}

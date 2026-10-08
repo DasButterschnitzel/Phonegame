@@ -1,6 +1,7 @@
 import type { Sim } from '../game/sim.ts';
 import type { BoostId, FarmId, SimEvent, UpgradeId } from '../game/types.ts';
 import { MISC } from '../game/config.ts';
+import { payoutTier } from '../game/economy.ts';
 import type { GameRenderer } from '../render/Renderer.ts';
 import type { PauseController } from './pause.ts';
 import type { ThrottleInput } from './input.ts';
@@ -58,6 +59,8 @@ export class GameController {
   private pendingUnloadBreak = false;
   private unloadCoin = 0;
   private unloadSegs = 1;
+  /** How big the current depot payout feels (0 routine, 1 good, 2 big). */
+  private payTier: 0 | 1 | 2 = 0;
   /** Last HUD purchase/boost tap (an interstitial must never interrupt a tapping spree). */
   private lastActionAt = -Infinity;
   /** Last big moment (route growth, merge, new field, FINAL HARVEST, farm finished): no interstitial right after. */
@@ -67,6 +70,11 @@ export class GameController {
     return (performance.now() - this.lastBigMomentAt) / 1000;
   }
   private lastToastAt = 0;
+  /** The farm-finished celebration plays until then (performance.now ms): the throttle rests, the map waits. */
+  celebrateUntil = -Infinity;
+  get celebrating(): boolean {
+    return performance.now() < this.celebrateUntil;
+  }
 
   constructor(d: GameDeps) {
     this.d = d;
@@ -279,20 +287,25 @@ export class GameController {
       case 'unloadSeg': {
         // Rolling payout: the counter above the hopper climbs with every segment; coins fly to the total for about
         // eight of them (a long wave would otherwise spawn ~100 animated DOM coins in a second) and for the last.
+        // The size of the payout (relative to recent income) sets the show: a routine load sends a few coins, a
+        // good one more, a big one a gold cascade and a stronger tick.
         this.unloadCounter.add(e.value, this.d.settings.reduceMotion);
         const h = renderer.depot.hopperTop;
-        const every = Math.max(1, Math.ceil(this.unloadSegs / 8));
+        const tier = this.payTier;
+        const every = Math.max(1, Math.ceil(this.unloadSegs / (tier === 0 ? 3 : 8)));
         if ((e.last || e.seg % every === 0) && renderer.project(h.x, h.y + 0.6, h.z, tmpP)) {
           const target = this.hud.center(this.hud.coinPill);
           const last = e.last;
-          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, last ? 4 : 2, () => this.hud.bumpCoins(last), this.d.settings.reduceMotion, (i) => this.onCoinLand(this.unloadCoin++ + i));
+          const n = last ? [3, 5, 9][tier] : tier === 0 ? 1 : 2;
+          coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, target, n, () => this.hud.bumpCoins(last, last ? tier : 0), this.d.settings.reduceMotion, (i) => this.onCoinLand(this.unloadCoin++ + i));
         }
         break;
       }
       case 'unloadStart':
         this.unloadCoin = 0;
         this.unloadSegs = e.segs;
-        this.unloadCounter.start();
+        this.payTier = payoutTier(e.value, sim.state, sim.valueMult);
+        this.unloadCounter.start(this.payTier);
         break;
       case 'unload': {
         this.unloadCounter.end(performance.now() / 1000);
@@ -341,6 +354,8 @@ export class GameController {
       coinFly(this.fxLayer, { x: tmpP.x, y: tmpP.y }, this.hud.center(this.hud.coinPill), 8, () => this.hud.bumpCoins(true), rm, (i) => this.onCoinLand(i));
       return;
     }
+    // The farm-complete dialog presents its own gift.
+    if (e.reason === 'farmComplete') return;
     const kind = e.kind;
     const show = () => {
       const msg = e.reason === 'newFarm' ? t('bonus.newFarm') : t(`bonus.got.${kind}` as I18nKey);

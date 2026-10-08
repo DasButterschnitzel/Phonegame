@@ -1,7 +1,7 @@
 import type { BoostId, CoinReason, Command, DepotPass, FarmId, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
 import { FARM_ORDER } from './types.ts';
 import { FARMS, type FarmDef } from './farms/index.ts';
-import { BONUS, DEPOT, FIELD, FINAL, MISC, OVERDRIVE, TERRITORY, capacityOf, farmEco, overdriveShare, unloadAt, vMax } from './config.ts';
+import { BONUS, DEPOT, FIELD, FINAL, MISC, MOVE, OVERDRIVE, TERRITORY, capacityOf, farmEco, overdriveShare, unloadAt, vMax } from './config.ts';
 import { buildBins, buildField, buildRoute, computeReach, markDirty } from './field.ts';
 import { nearestS, sampleAt, type PathSample } from './path.ts';
 import { bodyOffset, findMergePair, sortSegments, updateSpeed } from './caterpillar.ts';
@@ -88,6 +88,8 @@ export class Sim {
   overdrive = 0;
   /** FINAL HARVEST was on last step (it is announced once, when it starts during play). */
   private wasFinal = false;
+  /** Seconds left of the surge a SPEED purchase gives. */
+  surge = 0;
 
   constructor(state: GameState = newGameState()) {
     this.state = state;
@@ -239,7 +241,9 @@ export class Sim {
     this.milestones();
 
     const cap = this.capacity;
-    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, (st.depot.active ? DEPOT.SLOW : 1) * boost * (final ? FINAL.SPEED : 1));
+    this.surge = Math.max(0, this.surge - dt);
+    const surge = 1 + MOVE.SURGE * (this.surge / MOVE.SURGE_S);
+    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, (st.depot.active ? DEPOT.SLOW : 1) * boost * surge * (final ? FINAL.SPEED : 1));
     st.prevHeadS = st.headS;
     const ds = st.v * dt;
     st.headS += ds;
@@ -646,6 +650,7 @@ export class Sim {
       }
       case 'speed':
         p.speedLevel++;
+        this.surge = MOVE.SURGE_S;
         this.events.push({ t: 'upgraded', id: 'speed', level: p.speedLevel });
         break;
       case 'capacity':
@@ -688,7 +693,10 @@ export class Sim {
     const next = FARM_ORDER[this.farm.index + 1] ?? null;
     if (next && !st.unlockedFarms.includes(next)) st.unlockedFarms.push(next);
     this.grant(reward, 'farmComplete');
+    // A celebration ×2 for the road: one free charge, used whenever the player likes (usually on the next farm).
+    st.charges.incomeX2++;
     this.events.push({ t: 'farmFinished', farm: this.farm.id, reward, next });
+    this.events.push({ t: 'freebie', kind: 'incomeX2', reason: 'farmComplete' });
   }
 
   private travel(id: FarmId): void {

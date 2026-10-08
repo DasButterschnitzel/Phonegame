@@ -32,6 +32,8 @@ export interface HudVM {
   cleared: number;
   /** FINAL HARVEST is on (the farm's last stretch). */
   final: boolean;
+  /** This farm is done (the progress bar reads COMPLETE). */
+  finished: boolean;
   farmId: Sim['farm']['id'];
   upgrades: Record<'add' | 'merge' | 'speed' | 'capacity', UpgradeVM>;
   /** `progress`: clearing progress towards the free fence / finishing (0..1). */
@@ -81,6 +83,7 @@ export function buildHud(sim: Sim): HudVM {
     zone: p.zone,
     cleared: sim.cleared,
     final: sim.final,
+    finished: p.finished,
     farmId: sim.farm.id,
     upgrades: {
       add: up('add', p.addCount + 1, { a: p.segments.length, b: maxSegments(sim.farm, p.zone, sim.path) }),

@@ -16,6 +16,9 @@ export const MOVE = {
   TAU_DOWN: 0.45,
   LOAD_K: 0.8,
   MAX_LVL: 15,
+  /** Buying SPEED gives a short surge on top (fading over SURGE_S), so the new level is felt at once. */
+  SURGE: 0.25,
+  SURGE_S: 1.2,
 } as const;
 
 /**

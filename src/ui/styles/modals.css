@@ -126,6 +126,25 @@
   height: 46px;
 }
 
+/* Farm complete: the free ×2 that comes with it, as a small gift line under the reward. */
+.farm-gift {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(126, 217, 87, 0.18);
+  color: #2f6b12;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.farm-gift .ico {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+
 .btn-row {
   display: flex;
   gap: 10px;

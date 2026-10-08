@@ -166,7 +166,7 @@ describe('bonus economy', () => {
     expect(sim.state.tornadoes).toBe(n + 1);
     expect(sim.tornadoPrice).toBeGreaterThan(t1);
   });
-  it('opening a field pays a small bonus; a new farm starts with a tornado; old saves get no retroactive gifts', () => {
+  it('opening a field pays a small bonus; finishing gives a ×2 charge; a new farm starts with a tornado; old saves get no retroactive gifts', () => {
     const sim = new Sim();
     sim.execute({ c: 'grantCoins', amount: 1e12, reason: 'debug' });
     const ev: SimEvent[] = [];
@@ -177,7 +177,13 @@ describe('bonus economy', () => {
     sim.execute({ c: 'buy', id: 'expand' });
     sim.execute({ c: 'buy', id: 'expand' });
     killShare(sim, 0.99);
+    const x2 = sim.state.charges.incomeX2;
     sim.execute({ c: 'buy', id: 'finish' });
+    // The farm-complete celebration comes with one free ×2 charge (once: a finished farm can't finish again).
+    expect(sim.state.charges.incomeX2).toBe(x2 + 1);
+    expect(sim.drainEvents().some((e) => e.t === 'freebie' && e.reason === 'farmComplete' && e.kind === 'incomeX2')).toBe(true);
+    sim.execute({ c: 'buy', id: 'finish' });
+    expect(sim.state.charges.incomeX2).toBe(x2 + 1);
     const before = sim.state.tornadoes;
     sim.execute({ c: 'travel', farm: 'pumpkin' });
     expect(sim.state.tornadoes).toBe(before + 1);

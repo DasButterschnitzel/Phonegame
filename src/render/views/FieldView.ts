@@ -243,6 +243,13 @@ export class FieldView {
     this.struck[i] = 1;
   }
 
+  /** No bite, just a shove: crop i flinches away from (fx, fz) (land pushing out, a shockwave passing). */
+  nudge(i: number, fx: number, fz: number, now: number): void {
+    if (this.sim.field.dead[i] || this.anims.has(i)) return;
+    this.setAway(i, fx, fz);
+    this.anims.set(i, { crop: i, kind: 'hit', t: now, dur: HIT_S });
+  }
+
   /** World point on crop i's surface facing whoever bit it last (debris and the chunk start here). */
   contact<T extends { x: number; y: number; z: number }>(i: number, out: T): T {
     const f = this.sim.field;

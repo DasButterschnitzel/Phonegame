@@ -161,6 +161,20 @@
   color: var(--gold);
 }
 
+/* A finished farm: full gold bar, COMPLETE in gold. */
+.farm-prog.done .farm-prog-fill {
+  background: linear-gradient(90deg, #ffb703, #ffd23f);
+}
+
+.farm-prog.done .farm-prog-text {
+  color: var(--gold);
+  letter-spacing: 0.04em;
+}
+
+.farm-prog {
+  transform-origin: left center;
+}
+
 @keyframes final-shimmer {
   to {
     background-position: -200% 0;
@@ -880,6 +894,17 @@
   height: 18px;
 }
 
+/* The price paid, flying off a card. */
+.cost-ghost {
+  position: absolute;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffe08a;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 30;
+}
+
 /* Purchase sparkles (DOM, short-lived) */
 .spark {
   position: absolute;
@@ -970,6 +995,29 @@
 
 .unload-counter.done {
   font-size: 34px;
+}
+
+/* A good / big payout reads bigger (the size follows the payout relative to recent income). */
+.unload-counter.good.done {
+  font-size: 40px;
+}
+
+.unload-counter.big {
+  font-size: 34px;
+  text-shadow: 0 0 14px rgba(255, 210, 63, 0.9);
+}
+
+.unload-counter.big.done {
+  font-size: 48px;
+}
+
+.coin-flash {
+  position: absolute;
+  border-radius: 999px;
+  z-index: 30;
+  border: 3px solid var(--gold);
+  box-shadow: 0 0 18px rgba(255, 210, 63, 0.8);
+  pointer-events: none;
 }
 
 .floater.big {

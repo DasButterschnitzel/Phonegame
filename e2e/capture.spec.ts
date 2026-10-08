@@ -32,7 +32,29 @@ interface ClipOpts {
   before?: (i: number) => Promise<void>;
   /** Device-resolution square crop around the screen centre (CSS px), for close animation review. */
   zoom?: number;
+  /** CSS-px crop of the screen (e.g. just the upgrade bar). */
+  region?: { x: number; y: number; width: number; height: number };
+  /** Also frame-step DOM (WAAPI) animations: they run on the compositor clock, which the fake clock doesn't drive. */
+  waapi?: boolean;
 }
+
+/** Pause every new WAAPI animation at its start, then move all of them on by one 60 fps frame. */
+const stepWaapi = () => {
+  const w = window as unknown as { __waapiSeen?: WeakSet<Animation> };
+  const seen = (w.__waapiSeen ??= new WeakSet());
+  for (const a of document.getAnimations()) {
+    if (a instanceof CSSAnimation || a instanceof CSSTransition) continue;
+    if (!seen.has(a)) {
+      seen.add(a);
+      a.pause();
+      a.currentTime = 0;
+    }
+    const end = Number(a.effect?.getComputedTiming().endTime ?? 0);
+    const t = Number(a.currentTime ?? 0) + 1000 / 60;
+    if (t >= end) a.finish();
+    else a.currentTime = t;
+  }
+};
 
 /** Advance `frames` frames at 60 fps, saving every `every`-th one. `before(i)` runs ahead of frame i. */
 async function clip(page: Page, name: string, frames: number, opts: ClipOpts = {}) {
@@ -46,10 +68,11 @@ async function clip(page: Page, name: string, frames: number, opts: ClipOpts = {
   for (let i = 0; i < frames; i++) {
     await opts.before?.(i);
     await page.clock.runFor(1000 / 60);
+    if (opts.waapi) await page.evaluate(stepWaapi);
     if (i % every !== 0) continue;
     const path = `${dir}/${String(k++).padStart(4, '0')}.png`;
     if (z) await page.screenshot({ path, scale: 'device', clip: { x: vp.width / 2 - z / 2, y: vp.height / 2 - z / 2, width: z, height: z } });
-    else await page.screenshot({ path, scale: 'css' });
+    else await page.screenshot({ path, scale: 'css', clip: opts.region });
   }
   encode(name, 60 / every, k);
 }
@@ -179,6 +202,107 @@ test('depot: a loaded crawler rolls through the unload', async ({ page }) => {
 
 test('depot: a long crawler unloads in one capped wave', async ({ page }) => {
   await depotClip(page, 'depot-long', 15);
+});
+
+// ——— Pop hierarchy (goal 04): routine < upgrade < merge < route growth < field < farm finish ———
+
+test('pop: upgrade buttons (ADD, CAPACITY, SPEED, MERGE) at device resolution', async ({ page }) => {
+  await start(page);
+  await g(page, '(g.state().maxLevelReached = 9, g.grant(1e6), [0,1,2,3].forEach(() => g.buy("add")))');
+  await g(page, 'g.setThrottle(true)');
+  await page.clock.runFor(2500);
+  const vp = page.viewportSize()!;
+  const tap = (sel: string) => page.locator(sel).click({ force: true });
+  await clip(page, 'pop-buttons', 160, {
+    every: 2,
+    waapi: true,
+    region: { x: 0, y: vp.height - 230, width: vp.width, height: 230 },
+    before: async (i) => {
+      if (i === 6) await tap('.up-add');
+      if (i === 46) await tap('.up-capacity');
+      if (i === 86) await tap('.up-speed');
+      if (i === 126) await tap('.up-merge');
+    },
+  });
+  await g(page, 'g.setThrottle(null)');
+});
+
+test('pop: speed purchase surge (world)', async ({ page }) => {
+  await start(page);
+  await g(page, '(g.state().maxLevelReached = 9, g.grant(1e6), [0,1,2,3,4,5].forEach(() => g.buy("add")))');
+  await closeCam(page, 9);
+  await g(page, 'g.setThrottle(true)');
+  await page.clock.runFor(2500);
+  await clip(page, 'pop-speed', 120, {
+    every: 2,
+    zoom: 380,
+    before: async (i) => {
+      if (i === 12) await g(page, '(g.state().progress.speedLevel = 4, g.buy("speed"))');
+    },
+  });
+  await g(page, 'g.setThrottle(null)');
+});
+
+test('pop: merge ripple and a first-time level', async ({ page }) => {
+  await start(page);
+  await g(page, '(g.state().maxLevelReached = 9, g.grant(1e7), [0,1,2,3,4,5,6,7].forEach(() => g.buy("add")))');
+  await closeCam(page, 9);
+  await g(page, 'g.setThrottle(true)');
+  await page.clock.runFor(2500);
+  await clip(page, 'pop-merge', 90, { every: 2, zoom: 400, before: async (i) => void (i === 6 && (await g(page, 'g.buy("merge")'))) });
+  // A level never seen before: the golden fountain lands before the "new segment" dialog covers it.
+  await g(page, 'g.state().maxLevelReached = 1');
+  await clip(page, 'pop-merge-first', 72, { every: 2, zoom: 400, before: async (i) => void (i === 6 && (await g(page, 'g.buy("merge")'))) });
+  await g(page, 'g.setThrottle(null)');
+});
+
+test('pop: route growth (crops along the new border flinch)', async ({ page }) => {
+  await start(page);
+  await g(page, '(g.state().maxLevelReached = 9, g.grant(1e6), [0,1,2,3].forEach(() => g.buy("add")))');
+  await g(page, 'g.growTerritory(4)');
+  await page.clock.runFor(1500);
+  // Clear the next plots and run the simulation (not the clock) up to the moment the route grows: the growth's
+  // effects start with the clip. (A ready plot waits until the body has moved off it.)
+  expect(await g<boolean>(page, '(() => { const n = g.sim.terr.claimedCount; g.clearFrontier(2); return g.runUntil(() => g.sim.terr.claimedCount > n, 40); })()')).toBe(true);
+  await g(page, 'g.setThrottle(false)');
+  await clip(page, 'pop-route', 90, { every: 2 });
+  // Close-up on the plot that is claimed (not the head): the border flash, dust, and the living crops around it flinch.
+  await closeCam(page, 7);
+  const grow = `(() => {
+    const t = g.sim.terr; const before = Array.from(t.claimed); const n = t.claimedCount;
+    g.clearFrontier(2);
+    if (!g.runUntil(() => t.claimedCount > n, 40)) return false;
+    const p = before.findIndex((c, i) => !c && t.claimed[i]);
+    const { cols, x0, z0, plot } = t.layout; const c = p % cols; const r = (p - c) / cols;
+    const at = { x: x0 + (c + 0.5) * plot, z: z0 + (r + 0.5) * plot };
+    g.app.renderer.focus = at; g.app.renderer.rig.snap(at.x, at.z);
+    return true;
+  })()`;
+  expect(await g<boolean>(page, grow)).toBe(true);
+  await clip(page, 'pop-route-close', 60, { every: 2, zoom: 400 });
+  await g(page, 'g.app.renderer.focus = null');
+});
+
+test('pop: a big payout (gold cascade, counter, coin flash)', async ({ page }) => {
+  await start(page);
+  await g(page, '(g.state().maxLevelReached = 9, g.grant(1e6), [0,1,2,3,4,5].forEach(() => g.buy("add")), g.fillBasket(0.95))');
+  expect(await g<boolean>(page, 'g.runUntil((st) => { const s = g.sim; const L = s.path.length; return ((s.path.barnS - st.headS) % L + L) % L < 3.2; })')).toBe(true);
+  await g(page, 'g.setThrottle(true)');
+  await clip(page, 'pop-payout', 150, { every: 2, waapi: true });
+  await g(page, 'g.setThrottle(null)');
+});
+
+test('pop: farm finish celebration, then the dialog', async ({ page }) => {
+  await start(page);
+  await g(page, '(g.grant(1e9), g.buy("expand"), g.buy("expand"), g.buy("expand"), [0,1,2,3,4,5].forEach(() => g.buy("add")))');
+  await page.clock.runFor(1500);
+  // Clear just past the finish line, so some of the field is left to twinkle.
+  await g(page, "(() => { for (let k = 0; k < 400 && !g.sim.check('finish').ok; k++) { g.sim.execute({ c: 'clearFrontier', n: 2 }); g.fastForward(0.6); } return g.sim.cleared; })()");
+  await page.clock.runFor(500);
+  await g(page, 'g.setThrottle(true)');
+  await page.clock.runFor(1000);
+  await clip(page, 'pop-finish', 150, { every: 2, waapi: true, before: async (i) => void (i === 4 && (await page.locator('.goal').click({ force: true }))) });
+  await g(page, 'g.setThrottle(null)');
 });
 
 test('bite lineup: every crop at stages 0–3', async ({ page }) => {

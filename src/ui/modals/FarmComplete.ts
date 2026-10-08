@@ -7,7 +7,17 @@ import { confetti } from '../Confetti.ts';
 
 export function openFarmComplete(
   modals: ModalStack,
-  o: { reward: number; passive: number; next: FarmId | null; allDone: boolean; adAvailable: () => boolean; double: () => Promise<boolean>; openMap: () => void },
+  o: {
+    reward: number;
+    passive: number;
+    next: FarmId | null;
+    allDone: boolean;
+    /** A free ×2 charge came with it (shown as a gift line). */
+    gift?: boolean;
+    adAvailable: () => boolean;
+    double: () => Promise<boolean>;
+    openMap: () => void;
+  },
 ): void {
   const m = modals.push(
     'farmcomplete',
@@ -27,6 +37,7 @@ export function openFarmComplete(
         icon('trophy', 'ico trophy-big'),
         h('h2', {}, t(o.allDone ? 'end.title' : 'farm.complete')),
         h('div', { class: 'reward-big' }, icon('coin'), amount),
+        o.gift ? h('div', { class: 'farm-gift' }, icon('x2'), h('span', {}, t('bonus.farmGift'))) : null,
         h('p', {}, t('farm.completeBody', { n: fmt(o.passive) })),
         o.allDone ? h('p', {}, h('b', {}, t('end.body'))) : null,
         o.next ? h('p', {}, h('b', {}, t('farm.next', { name: t(`farm.${o.next}` as I18nKey) }))) : null,

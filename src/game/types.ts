@@ -197,6 +197,6 @@ export type SimEvent =
   /** The farm's last stretch began (FINAL HARVEST: faster, harder bites until FINISH). */
   | { t: 'finalHarvest' }
   /** Something for free: a charge or a tornado at a progress milestone, coins for a new field, a tornado on a new farm. */
-  | { t: 'freebie'; kind: BoostId | 'tornado' | 'coins'; reason: 'progress' | 'zone' | 'newFarm'; at?: number; amount?: number }
+  | { t: 'freebie'; kind: BoostId | 'tornado' | 'coins'; reason: 'progress' | 'zone' | 'newFarm' | 'farmComplete'; at?: number; amount?: number }
   /** A boost or tornado paid with coins. */
   | { t: 'bought'; what: 'autopilot' | 'tornado'; cost: number };

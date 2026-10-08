@@ -19,14 +19,16 @@ export class UnloadCounter {
     root.append(this.el);
   }
 
-  /** A pass begins; the label appears with the first payment (never as "+0"). */
-  start(): void {
+  /** A pass begins; the label appears with the first payment (never as "+0"). `tier` 2 = a big payout (bigger, glowing). */
+  start(tier = 0): void {
     this.active = true;
     this.endAt = -1;
     this.shown = 0;
     this.target = 0;
     this.el.style.display = 'none';
     this.el.classList.remove('done');
+    this.el.classList.toggle('good', tier === 1);
+    this.el.classList.toggle('big', tier === 2);
   }
 
   add(value: number, reduceMotion: boolean): void {

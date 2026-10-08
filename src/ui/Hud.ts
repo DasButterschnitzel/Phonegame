@@ -88,6 +88,8 @@ export class Hud {
   private coinAcc = 0;
   private freeOffer: UpgradeId | null = null;
   private lastVm: HudVM | null = null;
+  /** Was this farm finished at the last update (null before the first): the COMPLETE pop plays on the change only. */
+  private wasFinished: boolean | null = null;
   adsAvailable = true;
   /** Whether an empty tornado button may offer a rewarded ad right now (policy cooldown). */
   tornadoAd = true;
@@ -245,30 +247,85 @@ export class Hud {
     return e?.btn ?? (id === 'expand' || id === 'finish' ? this.goal : null);
   }
 
-  /** Purchase feedback: button pops, its level pill flashes and a few sparkles fly. */
+  /**
+   * Purchase pop (~400 ms): the card squashes down under the thumb and springs back, its icon jumps, the level pill
+   * flips over and lands bigger, the paid price flies off, sparks. MERGE pops harder than routine buys.
+   */
   popUpgrade(id: string, reduceMotion = false): void {
     const el = this.elFor(id);
     if (!el) return;
-    el.animate(POP, POP_OPTS);
-    const lvl = this.ups.get(id)?.lvl;
-    lvl?.animate([{ transform: 'scale(1.35)', background: '#ffd23f', color: '#2b2d42' }, { transform: 'scale(1)' }], { duration: 420, easing: 'ease-out' });
-    if (reduceMotion) return;
+    const big = id === 'merge' || id === 'expand' || id === 'finish';
+    const k = big ? 1.35 : 1;
+    if (reduceMotion) {
+      el.animate(POP, POP_OPTS);
+      return;
+    }
+    el.animate(
+      [
+        { transform: 'translateY(0) scale(1, 1)' },
+        { transform: `translateY(${4 * k}px) scale(${1 + 0.07 * k}, ${1 - 0.13 * k})`, offset: 0.14 },
+        { transform: `translateY(${-3 * k}px) scale(${1 - 0.04 * k}, ${1 + 0.08 * k})`, offset: 0.45 },
+        { transform: 'translateY(0) scale(1.02, 0.99)', offset: 0.72 },
+        { transform: 'translateY(0) scale(1, 1)' },
+      ],
+      { duration: 380, easing: 'ease-out' },
+    );
+    const ico = el.querySelector(':scope > .ico') as HTMLElement | null;
+    ico?.animate(
+      [
+        { transform: 'translateY(0) scale(1) rotate(0deg)' },
+        { transform: `translateY(${-14 * k}px) scale(${1.25 + 0.1 * k}) rotate(-8deg)`, offset: 0.4 },
+        { transform: 'translateY(2px) scale(0.95) rotate(3deg)', offset: 0.75 },
+        { transform: 'translateY(0) scale(1) rotate(0deg)' },
+      ],
+      { duration: 420, easing: 'ease-out' },
+    );
+    const up = this.ups.get(id);
+    up?.lvl.animate(
+      [
+        { transform: 'rotateX(0deg) scale(1)' },
+        { transform: 'rotateX(90deg) scale(1.15)', background: '#ffd23f', color: '#2b2d42', offset: 0.35 },
+        { transform: 'rotateX(0deg) scale(1.4)', background: '#ffd23f', color: '#2b2d42', offset: 0.65 },
+        { transform: 'rotateX(0deg) scale(1)' },
+      ],
+      { duration: 450, easing: 'ease-out' },
+    );
     const r = el.getBoundingClientRect();
     const host = this.el.parentElement!;
-    for (let i = 0; i < 10; i++) {
+    // The price paid flies off the card.
+    const cost = up?.costText.textContent;
+    if (up && cost) {
+      const c = up.cost.getBoundingClientRect();
+      const ghost = h('div', { class: 'cost-ghost outline' }, `−${cost}`);
+      ghost.style.left = `${c.left + c.width / 2}px`;
+      ghost.style.top = `${c.top + c.height / 2}px`;
+      host.append(ghost);
+      // Up and out past the top of the card (it mustn't linger over the icon), fading on the way.
+      ghost.animate(
+        [
+          { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+          { transform: 'translate(-50%, calc(-50% - 36px)) scale(1.2)', opacity: 1, offset: 0.3 },
+          { transform: 'translate(-50%, calc(-50% - 66px)) scale(1.05)', opacity: 0.8, offset: 0.6 },
+          { transform: 'translate(-50%, calc(-50% - 92px)) scale(0.9)', opacity: 0 },
+        ],
+        { duration: 480, easing: 'cubic-bezier(.2,.7,.4,1)' },
+      ).onfinish = () => ghost.remove();
+    }
+    const n = big ? 16 : 10;
+    for (let i = 0; i < n; i++) {
       const s = h('div', { class: 'spark' });
       s.style.background = SPARK_COLORS[i % SPARK_COLORS.length];
       s.style.left = `${r.left + r.width / 2}px`;
       s.style.top = `${r.top + r.height * 0.35}px`;
       host.append(s);
-      const a = (i / 10) * Math.PI * 2 + Math.random() * 0.4;
-      const d = 40 + Math.random() * 40;
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+      const d = (40 + Math.random() * 40) * (big ? 1.3 : 1);
       const anim = s.animate(
         [
           { transform: 'translate(-50%, -50%) scale(1) rotate(0deg)', opacity: 1 },
           { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d - 20}px)) scale(0.3) rotate(${180 + Math.random() * 180}deg)`, opacity: 0 },
         ],
-        { duration: 450 + Math.random() * 200, easing: 'cubic-bezier(.2,.8,.3,1)' },
+        { duration: 450 + Math.random() * 200, delay: 40, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'backwards' },
       );
       anim.onfinish = () => s.remove();
     }
@@ -288,16 +345,31 @@ export class Hud {
     this.basket.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12) rotate(-4deg)', offset: 0.35 }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' });
   }
 
-  /** `strong`: the last coin of a depot pass lands — a bigger, brighter tick. */
-  bumpCoins(strong = false): void {
+  /**
+   * `strong`: the last coin of a depot pass lands — a bigger, brighter tick; `tier` 2 (a big payout) adds a gold flash
+   * that rings out from the counter.
+   */
+  bumpCoins(strong = false, tier = 0): void {
+    const s = strong ? 1.3 + 0.08 * tier : 1.18;
     this.coinPill.animate(
       [
         { transform: 'scale(1)', filter: 'brightness(1)' },
-        { transform: `scale(${strong ? 1.3 : 1.18})`, filter: `brightness(${strong ? 1.45 : 1.25})`, offset: 0.3 },
+        { transform: `scale(${s})`, filter: `brightness(${strong ? 1.45 + 0.2 * tier : 1.25})`, offset: 0.3 },
         { transform: 'scale(1)', filter: 'brightness(1)' },
       ],
-      { duration: strong ? 420 : 280, easing: 'cubic-bezier(.3,1.6,.5,1)' },
+      { duration: strong ? 420 + 80 * tier : 280, easing: 'cubic-bezier(.3,1.6,.5,1)' },
     );
+    if (tier >= 2) {
+      // The pill clips its children (paint containment): the flash rings out on the HUD layer over it.
+      const r = this.coinPill.getBoundingClientRect();
+      const ring = h('div', { class: 'coin-flash' });
+      ring.style.left = `${r.left}px`;
+      ring.style.top = `${r.top}px`;
+      ring.style.width = `${r.width}px`;
+      ring.style.height = `${r.height}px`;
+      this.el.parentElement!.append(ring);
+      ring.animate([{ transform: 'scale(0.9)', opacity: 0.95 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: 650, easing: 'ease-out' }).onfinish = () => ring.remove();
+    }
   }
 
   update(vm: HudVM, freeOffer: UpgradeId | null, dailyAvailable: boolean): void {
@@ -306,11 +378,18 @@ export class Hud {
     setText(this.rateText, vm.rate > 0 ? t('hud.perSec', { n: fmt(vm.rate) }) : '');
     setText(this.farmName, t(`farm.${vm.farmId}` as I18nKey));
     this.dots.forEach((d, i) => toggleClass(d, 'on', i <= vm.zone));
-    // Farm progress: how much of the farm has been cleared.
-    setStyle(this.progFill, 'transform', `scaleX(${Math.min(1, vm.cleared).toFixed(3)})`);
+    // Farm progress: how much of the farm has been cleared; a finished farm reads COMPLETE on a full bar.
+    const prog = this.progFill.parentElement!.parentElement!;
+    setStyle(this.progFill, 'transform', `scaleX(${vm.finished ? 1 : Math.min(1, vm.cleared).toFixed(3)})`);
     // FINAL HARVEST: the progress bar turns gold for the farm's last stretch.
-    toggleClass(this.progFill.parentElement!.parentElement!, 'final', vm.final);
-    setText(this.progText, `${Math.floor(vm.cleared * 100)}%`);
+    toggleClass(prog, 'final', vm.final);
+    toggleClass(prog, 'done', vm.finished);
+    setText(this.progText, vm.finished ? t('hud.complete') : `${Math.floor(vm.cleared * 100)}%`);
+    // The moment it completes (not when a finished farm is loaded): the bar fills, swells and flashes.
+    if (vm.finished && this.wasFinished === false && !document.documentElement.classList.contains('reduce-motion')) {
+      prog.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)', filter: 'brightness(1.8)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 650, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+    }
+    this.wasFinished = vm.finished;
     // transform (not height) so the fill animates on the compositor without layout.
     setStyle(this.basketFill, 'transform', `scaleY(${Math.min(1, vm.fill).toFixed(3)})`);
     setText(this.basketText, `${fmt(vm.mass)}/${fmt(vm.cap)}`);

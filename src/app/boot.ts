@@ -248,13 +248,14 @@ export async function boot(): Promise<App | null> {
 
   const loop = new Loop(
     (dt) => {
-      const held = input.effective;
+      // During the farm-finished celebration the crawler coasts, whatever the fingers do.
+      const held = input.effective && !game.celebrating;
       if (held) {
         input.totalHeld += dt;
         input.lastHeldAt = performance.now();
       }
       try {
-        sim.step(dt, { throttleHeld: held, overdrive: input.effectiveOverdrive });
+        sim.step(dt, { throttleHeld: held, overdrive: held && input.effectiveOverdrive });
         ads.addPlaytime(dt);
         for (const e of sim.drainEvents()) onEvent(e);
       } catch (e) {

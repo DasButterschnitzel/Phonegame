@@ -157,6 +157,12 @@ export class GameRenderer {
     this.rig.zoomPulse(0.6, 1.0);
   }
 
+  /** The farm is finished: the widest pull-back of all (held through the celebration) and the barn hops. */
+  onFarmFinished(): void {
+    this.rig.zoomPulse(0.8, 1.5);
+    this.depot.bounce(shared.uTime.value);
+  }
+
   resize(w: number, h: number): void {
     this.width = w;
     this.height = h;

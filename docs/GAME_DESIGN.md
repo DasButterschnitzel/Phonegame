@@ -137,6 +137,21 @@ needs time to clear the farm.
   (docs/DEVICE_TESTING.md).
 - First-time hints teach by reaction: ADD → MERGE → full basket → depot → the first route growth → OPEN FIELD → tornado.
 
+### Feedback hierarchy ("pop", src/app/juice.ts, src/ui/Hud.ts)
+Each step up is bigger, longer and louder than the one below it; routine things stay small so the big ones read.
+| Moment | What happens |
+|---|---|
+| Bite / chunk / kill | recoil away from the biter, debris, chunk arcs into the eating segment; a kill topples with dust (no camera shake per crop) |
+| Upgrade button (≈ 400 ms) | squash → stretch → settle, the icon jumps, the level badge flips and lands gold, the price ("−48") flies up and off the card, sparks; MERGE / OPEN FIELD / FINISH are 1.35× bigger. SPEED also surges the crawler (+25 % fading over 1.2 s), rears the head, kicks the camera and sends out a ring (bigger every 5th level) |
+| Depot payout | sized against recent income: routine → a few coins; good → more coins, a bigger counter; big → a gold cascade, rings, a flash on the coin counter, a success haptic |
+| Merge | pulled together, impact flash + ring + shockwave, a ripple runs down the whole chain; a never-seen level adds a golden fountain and a white shockwave before its dialog |
+| Route growth | dust along the plot borders, the new stretch draws itself, living crops along the new border flinch away, the camera pulls back |
+| New field | big ring, camera pull-back, fanfare, heavy haptic, banner |
+| Farm finished (1.6 s, before its dialog) | the widest pull-back, the barn hops, crop confetti from the head and the hopper, a golden ring, the chain wiggles twice, what is left of the field twinkles in four waves, a fanfare (boom, cymbal, run, held chord), a success haptic, the progress bar fills gold and reads COMPLETE. The crawler coasts meanwhile (the throttle rests), the map waits and no ad can interrupt (the big-moment quiet covers the dialog) |
+
+Evidence: `CAPTURE=1 npx playwright test capture --project=pixel7 -g pop:` writes frame-stepped clips and contact sheets
+(`capture/pop-*.mp4`, `-sheet.png`); DOM animations are frame-stepped too (WAAPI runs on the compositor clock).
+
 ## Bonus economy: generous without ads (src/game/config.ts `BONUS`)
 Freebies come from moments the player understands — no ad, no coins, no dice:
 | Moment | Gift |
@@ -145,6 +160,7 @@ Freebies come from moments the player understands — no ad, no coins, no dice:
 | 50 % | free tornado |
 | 75 % | free autopilot charge |
 | every field you open | coins: 15 s of income, bursting from the head into the counter |
+| farm finished | a free ×2-coins charge for the road (shown in the farm-complete dialog) |
 | arriving on a new farm | a tornado to start with |
 | (existing) lucky bugs, daily calendar, offline earnings | unchanged |
 
