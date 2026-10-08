@@ -46,6 +46,7 @@ export class GameRenderer {
   tornado = new TornadoView();
   waves = new Shockwaves();
   private dustAcc = 0;
+  private steamAcc = 0;
   /** 0..~0.25: how far the framing leans towards the depot hopper (approach with cargo, held through a wave). */
   private depotBias = 0;
   private depotHoldUntil = -1;
@@ -237,12 +238,30 @@ export class GameRenderer {
   private ambientFx(dt: number): void {
     const st = this.sim.state;
     const frac = st.v / vMax(st.progress.speedLevel);
+    const od = this.sim.overdrive;
     this.dustAcc += dt;
-    if (frac > 0.6 && this.dustAcc > 0.09) {
+    // OVERDRIVE kicks up twice the dust, a little bigger, plus a puff from under the head.
+    if (frac > 0.6 && this.dustAcc > (od > 0.2 ? 0.045 : 0.09)) {
       this.dustAcc = 0;
       const n = st.progress.segments.length;
       const p = this.cat.tailPoint(n, 0.6);
-      this.fx.burst(p.x, 0.12, p.z, 0xe8cfa0, 1, 0.8, 0.22, 0.55, 1.2, 2);
+      this.fx.burst(p.x, 0.12, p.z, 0xe8cfa0, 1, 0.8 + od * 0.6, 0.22 + od * 0.06, 0.55, 1.2, 2);
+      if (od > 0.2) {
+        // The head's blades kick dirt out to both sides as it digs in.
+        const h = this.cat.poses[0];
+        for (const side of [1, -1]) {
+          const sx = -h.tz * side;
+          const sz = h.tx * side;
+          this.fx.spray(h.x + sx * 0.7, 0.15, h.z + sz * 0.7, sx * 0.7 - h.tx, sz * 0.7 - h.tz, 0xe2c79a, 1, 3.2, 0.17, 0.42, 1.4, 6, 0.25, 3);
+        }
+      }
+    }
+    // A hot motor lets off steam from the antennae.
+    this.steamAcc += dt;
+    if (st.heat > 0.92 && this.steamAcc > 0.18) {
+      this.steamAcc = 0;
+      const h = this.cat.poses[0];
+      this.fx.burst(h.x - h.tx * 0.2, 1.9, h.z - h.tz * 0.2, 0xffffff, 2, 0.6, 0.26, 0.55, 2.2, -1.2);
     }
     this.sparkleAcc += dt;
     if (this.sparkleAcc > 0.35) {

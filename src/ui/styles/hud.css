@@ -57,7 +57,8 @@
   pointer-events: none;
 }
 
-.g3d:active {
+.g3d:active,
+.g3d.pressed {
   transform: translateY(calc(var(--lip, 5px) - 1px)) scale(0.96);
   box-shadow:
     0 1px 0 var(--cd, #b9c3cf),
@@ -604,7 +605,9 @@
 }
 
 .goal.ready:active,
-.goal.travel:active {
+.goal.ready.pressed,
+.goal.travel:active,
+.goal.travel.pressed {
   animation: none;
 }
 
@@ -934,6 +937,13 @@
 .floater.big {
   font-size: 32px;
   color: var(--gold);
+}
+
+/* OVERDRIVE (first few uses): a hot orange word over the head. */
+.floater.od {
+  font-size: 26px;
+  letter-spacing: 1px;
+  color: #ffb347;
 }
 
 .coin-fly {

@@ -100,6 +100,10 @@ export class CaterpillarView {
   private pitchV = 0;
   /** Blades grinding against crops that won't fit in a full basket. */
   private grindUntil = -1;
+  /** Antennae get their own material: they glow while OVERDRIVE heats the motor. */
+  private antMat = toon({ rim: 0.4 });
+  /** Blade size factor (they flare out while OVERDRIVE pushes). */
+  private bladeBoost = 1;
   private lastNow = 0;
   private prevYaw = 0;
   private turn = 0;
@@ -148,7 +152,7 @@ export class CaterpillarView {
     this.eyes.add(eyeWhites, this.pupils);
     this.head.add(this.eyes);
     for (const side of [1, -1]) {
-      const ant = new THREE.Mesh(parts.antenna, mat);
+      const ant = new THREE.Mesh(parts.antenna, this.antMat);
       ant.position.set(0.02, 1.12, 0.16 * side);
       this.antennae.push(ant);
       this.head.add(ant);
@@ -211,6 +215,15 @@ export class CaterpillarView {
   throttle(held: boolean): void {
     this.pitchV += held ? -2.4 : 1.4;
     for (const s of this.antSpring) s.v += held ? 7 : -5;
+  }
+
+  /**
+   * Second finger landed (OVERDRIVE) or lifted: the head digs in and the antennae whip back at once; on release the
+   * head comes up and the body settles (the strain wave follows from the speed change itself).
+   */
+  overdriveKick(on: boolean): void {
+    this.pitchV += on ? -3.4 : 1.8;
+    for (const s of this.antSpring) s.v += on ? 10 : -6;
   }
 
   /** Body b heaves its cargo up and out (depot unload). */
@@ -318,6 +331,12 @@ export class CaterpillarView {
     const open = (0.18 + 0.32 * Math.abs(Math.sin(this.chompPhase))) * (0.35 + 0.65 * speedFrac) * (1 - hg * 0.8);
     this.mandibles[0].rotation.y = -open;
     this.mandibles[1].rotation.y = open;
+
+    // OVERDRIVE: blades flare out; the antennae glow warmer as the motor heats up (red when it is hot).
+    const od = sim.overdrive;
+    this.bladeBoost += (1 + 0.22 * od - this.bladeBoost) * Math.min(1, dt * 10);
+    const hot = Math.max(0, Math.min(1, (st.heat - 0.35) / 0.65));
+    this.antMat.emissive.setRGB(0.55 * hot + 0.25 * od * (1 - hot), 0.12 * hot + 0.2 * od * (1 - hot), 0.02 * hot);
 
     this.setShadow(0, hp, 1.2);
     this.setLegs(0, hp, odo, 0, 1.15);
@@ -573,7 +592,7 @@ export class CaterpillarView {
     V.set(p.x + side * sn + j, p.y + y, p.z + side * c - j);
     E.set(0, p.yaw, this.spin * (side > 0 ? 1 : -1), 'YXZ');
     Q.setFromEuler(E);
-    S.setScalar(size / 0.3);
+    S.setScalar((size / 0.3) * this.bladeBoost);
     M4.compose(V, Q, S);
     this.blades.setMatrixAt(i, M4);
   }

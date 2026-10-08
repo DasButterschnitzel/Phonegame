@@ -149,6 +149,7 @@ export async function boot(): Promise<App | null> {
   // Any touch counts as activity (power saver) and is answered on the very next frame: the head leans into a press
   // before the simulation's speed has had a step to change.
   let lastInputAt = performance.now();
+  const odPt = { x: 0, y: 0 };
   let wasHeld = false;
   root.addEventListener('pointerdown', () => (lastInputAt = performance.now()), { capture: true });
   window.addEventListener('keydown', () => (lastInputAt = performance.now()));
@@ -158,11 +159,9 @@ export async function boot(): Promise<App | null> {
     wasHeld = held;
   });
   window.addEventListener('keydown', unlockAudio);
-  root.addEventListener('click', (e) => {
-    if (e.target instanceof Element && e.target.closest('button')) {
-      audio.tap();
-      haptics.fire('selection');
-    }
+  root.addEventListener('ui-tap', () => {
+    audio.tap();
+    haptics.fire('selection');
   });
   const applyAudio = (s: Settings) => {
     audio.setEnabled(s.sound, s.music);
@@ -171,7 +170,25 @@ export async function boot(): Promise<App | null> {
   game.settingsListeners.push(applyAudio);
   applyAudio(settings);
   const tutorial = new Tutorial(sim, game.toasts, meta.tutorial, () => saves.saveSoon(), (step) => game.hud.target(step));
+  tutorial.touch = matchMedia('(pointer: coarse)').matches;
   game.tutorialActive = () => tutorial.active;
+  // OVERDRIVE: the second finger lands → the head digs in, the servo winds up, a tick in the hand; the first few
+  // times the word itself pops over the head. A hot motor ignores the finger until it has cooled down.
+  input.onOverdrive((on) => {
+    lastInputAt = performance.now();
+    if (on && sim.state.heat > 0.9) return;
+    renderer.cat.overdriveKick(on);
+    audio.overdrive(on);
+    if (!on) return;
+    haptics.fire('light');
+    tutorial.overdriveUsed();
+    const seen = ['od1', 'od2', 'od3'].find((k) => !meta.tutorial[k]);
+    const h = renderer.cat.poses[0];
+    if (seen && renderer.project(h.x, 2.2, h.z, odPt)) {
+      meta.tutorial[seen] = true;
+      game.floaters.spawn(odPt.x, odPt.y, t('od.label'), 'od', 1.2);
+    }
+  });
   game.onCoinLand = (i) => audio.coinTick(i);
   renderer.stacks.onChunkLand = (_seg, height) => audio.land(height);
   game.openCollection = () => openCollection(game.modals, sim.state.maxLevelReached);
@@ -237,7 +254,7 @@ export async function boot(): Promise<App | null> {
         input.lastHeldAt = performance.now();
       }
       try {
-        sim.step(dt, { throttleHeld: held });
+        sim.step(dt, { throttleHeld: held, overdrive: input.effectiveOverdrive });
         ads.addPlaytime(dt);
         for (const e of sim.drainEvents()) onEvent(e);
       } catch (e) {

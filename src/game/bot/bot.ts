@@ -9,7 +9,7 @@ import { capacityOf, vMax } from '../config.ts';
 import { isFrontier } from '../territory.ts';
 import { upgradeValues } from '../advisor.ts';
 
-export type ProfileId = 'active' | 'casual' | 'idle' | 'noAds' | 'ads' | 'heavy' | 'speed' | 'merge';
+export type ProfileId = 'active' | 'casual' | 'idle' | 'noAds' | 'ads' | 'heavy' | 'speed' | 'merge' | 'twoFinger';
 
 export interface Profile {
   id: ProfileId;
@@ -26,6 +26,8 @@ export interface Profile {
   giftEvery: number;
   /** Uses tornado charges. */
   tornadoes: boolean;
+  /** Second finger down at sim time t (OVERDRIVE); absent = one finger only. */
+  overdrive?: (t: number) => boolean;
 }
 
 const activeHold = (t: number): boolean => t % 7 < 6;
@@ -40,6 +42,8 @@ export const PROFILES: Record<ProfileId, Profile> = {
   heavy: { ...base, id: 'heavy', label: 'ACTIVE_HEAVY_UPGRADER', pick: 'cheapest' },
   speed: { ...base, id: 'speed', label: 'ACTIVE_SPEED_FOCUSED', pick: 'speed' },
   merge: { ...base, id: 'merge', label: 'ACTIVE_MERGE_FOCUSED', pick: 'merge' },
+  // Pulses OVERDRIVE as well as the heat allows: 5 s pushing, 5 s cooling.
+  twoFinger: { ...base, id: 'twoFinger', label: 'ACTIVE_TWO_FINGER', overdrive: (t) => t % 10 < 5 },
 };
 
 /** Farm-progress bands (cleared share) the report splits each farm into. */
@@ -348,7 +352,7 @@ export function runBot(profile: Profile, opt: RunOptions): RunReport {
   let decideAcc = 0;
   let checkAcc = 0;
   while (st.simTime < total) {
-    sim.step(dt, { throttleHeld: profile.held(st.simTime) });
+    sim.step(dt, { throttleHeld: profile.held(st.simTime), overdrive: profile.overdrive?.(st.simTime) ?? false });
     farmTicks++;
     band.ticks++;
     const full = st.basket.mass >= capacityOf(st) - 0.5;

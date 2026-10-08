@@ -1,7 +1,7 @@
 import type { CoinReason, Command, DepotPass, FarmId, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
 import { FARM_ORDER } from './types.ts';
 import { FARMS, type FarmDef } from './farms/index.ts';
-import { DEPOT, FIELD, MISC, TERRITORY, capacityOf, farmEco, unloadAt, vMax } from './config.ts';
+import { DEPOT, FIELD, MISC, OVERDRIVE, TERRITORY, capacityOf, farmEco, overdriveShare, unloadAt, vMax } from './config.ts';
 import { buildBins, buildField, buildRoute, computeReach, markDirty } from './field.ts';
 import { nearestS, sampleAt, type PathSample } from './path.ts';
 import { bodyOffset, findMergePair, sortSegments, updateSpeed } from './caterpillar.ts';
@@ -68,6 +68,7 @@ export function newGameState(seed = 0x5eed): GameState {
     gift: { nextAt: 75, activeUntil: 0, kind: 'ladybug' },
     stats: { harvested: 0, unloads: 0, merges: 0, tornadoesUsed: 0, goldenHarvested: 0 },
     lastFullAt: -99,
+    heat: 0,
   };
 }
 
@@ -82,6 +83,8 @@ export class Sim {
   terr!: Territory;
   private cmds: Command[] = [];
   private events: SimEvent[] = [];
+  /** OVERDRIVE boost share applied in the last step (0 = none, 1 = full). */
+  overdrive = 0;
 
   constructor(state: GameState = newGameState()) {
     this.state = state;
@@ -212,8 +215,14 @@ export class Sim {
     st.boosts.incomeX2 = Math.max(0, st.boosts.incomeX2 - dt);
     st.boosts.autopilot = Math.max(0, st.boosts.autopilot - dt);
 
+    // OVERDRIVE: only while actually crawling at full throttle; the motor heats up and the boost fades with it.
+    const od = input.overdrive === true && (input.throttleHeld || st.boosts.autopilot > 0);
+    st.heat = od ? Math.min(1, st.heat + dt / OVERDRIVE.HEAT_S) : Math.max(0, st.heat - dt / OVERDRIVE.COOL_S);
+    this.overdrive = od ? overdriveShare(st.heat) : 0;
+    const boost = 1 + (OVERDRIVE.MULT - 1) * this.overdrive;
+
     const cap = this.capacity;
-    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, st.depot.active ? DEPOT.SLOW : 1);
+    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, (st.depot.active ? DEPOT.SLOW : 1) * boost);
     st.prevHeadS = st.headS;
     const ds = st.v * dt;
     st.headS += ds;

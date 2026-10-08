@@ -12,6 +12,9 @@ from finished farms, lucky bugs, tornadoes). Design: `docs/GAME_DESIGN.md`, `doc
 - **Monetization:** free to play with opt-in rewarded ads plus gentle, policy-limited interstitials (AdMob on mobile,
   portal SDKs on the web). No in-app purchases.
 - **Languages:** English, German
+- **Controls:** hold anywhere to crawl (Space on a keyboard); tap upgrades with another finger while crawling; a
+  second finger on the field is OVERDRIVE (Shift + Space), a short burst that heats the motor; accessibility
+  setting: tap to start/stop
 
 ## Quick start
 

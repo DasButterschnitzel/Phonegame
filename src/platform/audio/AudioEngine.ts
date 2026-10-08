@@ -472,6 +472,26 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * OVERDRIVE: a servo wind-up when the second finger lands (a rising whirr), a soft settle when it lifts. Quiet —
+   * it lives in the motor's family, under every gameplay sound.
+   */
+  overdrive(on: boolean): void {
+    if (!this.ctx || !this.can('overdrive', 120)) return;
+    if (on) {
+      this.sweep(0.32, 700, 2600, 4, 0.06);
+      this.tone(520, 0.3, 'triangle', 0.035, 0, 1180);
+    } else {
+      this.tone(980, 0.22, 'sine', 0.025, 0, 560);
+    }
+  }
+
+  /** The motor got hot: a short hiss of steam. */
+  overheat(): void {
+    if (!this.ctx || !this.can('overheat', 2000)) return;
+    this.noiseHit(0.45, 5200, 0.7, 0.035, 0);
+  }
+
   tap(): void {
     if (!this.ctx || !this.can('tap', 40)) return;
     this.tone(880, 0.04, 'sine', 0.08);

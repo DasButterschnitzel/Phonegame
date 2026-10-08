@@ -5,6 +5,7 @@ import { clock } from '../platform/clock.ts';
 import { BIOMES } from '../render/palette.ts';
 import { DebugView } from '../render/views/DebugView.ts';
 import { markDirty } from '../game/field.ts';
+import { vMax } from '../game/config.ts';
 import { AudioEngine } from '../platform/audio/AudioEngine.ts';
 
 export interface DebugApi {
@@ -50,6 +51,8 @@ export function installDebug(app: App): DebugApi {
     setThrottle: (held) => {
       input.force = held;
     },
+    setOverdrive: (on: boolean | null) => input.setForceOverdrive(on),
+    vMax: () => vMax(sim.state.progress.speedLevel),
     fastForward: (sec, throttle) => {
       const prev = input.force;
       if (throttle !== undefined) input.force = throttle;

@@ -114,6 +114,26 @@ test('motion: accelerate, cruise, brake', async ({ page }) => {
   });
 });
 
+test('overdrive: second finger surge, cruise, release (device resolution)', async ({ page }) => {
+  await start(page);
+  await g(page, '(g.state().maxLevelReached = 9, g.grant(5000), [0,1,2,3,4,5].forEach(() => g.buy("add")))');
+  await closeCam(page, 9);
+  await g(page, 'g.setThrottle(true)');
+  await page.clock.runFor(2500);
+  await clip(page, 'overdrive', 300, {
+    every: 3,
+    zoom: 360,
+    before: async (i) => {
+      if (i === 30) await g(page, 'g.setOverdrive(true)');
+      if (i === 240) await g(page, 'g.setOverdrive(false)');
+    },
+  });
+  // A hot motor: the boost has faded, antennae glow red, steam.
+  await g(page, '(g.state().heat = 0.96, g.setOverdrive(true))');
+  await clip(page, 'overdrive-hot', 90, { every: 3, zoom: 360 });
+  await g(page, '(g.setOverdrive(null), g.setThrottle(null))');
+});
+
 async function depotClip(page: Page, name: string, adds: number) {
   await start(page);
   await g(page, `(g.state().maxLevelReached = 9, g.grant(1e6), Array.from({ length: ${adds} }, () => g.buy("add")), g.fillBasket(0.95))`);

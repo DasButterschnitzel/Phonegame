@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Sim, newGameState } from './sim.ts';
-import { BODY, DEPOT, MOVE, SIM, TERRITORY, capacityOf, power, unloadAt, vMax } from './config.ts';
+import { BODY, DEPOT, MOVE, OVERDRIVE, SIM, TERRITORY, capacityOf, power, unloadAt, vMax } from './config.ts';
 import { sampleAt } from './path.ts';
 import { findMergePair } from './caterpillar.ts';
 import { offlineReward } from './economy.ts';
@@ -41,6 +41,80 @@ describe('movement', () => {
     sim.enqueue({ c: 'boost', id: 'autopilot', seconds: 60 });
     run(sim, 3, false);
     expect(sim.state.v).toBeGreaterThan(vMax(1) * 0.8);
+  });
+});
+
+describe('overdrive (second finger)', () => {
+  const runOd = (sim: Sim, seconds: number, held: boolean, overdrive: boolean) => {
+    const n = Math.round(seconds / SIM.DT);
+    for (let i = 0; i < n; i++) {
+      sim.step(SIM.DT, { throttleHeld: held, overdrive });
+      sim.drainEvents();
+    }
+  };
+  it('multiplies the current top speed (so SPEED upgrades still count) and never more than MULT', () => {
+    for (const lvl of [1, 8, MOVE.MAX_LVL]) {
+      const sim = new Sim();
+      barren(sim);
+      sim.state.progress.speedLevel = lvl;
+      runOd(sim, 3, true, false);
+      const v1 = sim.state.v;
+      runOd(sim, 2, true, true);
+      expect(sim.state.v).toBeGreaterThan(v1 * 1.2);
+      expect(sim.state.v).toBeLessThanOrEqual(vMax(lvl) * OVERDRIVE.MULT + 1e-9);
+    }
+  });
+  it('is a burst: the motor heats up and the boost fades; let go and it cools down', () => {
+    const sim = new Sim();
+    barren(sim);
+    runOd(sim, 3, true, false);
+    runOd(sim, OVERDRIVE.HEAT_S + 2, true, true);
+    expect(sim.state.heat).toBe(1);
+    expect(sim.overdrive).toBe(0);
+    expect(sim.state.v).toBeLessThan(vMax(1) * 1.02);
+    runOd(sim, OVERDRIVE.COOL_S + 0.1, true, false);
+    expect(sim.state.heat).toBe(0);
+    runOd(sim, 0.5, true, true);
+    expect(sim.overdrive).toBe(1);
+  });
+  it('needs the throttle: a second finger alone does nothing, and release eases down (no snap)', () => {
+    const sim = new Sim();
+    barren(sim);
+    runOd(sim, 3, false, true);
+    expect(sim.overdrive).toBe(0);
+    expect(sim.state.v).toBeLessThan(vMax(1) * MOVE.IDLE_FRAC * 1.05);
+    runOd(sim, 3, true, true);
+    const fast = sim.state.v;
+    runOd(sim, SIM.DT, true, false);
+    expect(sim.state.v).toBeGreaterThan(fast * 0.9);
+  });
+  it('the depot wave pays every segment exactly once at overdrive speed', () => {
+    const sim = new Sim();
+    barren(sim);
+    strongCaterpillar(sim, 14, 1);
+    sim.state.progress.speedLevel = MOVE.MAX_LVL;
+    sim.state.progress.capacityLevel = 60;
+    let filled = 0;
+    let paid = 0;
+    let segs = 0;
+    let ends = 0;
+    for (let i = 0; i < 30 * 60; i++) {
+      if (i % 40 === 0) {
+        filled += 30;
+        sim.state.basket.mass += 30;
+        sim.state.basket.value += 30;
+        sim.state.basket.massByTier[0] += 30;
+      }
+      // Pulsed like a player: push, let it cool, push again.
+      sim.step(SIM.DT, { throttleHeld: true, overdrive: i % 300 < 200 });
+      for (const e of sim.drainEvents()) {
+        if (e.t === 'unloadSeg') (segs++, (paid += e.value));
+        if (e.t === 'unload') ends++;
+      }
+    }
+    expect(ends).toBeGreaterThan(3);
+    expect(segs).toBeGreaterThanOrEqual(ends * 14);
+    expect(paid + sim.state.basket.value).toBeCloseTo(filled, 6);
   });
 });
 

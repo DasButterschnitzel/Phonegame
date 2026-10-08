@@ -1,4 +1,4 @@
-import { h } from './dom.ts';
+import { h, onTap } from './dom.ts';
 
 const LADYBUG = `<svg viewBox="0 0 64 64"><ellipse cx="32" cy="36" rx="20" ry="22" fill="#e63946" stroke="#2b2d42" stroke-width="3"/><path d="M32 14v44" stroke="#2b2d42" stroke-width="3"/><circle cx="32" cy="14" r="10" fill="#2b2d42"/><circle cx="28" cy="12" r="2.5" fill="#fff"/><circle cx="36" cy="12" r="2.5" fill="#fff"/><circle cx="22" cy="30" r="4" fill="#2b2d42"/><circle cx="42" cy="30" r="4" fill="#2b2d42"/><circle cx="22" cy="44" r="4" fill="#2b2d42"/><circle cx="42" cy="44" r="4" fill="#2b2d42"/><path d="M26 6l-4-5M38 6l4-5" stroke="#2b2d42" stroke-width="2.5" stroke-linecap="round"/></svg>`;
 const BUTTERFLY = `<svg viewBox="0 0 64 64"><g class="wing"><path d="M32 30C20 8 4 10 6 24s16 12 26 8z" fill="#9b5de5" stroke="#2b2d42" stroke-width="2.5"/><path d="M32 34C20 50 8 52 10 42s14-10 22-8z" fill="#f15bb5" stroke="#2b2d42" stroke-width="2.5"/></g><g class="wing r"><path d="M32 30C44 8 60 10 58 24s-16 12-26 8z" fill="#9b5de5" stroke="#2b2d42" stroke-width="2.5"/><path d="M32 34C44 50 56 52 54 42s-14-10-22-8z" fill="#f15bb5" stroke="#2b2d42" stroke-width="2.5"/></g><rect x="29" y="20" width="6" height="28" rx="3" fill="#2b2d42"/><circle cx="20" cy="22" r="3" fill="#ffd23f"/><circle cx="44" cy="22" r="3" fill="#ffd23f"/></svg>`;
@@ -18,8 +18,8 @@ export class Gift {
 
   constructor(root: HTMLElement) {
     this.el = h('button', { class: 'gift', 'data-ui': true, type: 'button', 'aria-label': 'gift', style: 'display:none' });
-    this.el.addEventListener('click', (e) => {
-      e.stopPropagation();
+    // Tappable with a second finger while the first one keeps crawling.
+    onTap(this.el, () => {
       this.hide();
       this.onTap();
     });

@@ -45,7 +45,7 @@ export function validateGame(g: Partial<GameState> | undefined): GameState {
   const d = newGameState();
   if (!g || typeof g !== 'object') return d;
   const out = { ...d, ...g } as GameState;
-  for (const k of ['simTime', 'rng', 'coins', 'lifetimeCoins', 'nextSegId', 'v', 'odometer', 'tornadoes', 'maxLevelReached', 'lastFullAt'] as const) {
+  for (const k of ['simTime', 'rng', 'coins', 'lifetimeCoins', 'nextSegId', 'v', 'odometer', 'tornadoes', 'maxLevelReached', 'lastFullAt', 'heat'] as const) {
     if (!isNum(out[k])) (out as unknown as Record<string, number>)[k] = d[k] as number;
   }
   if (!FARM_ORDER.includes(out.farmId)) out.farmId = 'meadow';

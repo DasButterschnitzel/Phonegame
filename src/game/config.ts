@@ -14,6 +14,24 @@ export const MOVE = {
   MAX_LVL: 25,
 } as const;
 
+/**
+ * OVERDRIVE: a second finger on the field pushes harder — a burst on top of the current top speed (it multiplies
+ * SPEED upgrades, never replaces them). The motor heats up while it lasts and the boost fades out as it gets hot;
+ * let go and it cools down. Holding two fingers all the time therefore buys nothing: it is a burst, not a mode.
+ */
+export const OVERDRIVE = {
+  MULT: 1.3,
+  /** Seconds of overdrive from cold until the motor is hot (no boost left). */
+  HEAT_S: 6,
+  /** Seconds to cool down from hot (as long as it heats: at best half the time is spent pushing). */
+  COOL_S: 6,
+  /** Heat above which the boost fades out (full boost below it). */
+  FADE_AT: 0.6,
+} as const;
+
+/** Boost share (0..1) left at motor heat h: full while cool, fading to nothing as it gets hot. */
+export const overdriveShare = (heat: number): number => Math.max(0, Math.min(1, (1 - heat) / (1 - OVERDRIVE.FADE_AT)));
+
 export const BODY = {
   HEAD_GAP: 1.25,
   SEG_SPACING: 1.1,

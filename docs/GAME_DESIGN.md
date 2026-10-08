@@ -18,6 +18,23 @@ soil turns into meadow, and the farm visibly transforms from a dense field into 
 | ADD / MERGE / SPEED / CAPACITY / TNT | ADD / MERGE / SPEED / CAPACITY / **TORNADO** (clears its whole radius) |
 | Clear the area → next level | **OPEN FIELD** (fenced zones) → **FINISH FARM** at 90 % cleared → map, 5 farms |
 
+### Multitouch: one finger drives, the other buys — or pushes
+- **Buy while driving.** Every button activates on its own pointer (`onTap` in `src/ui/dom.ts`): a tap made while
+  another finger holds the field produces no `click` on phones (the browser treats it as a two-finger gesture), so
+  buttons used to ignore it. Covered by a real multi-touch e2e (CDP touches, `e2e/touch.spec.ts`).
+- **OVERDRIVE.** A second finger on the field (Shift + Space on a keyboard) pushes harder: top speed × 1.3 on top of
+  the SPEED level (it multiplies upgrades, never replaces them). The motor heats up in 6 s — full boost for the
+  first 3.6 s, then it fades — and cools down in 6 s, so it is a burst, not a mode: holding two fingers all the time
+  gains nothing. A player who pulses it perfectly finishes farms ~12 % sooner (bot ACTIVE_TWO_FINGER); the economy
+  is balanced for one finger.
+- Fingers on buttons never count, nor do fingers that land within 22 px of one (a near-miss must not surge the
+  crawler); a third finger adds nothing; cancel, focus loss and backgrounding clear every finger.
+- Feedback: the head digs in and the antennae whip back on the next frame, the servo winds up, a light haptic tick,
+  blades flare, the head's blades kick dirt sideways, "OVERDRIVE!" pops over the head the first three times; as the
+  motor gets hot the antennae glow orange to red and it lets off steam with a hiss; on release the body settles
+  and the speed eases back. The one-time tip appears once ADD, MERGE and OPEN FIELD are known.
+- Accessibility toggle mode: a single-finger tap starts/stops the crawl (on release), a two-finger hold overdrives.
+
 ### Territory and route growth (src/game/territory.ts)
 - A farm is a grid of plots (3.6 units, 3×3 crops) authored as a small ASCII map per farm: plots, rocks, water, the
   start territory and the depot. Zones (rings by distance from the start) are assigned automatically.

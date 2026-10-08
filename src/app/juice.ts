@@ -206,12 +206,17 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
 
 /** Approach cue levels already played on this lap (0 = none, 1 = 50 %, 2 = 25 %, 3 = almost there). */
 let approachLevel = 0;
+let wasHot = false;
 
 export function juiceFrame(sim: Sim, audio: AudioEngine, held: boolean, r: GameRenderer, paused = false): void {
   bitesThisFrame = 0;
   const st = sim.state;
-  // Under a dialog the world stands still: so does the motor.
-  audio.setSpeed(paused ? 0 : Math.min(1, st.v / vMax(st.progress.speedLevel)));
+  // Under a dialog the world stands still: so does the motor. OVERDRIVE winds the servo a little higher.
+  audio.setSpeed(paused ? 0 : Math.min(1.4, st.v / vMax(st.progress.speedLevel)));
+  // The motor runs hot: one hiss of steam (once per overheat).
+  const hot = st.heat > 0.97;
+  if (hot && !wasHot && !paused) audio.overheat();
+  wasHot = hot;
   if (!paused) audio.motion(st.odometer, held);
   // Depot approach feedback with a meaningful load: soft blips at half a lap, a quarter lap and just before the chute.
   const L = sim.path.length;

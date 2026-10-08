@@ -3,7 +3,7 @@ import type { SimEvent } from '../game/types.ts';
 import type { Toasts } from '../ui/Toasts.ts';
 import { t, type I18nKey } from '../platform/i18n/i18n.ts';
 
-type Step = 'add' | 'merge' | 'full' | 'capacity' | 'expand' | 'tornado' | 'grow';
+type Step = 'add' | 'merge' | 'full' | 'capacity' | 'expand' | 'tornado' | 'grow' | 'overdrive';
 
 /** First-time-user hints, one at a time, remembered in the save. */
 export class Tutorial {
@@ -29,6 +29,14 @@ export class Tutorial {
     return this.current !== null;
   }
 
+  /** A second finger pushed OVERDRIVE (no need to teach it any more). */
+  overdriveUsed(): void {
+    this.done('overdrive');
+  }
+
+  /** Touch screens are taught the second finger, keyboards Shift. */
+  touch = true;
+
   private done(step: Step): void {
     if (this.flags[step]) return;
     this.flags[step] = true;
@@ -39,7 +47,8 @@ export class Tutorial {
   private show(step: Step | null): void {
     this.current = step;
     this.shownAt = this.sim.state.simTime;
-    this.toasts.hint(step ? t(`tut.${step}` as I18nKey) : null, step ? this.target(step) : null);
+    const key = step === 'overdrive' && !this.touch ? 'tut.overdriveKey' : `tut.${step}`;
+    this.toasts.hint(step ? t(key as I18nKey) : null, step ? this.target(step) : null);
   }
 
   onEvent(e: SimEvent): void {
@@ -68,6 +77,7 @@ export class Tutorial {
     if (this.current === 'capacity' && age > 8) this.done('capacity');
     if (this.current === 'tornado' && age > 12) this.done('tornado');
     if (this.current === 'grow' && age > 4) this.show(null);
+    if (this.current === 'overdrive' && age > 7) this.done('overdrive');
     if (this.current) return;
     if (!f.add && this.sim.check('add').ok) return this.show('add');
     if (f.add && !f.merge && this.sim.check('merge').ok) return this.show('merge');
@@ -81,5 +91,7 @@ export class Tutorial {
     }
     if (!f.expand && this.sim.check('expand').ok) return this.show('expand');
     if (f.add && !f.tornado && st.simTime > 100 && st.tornadoes > 0) return this.show('tornado');
+    // Once the basics are known, while crawling: a second finger pushes harder.
+    if (f.merge && f.expand && !f.overdrive && st.simTime > 200 && st.v > 0.5) return this.show('overdrive');
   }
 }

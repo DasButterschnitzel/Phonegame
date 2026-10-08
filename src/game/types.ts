@@ -131,10 +131,14 @@ export interface GameState {
   gift: { nextAt: number; activeUntil: number; kind: 'butterfly' | 'ladybug' };
   stats: { harvested: number; unloads: number; merges: number; tornadoesUsed: number; goldenHarvested: number };
   lastFullAt: number;
+  /** OVERDRIVE motor heat (0 cold … 1 hot). */
+  heat: number;
 }
 
 export interface SimInput {
   throttleHeld: boolean;
+  /** A second finger on the field (or Shift): OVERDRIVE while the throttle is on. */
+  overdrive?: boolean;
 }
 
 export type Command =
