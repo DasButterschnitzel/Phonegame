@@ -2,6 +2,7 @@ import type { BoostId, UpgradeId } from '../game/types.ts';
 import type { HudVM, UpgradeVM } from './viewModel.ts';
 import { button, h, setText, toggleClass } from './dom.ts';
 import { icon, type IconName } from './icons.ts';
+import { farmTitle, titleForKey } from './farmNames.ts';
 import { fmt, t, type I18nKey } from '../platform/i18n/i18n.ts';
 import { formatDuration } from '../shared/format.ts';
 import { TERRITORY } from '../game/config.ts';
@@ -382,7 +383,7 @@ export class Hud {
     this.freeOffer = freeOffer;
     this.rec = rec;
     setText(this.rateText, vm.rate > 0 ? t('hud.perSec', { n: fmt(vm.rate) }) : '');
-    setText(this.farmName, t(`farm.${vm.farmId}` as I18nKey));
+    setText(this.farmName, farmTitle(vm.farm));
     this.dots.forEach((d, i) => toggleClass(d, 'on', i <= vm.zone));
     // Farm progress: how much of the farm has been cleared; a finished farm reads COMPLETE on a full bar.
     const prog = this.progFill.parentElement!.parentElement!;
@@ -407,7 +408,7 @@ export class Hud {
     toggleClass(this.goal, 'hidden', !g);
     if (g) {
       const travel = g.id === 'travel';
-      setText(this.goalTitle, travel ? t('up.travel', { farm: t(`farm.${g.farm}` as I18nKey) }) : t(g.id === 'expand' ? 'up.expand' : 'up.finish'));
+      setText(this.goalTitle, travel ? t('up.travel', { farm: titleForKey(g.farm, g.worldSeed) }) : t(g.id === 'expand' ? 'up.expand' : 'up.finish'));
       setStyle(this.goalCostRow, 'display', travel ? 'none' : '');
       // OPEN FIELD: a coin price that drops to FREE once the open area is mostly cleared. FINISH: clearing progress.
       const free = !travel && g.id === 'expand' && g.cost === 0;

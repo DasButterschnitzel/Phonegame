@@ -1,4 +1,4 @@
-import type { FarmId } from '../game/types.ts';
+import type { BiomeId, CropId } from '../game/types.ts';
 
 export interface Biome {
   sky: number;
@@ -18,7 +18,8 @@ export interface Biome {
   water: number;
 }
 
-export const BIOMES: Record<FarmId, Biome> = {
+/** Looks per biome family (World Tour farms of a family share it, with variants). */
+export const BIOMES: Partial<Record<BiomeId, Biome>> = {
   // Tilled soil fields + sandy paths make crops and the caterpillar pop against the grass outside the fence.
   meadow: { sky: 0x8fd6ff, fog: 0xcdeeff, groundA: 0xb9864f, groundB: 0xad7b46, outside: 0x7cc56b, path: 0xf5d394, pathEdge: 0xd9a866, hemiSky: 0xffffff, hemiGround: 0x6d8f4a, sun: 0xfff1d6, decor: 'tree', yaw: Math.PI / 4, cleared: 0x8fd468, water: 0x5cc3f0 },
   pumpkin: { sky: 0xffcf96, fog: 0xffe6c8, groundA: 0x9f6d3c, groundB: 0x936435, outside: 0x9bb04a, path: 0xf0cb8e, pathEdge: 0xcf9d5f, hemiSky: 0xfff0dd, hemiGround: 0x7a6a3a, sun: 0xffe0b0, decor: 'birch', yaw: Math.PI / 4, cleared: 0xa9cc5c, water: 0x5bb8d6 },
@@ -33,11 +34,30 @@ export const LEVEL_COLORS = [
 ];
 export const levelColor = (level: number): number => LEVEL_COLORS[(level - 1) % LEVEL_COLORS.length];
 
-/** Loot-stack block colours per crop tier (golden = index 4). */
-export const TIER_BLOCK_COLORS: Record<FarmId, number[]> = {
-  meadow: [0xc6f25a, 0xf2d16b, 0xff8c3b, 0xff7b1c, 0xffd700],
-  pumpkin: [0x8fd694, 0xe9d36a, 0xff7b1c, 0x3fae49, 0xffd700],
-  sunflower: [0xc77dff, 0xff4d4d, 0xffe14d, 0xffc300, 0xffd700],
-  snowyberry: [0xc77dff, 0x4d6bff, 0xff3b5c, 0xff7b1c, 0xffd700],
-  desert: [0xff3b3b, 0xff6fb5, 0x3fae49, 0xff3fa4, 0xffd700],
+/** The look of a biome family (falls back to the meadow's while a family's look is being made). */
+export const biomeLook = (id: BiomeId): Biome => BIOMES[id] ?? BIOMES.meadow!;
+
+/** Loot-stack block colour of each crop (its most recognisable colour). */
+export const CROP_COLORS: Record<CropId, number> = {
+  lettuce: 0xc6f25a,
+  wheat: 0xf2d16b,
+  carrot: 0xff8c3b,
+  corn: 0xffe14d,
+  cabbage: 0x8fd694,
+  pumpkin: 0xff7b1c,
+  squash: 0xe9d36a,
+  watermelon: 0x3fae49,
+  tomato: 0xff4d4d,
+  sunflower: 0xffc300,
+  strawberry: 0xff3b5c,
+  blueberry: 0x4d6bff,
+  turnip: 0xc77dff,
+  pepper: 0xff3b3b,
+  cactusfruit: 0xff6fb5,
+  dragonfruit: 0xff3fa4,
 };
+
+export const GOLD_BLOCK = 0xffd700;
+
+/** Loot-stack block colours of a farm's four crop tiers, golden as index 4. */
+export const tierColors = (crops: readonly CropId[]): number[] => [...crops.map((c) => CROP_COLORS[c]), GOLD_BLOCK];

@@ -12,7 +12,7 @@ import { DepotView } from './views/DepotView.ts';
 import type { DebugView } from './views/DebugView.ts';
 import { Shockwaves } from './fx/Shockwave.ts';
 import { materialFlags, shared } from './materials.ts';
-import { BIOMES } from './palette.ts';
+import { biomeLook } from './palette.ts';
 import { DynamicResolution, detectTier, pixelBudgetRatio, settingsFor, type QualitySettings, type QualityTier } from './quality.ts';
 import { sampleAt, type PathSample } from '../game/path.ts';
 import type { PathTable } from '../game/types.ts';
@@ -112,7 +112,7 @@ export class GameRenderer {
   }
 
   applyBiome(): void {
-    const b = BIOMES[this.sim.farm.id];
+    const b = biomeLook(this.sim.farm.biome);
     this.hemi.color.setHex(b.hemiSky);
     this.hemi.groundColor.setHex(b.hemiGround);
     this.sun.color.setHex(b.sun);

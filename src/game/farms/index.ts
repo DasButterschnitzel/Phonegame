@@ -1,5 +1,5 @@
-import type { CropId, FarmId } from '../types.ts';
-import { FIELD } from '../config.ts';
+import type { BiomeId, CropId, FarmBlueprint, FarmKey, ModifierId, SizeClass, StarterFarmId } from '../types.ts';
+import { FIELD, MISC, farmEco, worldEco, type FarmEco } from '../config.ts';
 import { buildLayout, type FarmLayout } from './layout.ts';
 
 /**
@@ -10,9 +10,32 @@ import { buildLayout, type FarmLayout } from './layout.ts';
  * The route is always the outline of the cleared territory; clearing plots next to it pushes it outward.
  */
 export interface FarmDef {
-  id: FarmId;
+  /** The farm key (a starter id or a World Tour key). */
+  id: FarmKey;
+  /** Starter farms: 0..4 (their place in the Starter Tour and their economy); World Tour farms: −1. */
   index: number;
   seed: number;
+  biome: BiomeId;
+  /** Farm number over the whole journey (#1 Sunny Meadow …). */
+  ordinal: number;
+  /** 0 = Starter Tour, 1… = World Tours. */
+  tour: number;
+  /** Position in its Tour. */
+  slot: number;
+  size: SizeClass;
+  modifier: ModifierId | null;
+  showcase: boolean;
+  /** Name index in the biome's name list (−1 = the starter farm's own name). */
+  name: number;
+  variant: number;
+  /** Values, costs and crop toughness of this farm. */
+  eco: FarmEco;
+  /** Chance a crop is golden. */
+  goldenP: number;
+  /** Top speed factor (FAST TRACK). */
+  speedMult: number;
+  /** The blueprint a World Tour farm was built from (null for starter farms). */
+  bp: FarmBlueprint | null;
   crops: [CropId, CropId, CropId, CropId];
   map: readonly string[];
   /** Share of the non-start plots in each zone (auto-assigned by distance from the start). */
@@ -32,12 +55,25 @@ const ZONE_SHARE = [0.12, 0.22, 0.3, 0.36] as const;
 const ZONE_COST = [0, 900, 12_000, 110_000] as const;
 const MAX_SEGMENTS = [8, 14, 22, 32] as const;
 
-function farm(id: FarmId, index: number, seed: number, crops: FarmDef['crops'], map: string[]): FarmDef {
+function farm(id: StarterFarmId, index: number, seed: number, crops: FarmDef['crops'], map: string[]): FarmDef {
   const layout = buildLayout(map, FIELD.PLOT, ZONE_SHARE, FIELD.PLOT_CROPS);
   return {
     id,
     index,
     seed,
+    biome: id,
+    ordinal: index + 1,
+    tour: 0,
+    slot: index,
+    size: 'standard',
+    modifier: null,
+    showcase: false,
+    name: -1,
+    variant: 0,
+    eco: farmEco(index),
+    goldenP: MISC.GOLDEN_P,
+    speedMult: 1,
+    bp: null,
     crops,
     map,
     zoneShare: ZONE_SHARE,
@@ -49,7 +85,7 @@ function farm(id: FarmId, index: number, seed: number, crops: FarmDef['crops'], 
   };
 }
 
-export const FARMS: Record<FarmId, FarmDef> = {
+export const FARMS: Record<StarterFarmId, FarmDef> = {
   // Wide meadow: a pond eats into the top, a rock spur from the left.
   meadow: farm('meadow', 0, 1101, ['lettuce', 'wheat', 'carrot', 'pumpkin'], [
     '..oooo~~oooo..',
@@ -120,4 +156,50 @@ export const FARMS: Record<FarmId, FarmDef> = {
   ]),
 };
 
-export const getFarm = (id: FarmId): FarmDef => FARMS[id];
+/** Modifier effects: an opportunity, never a handicap. */
+export const MODIFIER_FX: Record<ModifierId, { value: number; hp: number; golden: number; speed: number }> = {
+  // Golden soil: four times the golden crops.
+  golden: { value: 1, hp: 1, golden: 4, speed: 1 },
+  // Bumper harvest: everything is worth more (and a touch tougher).
+  bumper: { value: 1.35, hp: 1.1, golden: 1, speed: 1 },
+  // Fast track: the crawler runs a little faster here.
+  fasttrack: { value: 1, hp: 1, golden: 1, speed: 1.12 },
+  // Giant crops: tougher, much more valuable.
+  giant: { value: 1.7, hp: 1.45, golden: 1, speed: 1 },
+  // Rich field: high value, tougher crops.
+  rich: { value: 1.5, hp: 1.25, golden: 1, speed: 1 },
+};
+
+/** A World Tour farm from its blueprint (`coreRank`: tours completed, a small permanent bonus). */
+export function farmFromBlueprint(bp: FarmBlueprint, coreRank: number): FarmDef {
+  const layout = buildLayout(bp.map, FIELD.PLOT, ZONE_SHARE, FIELD.PLOT_CROPS);
+  const fx = bp.modifier ? MODIFIER_FX[bp.modifier] : null;
+  return {
+    id: bp.key,
+    index: -1,
+    seed: bp.seed,
+    biome: bp.biome,
+    ordinal: bp.ordinal,
+    tour: bp.tour,
+    slot: bp.slot,
+    size: bp.size,
+    modifier: bp.modifier,
+    showcase: bp.showcase,
+    name: bp.name,
+    variant: bp.variant,
+    eco: worldEco(bp.slot, coreRank, fx?.value ?? 1, fx?.hp ?? 1),
+    goldenP: MISC.GOLDEN_P * (fx?.golden ?? 1),
+    speedMult: fx?.speed ?? 1,
+    bp,
+    crops: bp.crops,
+    map: bp.map,
+    zoneShare: ZONE_SHARE,
+    zoneCost: ZONE_COST,
+    maxSegments: MAX_SEGMENTS,
+    layout,
+    bounds: layout.bounds,
+    barn: layout.barn,
+  };
+}
+
+export const getFarm = (id: StarterFarmId): FarmDef => FARMS[id];

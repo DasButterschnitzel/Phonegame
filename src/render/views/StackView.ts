@@ -3,7 +3,7 @@ import type { Sim } from '../../game/sim.ts';
 import { capacityPerSegment, maxBlocks, unloadAt } from '../../game/config.ts';
 import { blockGeometry } from '../geo/caterpillar.ts';
 import { instancedOutline, toon } from '../materials.ts';
-import { TIER_BLOCK_COLORS } from '../palette.ts';
+import { tierColors } from '../palette.ts';
 import { C, E, M4, Q, S, V } from '../scratch.ts';
 import type { CaterpillarView } from './CaterpillarView.ts';
 
@@ -136,7 +136,7 @@ export class StackView {
   }
 
   onFarmChanged(): void {
-    this.tierColors = TIER_BLOCK_COLORS[this.sim.farm.id];
+    this.tierColors = tierColors(this.sim.farm.crops);
     this.flying.length = 0;
     this.load.clear();
     this.pending.clear();

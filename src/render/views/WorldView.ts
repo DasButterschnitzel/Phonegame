@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
 import type { PathTable } from '../../game/types.ts';
-import { BIOMES } from '../palette.ts';
+import { biomeLook } from '../palette.ts';
 import { decorGeometry, flowerClusterGeometry, pathRibbon, rockGeometry, snowmanGeometry, tuftGeometry, windmillSailsGeometry, windmillTowerGeometry } from '../geo/world.ts';
 import { cloudShadowTexture, shared, toon } from '../materials.ts';
 import type { QualitySettings } from '../quality.ts';
@@ -83,7 +83,7 @@ export class WorldView {
     this.sails = null;
     this.towerM = [];
     const { farm } = this.sim;
-    const biome = BIOMES[farm.id];
+    const biome = biomeLook(farm.biome);
     // The tilted camera never sees the horizon, so a plain clear colour (free) matches the fog.
     this.scene.background = new THREE.Color(biome.fog);
     this.scene.fog = new THREE.Fog(biome.fog, 38, 80);
@@ -132,7 +132,7 @@ export class WorldView {
     this.sails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.group.add(this.sails);
     this.spinSails(0);
-    if (farm.id === 'snowyberry') this.addInstanced(snowmanGeometry(), this.mat, ring(10, 60, 3, 9), () => 1);
+    if (farm.biome === 'snowyberry') this.addInstanced(snowmanGeometry(), this.mat, ring(10, 60, 3, 9), () => 1);
 
     // Drifting cloud shadows (one transparent full-screen layer: high tier only).
     this.clouds = null;
@@ -170,7 +170,7 @@ export class WorldView {
    */
   setRoute(prev: PathTable | null): void {
     const { farm, path, state } = this.sim;
-    const biome = BIOMES[farm.id];
+    const biome = biomeLook(farm.biome);
     const style = state.progress.zone;
     this.shownStyle = style;
     let arcOf: (i: number) => number = () => 0;

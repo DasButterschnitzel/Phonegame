@@ -17,6 +17,7 @@ import { openSettings } from '../ui/modals/Settings.ts';
 import { openBonusChoice } from '../ui/modals/BonusChoice.ts';
 import { buildHud } from '../ui/viewModel.ts';
 import { h } from '../ui/dom.ts';
+import { titleForKey, titleOf } from '../ui/farmNames.ts';
 import { ICONS, icon } from '../ui/icons.ts';
 import type { AdManager } from '../platform/ads/AdManager.ts';
 import type { Placement } from '../platform/ads/AdService.ts';
@@ -255,7 +256,7 @@ export class GameController {
 
   /** Cloud wipe that hides the farm swap, then a welcome banner. */
   travelTo(id: FarmId, run: () => void): void {
-    const wipe = h('div', { class: 'travel-wipe', 'data-ui': true }, h('div', { class: 'card outline' }, icon('map', 'ico wipe-ico'), t(`farm.${id}` as I18nKey)));
+    const wipe = h('div', { class: 'travel-wipe', 'data-ui': true }, h('div', { class: 'card outline' }, icon('map', 'ico wipe-ico'), titleForKey(id, this.d.sim.state.journey.seed)));
     this.ui.append(wipe);
     const reveal = async () => {
       run();
@@ -264,7 +265,7 @@ export class GameController {
       setTimeout(() => {
         wipe.classList.add('out');
         setTimeout(() => wipe.remove(), 600);
-        this.toasts.banner(t('banner.newFarm', { farm: t(`farm.${id}` as I18nKey) }), t('hud.cleared', { n: Math.floor(this.d.sim.cleared * 100) }));
+        this.toasts.banner(t('banner.newFarm', { farm: titleOf(this.d.sim.farm) }), t('hud.cleared', { n: Math.floor(this.d.sim.cleared * 100) }));
       }, 380);
     };
     if (this.d.settings.reduceMotion) void reveal();

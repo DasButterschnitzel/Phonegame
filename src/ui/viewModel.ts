@@ -1,6 +1,6 @@
 import type { Sim } from '../game/sim.ts';
 import type { FarmId, UpgradeId } from '../game/types.ts';
-import { FARM_ORDER } from '../game/types.ts';
+import { STARTER_FARMS } from '../game/types.ts';
 import { capacityOf, MOVE, TERRITORY } from '../game/config.ts';
 import { maxSegments } from '../game/upgrades.ts';
 import { findMergePair } from '../game/caterpillar.ts';
@@ -35,9 +35,11 @@ export interface HudVM {
   /** This farm is done (the progress bar reads COMPLETE). */
   finished: boolean;
   farmId: Sim['farm']['id'];
+  /** What the farm is called and where it is on the journey. */
+  farm: { key: string; biome: Sim['farm']['biome']; name: number; ordinal: number };
   upgrades: Record<'add' | 'merge' | 'speed' | 'capacity', UpgradeVM>;
   /** `progress`: clearing progress towards the free fence / finishing (0..1). */
-  goal: { id: 'expand' | 'finish'; cost: number; ok: boolean; progress: number } | { id: 'travel'; farm: FarmId; cost: 0; ok: true; progress: 1 } | null;
+  goal: { id: 'expand' | 'finish'; cost: number; ok: boolean; progress: number } | { id: 'travel'; farm: FarmId; worldSeed: number; cost: 0; ok: true; progress: 1 } | null;
   tornadoes: number;
   incomeX2: number;
   autopilot: number;
@@ -69,8 +71,9 @@ export function buildHud(sim: Sim): HudVM {
     goal = { id: 'finish', cost: 0, ok: c.ok, progress: Math.min(1, sim.cleared / TERRITORY.FINISH_AT) };
   } else {
     // Farm done: point at the next unfinished farm so there's always a "what next".
-    const next = FARM_ORDER.find((f) => f !== st.farmId && st.unlockedFarms.includes(f) && !st.completedFarms.includes(f));
-    if (next) goal = { id: 'travel', farm: next, cost: 0, ok: true, progress: 1 };
+    // Farm done: the journey's next destination (or, in the Starter Tour, the next unfinished farm) — always a "what next".
+    const next = sim.nextDestination ?? STARTER_FARMS.find((f) => f !== st.farmId && st.unlockedFarms.includes(f) && !st.completedFarms.includes(f));
+    if (next) goal = { id: 'travel', farm: next, worldSeed: st.journey.seed, cost: 0, ok: true, progress: 1 };
   }
   return {
     coins: st.coins,
@@ -85,6 +88,7 @@ export function buildHud(sim: Sim): HudVM {
     final: sim.final,
     finished: p.finished,
     farmId: sim.farm.id,
+    farm: { key: sim.farm.id, biome: sim.farm.biome, name: sim.farm.name, ordinal: sim.farm.ordinal },
     upgrades: {
       add: up('add', p.addCount + 1, { a: p.segments.length, b: maxSegments(sim.farm, p.zone, sim.path) }),
       merge: up('merge', p.mergeCount + 1, { a: pair ? pair.level + 1 : undefined }),

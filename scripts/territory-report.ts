@@ -1,7 +1,7 @@
 /** Prints each farm's zone map and a headless run showing when the route grows. `node scripts/territory-report.ts [farm] [minutes]` */
 import { FARMS } from '../src/game/farms/index.ts';
 import { Sim, newGameState } from '../src/game/sim.ts';
-import type { FarmId } from '../src/game/types.ts';
+import type { StarterFarmId as FarmId } from '../src/game/types.ts';
 
 const farmArg = (process.argv[2] ?? 'all') as FarmId | 'all';
 const minutes = Number(process.argv[3] ?? 0);

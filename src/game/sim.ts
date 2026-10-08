@@ -1,7 +1,9 @@
-import type { BoostId, CoinReason, Command, DepotPass, FarmId, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
-import { FARM_ORDER } from './types.ts';
-import { FARMS, type FarmDef } from './farms/index.ts';
-import { BONUS, DEPOT, FIELD, FINAL, MISC, MOVE, OVERDRIVE, TERRITORY, capacityOf, farmEco, overdriveShare, unloadAt, vMax } from './config.ts';
+import type { BoostId, CoinReason, Command, DepotPass, FarmBlueprint, FarmKey, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
+import { STARTER_FARMS, isStarterFarm } from './types.ts';
+import { FARMS, farmFromBlueprint, type FarmDef } from './farms/index.ts';
+import { BONUS, DEPOT, FIELD, FINAL, MISC, MOVE, OVERDRIVE, TERRITORY, WORLD, capacityOf, overdriveShare, unloadAt, vMax } from './config.ts';
+import { blueprintForKey, discoverBiome, frontierPlan, makeWorldSeed, newJourney, ordinalOf, stampFarm, worldUnlocked } from './world/journey.ts';
+import { FARMS_PER_TOUR, STARTER_COUNT, planFarm, tourOf } from './world/plan.ts';
 import { buildBins, buildField, buildRoute, computeReach, markDirty } from './field.ts';
 import { nearestS, sampleAt, type PathSample } from './path.ts';
 import { bodyOffset, findMergePair, sortSegments, updateSpeed } from './caterpillar.ts';
@@ -30,9 +32,9 @@ export function newFarmProgress(firstSegId: number): FarmProgress {
 }
 
 /** Cleared share of a farm you are not on, from its saved field (null = never visited). */
-export function clearedOfSnapshot(id: FarmId, snap: FieldSnapshot | undefined): number | null {
+export function clearedOfSnapshot(farm: FarmDef, snap: FieldSnapshot | undefined): number | null {
   if (!snap) return null;
-  const l = FARMS[id].layout;
+  const l = farm.layout;
   const total = l.zonePlots.reduce((a, b) => a + b, 0) * FIELD.PLOT_CROPS ** 2;
   const dead = snap.ver === l.version ? unpackBits(snap.dead, total) : null;
   if (!dead || total === 0) return 0;
@@ -70,7 +72,20 @@ export function newGameState(seed = 0x5eed): GameState {
     stats: { harvested: 0, unloads: 0, merges: 0, tornadoesUsed: 0, goldenHarvested: 0 },
     lastFullAt: -99,
     heat: 0,
+    journey: newJourney(),
   };
+}
+
+/** Farm definition for a key: a starter farm, or a World Tour farm from its stored blueprint (rebuilt from the key if lost). */
+export function resolveFarm(key: FarmKey, progress: FarmProgress, st: GameState): FarmDef {
+  if (isStarterFarm(key)) return FARMS[key];
+  let bp = progress.bp && progress.bp.key === key ? progress.bp : null;
+  if (!bp) {
+    bp = blueprintForKey(key, st.journey.seed);
+    if (bp) progress.bp = bp;
+  }
+  if (!bp) throw new Error(`unknown farm ${key}`);
+  return farmFromBlueprint(bp, st.journey.tours);
 }
 
 const tmp: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
@@ -96,9 +111,9 @@ export class Sim {
     this.loadFarm(state.farmId);
   }
 
-  private loadFarm(id: FarmId): void {
+  private loadFarm(id: FarmKey): void {
     const st = this.state;
-    this.farm = FARMS[id];
+    this.farm = resolveFarm(id, st.progress, st);
     this.field = buildField(this.farm);
     this.terr = newTerritory(this.farm.layout);
     const f = this.field;
@@ -171,7 +186,7 @@ export class Sim {
   }
 
   get valueMult(): number {
-    return farmEco(this.farm.index).valueMult;
+    return this.farm.eco.valueMult;
   }
 
   get capacity(): number {
@@ -243,7 +258,7 @@ export class Sim {
     const cap = this.capacity;
     this.surge = Math.max(0, this.surge - dt);
     const surge = 1 + MOVE.SURGE * (this.surge / MOVE.SURGE_S);
-    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, (st.depot.active ? DEPOT.SLOW : 1) * boost * surge * (final ? FINAL.SPEED : 1));
+    updateSpeed(st, input.throttleHeld, Math.min(1, st.basket.mass / cap), dt, (st.depot.active ? DEPOT.SLOW : 1) * boost * surge * (final ? FINAL.SPEED : 1) * this.farm.speedMult);
     st.prevHeadS = st.headS;
     const ds = st.v * dt;
     st.headS += ds;
@@ -686,28 +701,120 @@ export class Sim {
   private finishFarm(): void {
     const st = this.state;
     const p = st.progress;
+    const j = st.journey;
+    const farm = this.farm;
     p.finished = true;
     const reward = finishReward(st, this.valueMult);
-    st.economy.passive[this.farm.id] = Math.max(st.economy.passive[this.farm.id] ?? 0, st.economy.ema * MISC.PASSIVE_FRAC);
-    if (!st.completedFarms.includes(this.farm.id)) st.completedFarms.push(this.farm.id);
-    const next = FARM_ORDER[this.farm.index + 1] ?? null;
-    if (next && !st.unlockedFarms.includes(next)) st.unlockedFarms.push(next);
+    st.economy.passive[farm.id] = Math.max(st.economy.passive[farm.id] ?? 0, st.economy.ema * MISC.PASSIVE_FRAC);
+    const seconds = Math.max(0, Math.round(st.simTime - (p.arrivedAt ?? st.simTime)));
+    j.completed++;
+    if (seconds > 0 && (j.best.fastestS === 0 || seconds < j.best.fastestS)) j.best.fastestS = seconds;
+    stampFarm(j, { key: farm.id, ordinal: farm.ordinal, biome: farm.biome, name: farm.name, seconds, ...(farm.showcase ? { showcase: true } : {}) });
+    // The journey has no end: the next destination always exists once the Starter Tour is done.
+    let next: FarmKey | null = null;
+    let tourDone: number | null = null;
+    if (farm.tour === 0) {
+      if (!st.completedFarms.includes(farm.id)) st.completedFarms.push(farm.id);
+      const nxt = STARTER_FARMS[farm.index + 1];
+      if (nxt) {
+        next = nxt;
+        if (!st.unlockedFarms.includes(nxt)) st.unlockedFarms.push(nxt);
+        j.ordinal = Math.max(j.ordinal, farm.ordinal + 1);
+      } else {
+        // STARTER TOUR COMPLETE: Core Rank 1, the World Tour opens.
+        tourDone = 0;
+        j.tours = Math.max(j.tours, 1);
+        if (!j.seed) j.seed = makeWorldSeed(st.rng, j.completed);
+        j.ordinal = Math.max(j.ordinal, STARTER_COUNT + 1);
+      }
+    } else {
+      if (farm.slot === FARMS_PER_TOUR - 1) {
+        tourDone = farm.tour;
+        j.tours = Math.max(j.tours, farm.tour + 1);
+      }
+      j.ordinal = Math.max(j.ordinal, farm.ordinal + 1);
+    }
+    if (!next && worldUnlocked(j)) next = planFarm(j.seed, Math.max(STARTER_COUNT + 1, j.ordinal)).key;
     this.grant(reward, 'farmComplete');
     // A celebration ×2 for the road: one free charge, used whenever the player likes (usually on the next farm).
     st.charges.incomeX2++;
-    this.events.push({ t: 'farmFinished', farm: this.farm.id, reward, next });
+    this.events.push({ t: 'farmFinished', farm: farm.id, ordinal: farm.ordinal, reward, next, tourDone, seconds });
     this.events.push({ t: 'freebie', kind: 'incomeX2', reason: 'farmComplete' });
   }
 
-  private travel(id: FarmId): void {
+  /**
+   * Where the player may travel. Within the Starter Tour: any unlocked starter farm. After it: only forward — the
+   * next World Tour destination, once the farm you are on is finished (a finished farm can be played on before).
+   */
+  canTravel(key: FarmKey): boolean {
     const st = this.state;
-    if (!st.unlockedFarms.includes(id) || id === st.farmId) return;
+    if (key === st.farmId) return false;
+    if (isStarterFarm(key)) return this.farm.tour === 0 && st.unlockedFarms.includes(key);
+    const plan = frontierPlan(st.journey);
+    return !!plan && plan.key === key && (st.progress.finished || this.farm.tour === 0);
+  }
+
+  /**
+   * QA only (debug hooks, screenshots): put the crawler on a World Tour blueprint right away, as a fresh visit.
+   * The journey is moved along so the farm is consistent with it (frontier, Tours completed).
+   */
+  visitBlueprint(bp: FarmBlueprint): void {
+    const st = this.state;
+    const j = st.journey;
+    if (!j.seed) j.seed = makeWorldSeed(st.rng, 99);
+    j.tours = Math.max(j.tours, bp.tour);
+    j.ordinal = Math.max(j.ordinal, bp.ordinal);
+    this.depotFlush();
+    st.farmsProgress = {};
+    st.economy.passive = {};
+    st.progress = { ...newFarmProgress(st.nextSegId), bp, arrivedAt: st.simTime };
+    st.nextSegId += MISC.START_SEGMENTS;
+    st.farmId = bp.key;
+    st.basket = { mass: 0, value: 0, massByTier: [0, 0, 0, 0, 0] };
+    st.depot = newDepotPass();
+    st.headS = Number.NaN;
+    st.v = 0;
+    this.loadFarm(bp.key);
+    const newBiome = discoverBiome(j, this.farm.biome);
+    this.events.push({ t: 'traveled', farm: bp.key, newTour: false, newBiome });
+  }
+
+  /** The next destination of the journey (null while it is a choice between starter farms). */
+  get nextDestination(): FarmKey | null {
+    const plan = frontierPlan(this.state.journey);
+    return plan && plan.ordinal > this.farm.ordinal ? plan.key : null;
+  }
+
+  private travel(id: FarmKey): void {
+    const st = this.state;
+    if (!this.canTravel(id)) return;
+    const leaving = this.farm;
     this.depotFlush();
     this.syncField();
-    st.farmsProgress[st.farmId] = st.progress;
+    const toWorld = !isStarterFarm(id);
+    const newTour = toWorld && tourOf(ordinalOf(id)).tour !== leaving.tour;
+    if (toWorld && (leaving.tour > 0 || newTour)) {
+      // Forward only: the farm we leave is done (its stamp was written at FINISH) — drop its field.
+      delete st.economy.passive[leaving.id];
+    } else st.farmsProgress[leaving.id] = st.progress;
+    if (newTour) {
+      // A new region: the bank is recalibrated to the new Tour's small numbers; Core Rank, charges, tornadoes,
+      // collection and records carry on. The Tour before (the Starter Tour too) is archived as stamps.
+      st.farmsProgress = {};
+      st.economy.passive = {};
+      st.coins = WORLD.START_COINS;
+    }
     const firstVisit = !st.farmsProgress[id];
     st.progress = st.farmsProgress[id] ?? newFarmProgress(st.nextSegId);
-    if (firstVisit) st.nextSegId += MISC.START_SEGMENTS;
+    if (firstVisit) {
+      st.nextSegId += MISC.START_SEGMENTS;
+      st.progress.arrivedAt = st.simTime;
+      if (toWorld) {
+        const bp = blueprintForKey(id, st.journey.seed);
+        if (!bp) return;
+        st.progress.bp = bp;
+      }
+    }
     delete st.farmsProgress[id];
     st.farmId = id;
     // Sell whatever is still in the basket instead of silently discarding it.
@@ -722,7 +829,8 @@ export class Sim {
     st.headS = Number.NaN;
     st.v = 0;
     this.loadFarm(id);
-    this.events.push({ t: 'traveled', farm: id });
+    const newBiome = discoverBiome(st.journey, this.farm.biome);
+    this.events.push({ t: 'traveled', farm: id, newTour, newBiome });
     // Every new farm starts with a tornado in hand.
     if (firstVisit) {
       st.tornadoes++;

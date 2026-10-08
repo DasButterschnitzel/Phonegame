@@ -169,11 +169,34 @@ export interface FarmEco {
   valueMult: number;
   costMult: number;
 }
-/** Each farm plays like a fresh farm with bigger numbers; later farms get a little slower to finish. */
+/** Each farm plays like a fresh farm with bigger numbers; later farms get a little slower to finish. (Starter Tour.) */
 export const farmEco = (index: number): FarmEco => ({
   hpMult: 1,
   valueMult: 25 ** index,
   costMult: 25 ** index * 1.2 ** index,
+});
+
+/**
+ * World Tour economy. Every Tour is one economic arc: farm slot j has values ×VALUE_GROWTHʲ and costs a little more
+ * (COST_STEPʲ on top), so the numbers climb from tens to billions over a Tour — and the next Tour starts a new region
+ * at small numbers again (coins are recalibrated, Core Rank goes up). Numbers stay readable however far you travel.
+ */
+export const WORLD = {
+  VALUE_GROWTH: 14,
+  COST_STEP: 1.12,
+  /** Coins a new Tour starts with (its first farm's prices are Meadow's). */
+  START_COINS: 120,
+  /** Core Rank (Tours completed): +CORE_BONUS harvest value per doubling of the rank (diminishing, never zero). */
+  CORE_BONUS: 0.08,
+} as const;
+
+/** Permanent harvest-value bonus of Core Rank r (0, +8 %, +13 %, +16 %, … +24 % at rank 7). */
+export const coreBonus = (rank: number): number => (rank > 0 ? WORLD.CORE_BONUS * Math.log2(1 + rank) : 0);
+
+export const worldEco = (slot: number, coreRank: number, valueFx = 1, hpFx = 1): FarmEco => ({
+  hpMult: hpFx,
+  valueMult: WORLD.VALUE_GROWTH ** slot * valueFx * (1 + coreBonus(coreRank)),
+  costMult: WORLD.VALUE_GROWTH ** slot * WORLD.COST_STEP ** slot,
 });
 
 /**

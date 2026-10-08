@@ -1,5 +1,85 @@
-export type FarmId = 'meadow' | 'pumpkin' | 'sunflower' | 'snowyberry' | 'desert';
-export const FARM_ORDER: readonly FarmId[] = ['meadow', 'pumpkin', 'sunflower', 'snowyberry', 'desert'];
+/** The five hand-made farms of the Starter Tour. Their ids are also their farm keys (old saves stay valid). */
+export type StarterFarmId = 'meadow' | 'pumpkin' | 'sunflower' | 'snowyberry' | 'desert';
+export const STARTER_FARMS: readonly StarterFarmId[] = ['meadow', 'pumpkin', 'sunflower', 'snowyberry', 'desert'];
+export const isStarterFarm = (key: string): key is StarterFarmId => (STARTER_FARMS as readonly string[]).includes(key);
+
+/** A farm's identity: a starter id, or `w<ordinal>-<biome>-<seed hex>` for a World Tour farm. */
+export type FarmKey = string;
+
+/** Biome families: the art direction, crops, layouts and names a farm is made from. Starter biomes share their farm's id. */
+export type BiomeId =
+  | StarterFarmId
+  | 'orchard' | 'rice' | 'vineyard' | 'tropical' | 'evergreen' | 'alien' | 'lunar' | 'marsh' | 'blossom'
+  | 'citrus' | 'highland' | 'nordic' | 'lavender' | 'volcanic' | 'polder' | 'giant' | 'cloud' | 'cyber';
+
+/** How big a World Tour farm is (and so how long it takes). */
+export type SizeClass = 'quick' | 'standard' | 'grand';
+
+/** At most one light twist per farm — an opportunity, never a handicap. */
+export type ModifierId = 'golden' | 'bumper' | 'fasttrack' | 'giant' | 'rich';
+
+/**
+ * Everything needed to rebuild a World Tour farm exactly: its place in the journey, the biome and seed it was made
+ * from, and the generated plot map. Stored with the farm's progress while the farm is live, so a later generator
+ * change can never move the ground under a half-cleared farm.
+ */
+export interface FarmBlueprint {
+  /** Generator version that drew `map`. */
+  gen: number;
+  key: FarmKey;
+  /** Farm number over the whole journey (the Starter Tour is #1–#5). */
+  ordinal: number;
+  /** World Tour number (1, 2, …). */
+  tour: number;
+  /** Position in the Tour (0 … WORLD.FARMS_PER_TOUR − 1; the last is the showcase finale). */
+  slot: number;
+  biome: BiomeId;
+  seed: number;
+  archetype: string;
+  size: SizeClass;
+  modifier: ModifierId | null;
+  showcase: boolean;
+  /** Index into the biome's list of names. */
+  name: number;
+  crops: [CropId, CropId, CropId, CropId];
+  map: string[];
+  /** Visual variant (light, palette shift) of the biome. */
+  variant: number;
+}
+
+/** What is kept of a completed farm once the journey has moved on (a few bytes, not its field). */
+export interface FarmStamp {
+  key: FarmKey;
+  ordinal: number;
+  biome: BiomeId;
+  name: number;
+  /** Seconds of play from arrival to FINISH. */
+  seconds: number;
+  showcase?: boolean;
+}
+
+/** The long journey: bounded however many farms have been played. */
+export interface Journey {
+  /** World Tour seed: 0 until the Starter Tour is done. */
+  seed: number;
+  /** Highest farm number reached (the frontier). */
+  ordinal: number;
+  /** Tours completed (the Starter Tour counts): this is the Core Rank. */
+  tours: number;
+  /** Farms completed in total. */
+  completed: number;
+  /** Biome families arrived at at least once. */
+  biomes: BiomeId[];
+  /** The last few completed farms, oldest first. */
+  recent: FarmStamp[];
+  /** Personal records. */
+  best: { fastestS: number };
+}
+
+/** @deprecated use FarmKey (kept so older call sites read naturally). */
+export type FarmId = FarmKey;
+/** The Starter Tour, in order. */
+export const FARM_ORDER = STARTER_FARMS;
 
 export type CropId =
   | 'lettuce' | 'wheat' | 'carrot' | 'corn' | 'cabbage' | 'pumpkin' | 'squash' | 'watermelon'
@@ -81,6 +161,10 @@ export interface FarmProgress {
   bonusClaimed?: number;
   /** Tornadoes bought with coins on this farm (each costs more). */
   tornadoesBought?: number;
+  /** World Tour farms: the blueprint the farm was generated from. */
+  bp?: FarmBlueprint;
+  /** Sim time of the first arrival (for the completion time). */
+  arrivedAt?: number;
 }
 
 /** A rolling unload in progress: each segment empties its share as it passes the depot chute. */
@@ -109,12 +193,15 @@ export interface GameState {
   rng: number;
   coins: number;
   lifetimeCoins: number;
-  farmId: FarmId;
+  /** Key of the farm you are on. */
+  farmId: FarmKey;
   progress: FarmProgress;
-  /** Saved progress of farms you are not currently on. */
-  farmsProgress: Partial<Record<FarmId, FarmProgress>>;
-  unlockedFarms: FarmId[];
-  completedFarms: FarmId[];
+  /** Saved progress of live farms you are not currently on (bounded: the Starter Tour's, or none). */
+  farmsProgress: Partial<Record<FarmKey, FarmProgress>>;
+  /** Starter Tour farms you can travel to / have finished (the World Tour is tracked by `journey`). */
+  unlockedFarms: FarmKey[];
+  completedFarms: FarmKey[];
+  journey: Journey;
   nextSegId: number;
   headS: number;
   prevHeadS: number;
@@ -132,7 +219,8 @@ export interface GameState {
     ema: number;
     winTime: number;
     winCoins: number;
-    passive: Partial<Record<FarmId, number>>;
+    /** Passive income of finished farms of the current Tour (cleared when a new Tour starts). */
+    passive: Partial<Record<FarmKey, number>>;
   };
   gift: { nextAt: number; activeUntil: number; kind: 'butterfly' | 'ladybug' };
   stats: { harvested: number; unloads: number; merges: number; tornadoesUsed: number; goldenHarvested: number };
@@ -161,7 +249,7 @@ export type Command =
   /** Pay coins for one tornado charge. */
   | { c: 'buyTornado' }
   | { c: 'claimGift'; mult: number }
-  | { c: 'travel'; farm: FarmId }
+  | { c: 'travel'; farm: FarmKey }
   | { c: 'fillBasket'; frac: number }
   | { c: 'forceGift' }
   | { c: 'forceGolden'; n: number }
@@ -184,8 +272,13 @@ export type SimEvent =
   | { t: 'segAdded'; id: number; level: number }
   | { t: 'merged'; consumed: [number, number]; into: number; level: number; firstTime: boolean }
   | { t: 'upgraded'; id: 'speed' | 'capacity'; level: number }
-  | { t: 'farmFinished'; farm: FarmId; reward: number; next: FarmId | null }
-  | { t: 'traveled'; farm: FarmId }
+  /**
+   * `tourDone`: the Tour this farm closed (0 = the Starter Tour) — Core Rank went up. `next` is the next destination
+   * (null never happens in the World Tour; the journey has no end).
+   */
+  | { t: 'farmFinished'; farm: FarmKey; ordinal: number; reward: number; next: FarmKey | null; tourDone: number | null; seconds: number }
+  /** `newTour`: arriving opened a new World Tour (coins recalibrated). `newBiome`: first farm of this biome family. */
+  | { t: 'traveled'; farm: FarmKey; newTour: boolean; newBiome: boolean }
   /** A tornado swept (x, z); it set off from the head at (fromX, fromZ). */
   | { t: 'tornado'; x: number; z: number; fromX: number; fromZ: number; crops: number[]; value: number }
   | { t: 'giftSpawn'; kind: 'butterfly' | 'ladybug' }

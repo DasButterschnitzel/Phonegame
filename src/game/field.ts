@@ -1,6 +1,6 @@
 import type { CropField, PathTable } from './types.ts';
 import type { FarmDef } from './farms/index.ts';
-import { BODY, FIELD, MISC, crop as cropCfg, farmEco } from './config.ts';
+import { BODY, FIELD, crop as cropCfg } from './config.ts';
 import { buildLoop } from './path.ts';
 import { traceOutline, type Territory } from './territory.ts';
 import { cellKey, hashFloat } from '../shared/hash.ts';
@@ -16,7 +16,7 @@ export function buildRoute(farm: FarmDef, terr: Territory): PathTable {
  */
 export function buildField(farm: FarmDef): CropField {
   const l = farm.layout;
-  const eco = farmEco(farm.index);
+  const eco = farm.eco;
   const K = FIELD.PLOT_CROPS;
   const inset = (l.plot - (K - 1) * FIELD.CROP_SPACING) / 2;
   const xs: number[] = [];
@@ -46,7 +46,7 @@ export function buildField(farm: FarmDef): CropField {
         tiers.push(zone);
         plots.push(p);
         seeds.push(hashFloat(ix * 3 + 1, iz * 5 + 2, farm.seed + 13));
-        golden.push(hashFloat(ix, iz, farm.seed + 29) < MISC.GOLDEN_P ? 1 : 0);
+        golden.push(hashFloat(ix, iz, farm.seed + 29) < farm.goldenP ? 1 : 0);
       }
   }
   plotStart[nPlots] = xs.length;

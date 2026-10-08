@@ -1,7 +1,6 @@
-import type { FarmId } from '../../game/types.ts';
 import { button, countUp, h, showWhen } from '../dom.ts';
 import { icon } from '../icons.ts';
-import { fmt, t, type I18nKey } from '../../platform/i18n/i18n.ts';
+import { fmt, t } from '../../platform/i18n/i18n.ts';
 import type { ModalStack } from './ModalStack.ts';
 import { confetti } from '../Confetti.ts';
 
@@ -10,8 +9,12 @@ export function openFarmComplete(
   o: {
     reward: number;
     passive: number;
-    next: FarmId | null;
-    allDone: boolean;
+    /** "Farm complete!" / "Farm #17 complete!" / "Tour 3 complete!" / "Starter Tour complete!". */
+    title: string;
+    /** Core Rank line when a Tour was completed. */
+    badge: string | null;
+    /** Name of the next destination. */
+    nextName: string | null;
     /** A free ×2 charge came with it (shown as a gift line). */
     gift?: boolean;
     adAvailable: () => boolean;
@@ -35,12 +38,12 @@ export function openFarmComplete(
       return [
         h('div', { class: 'rays' }),
         icon('trophy', 'ico trophy-big'),
-        h('h2', {}, t(o.allDone ? 'end.title' : 'farm.complete')),
+        h('h2', {}, o.title),
+        o.badge ? h('div', { class: 'tour-badge' }, o.badge) : null,
         h('div', { class: 'reward-big' }, icon('coin'), amount),
         o.gift ? h('div', { class: 'farm-gift' }, icon('x2'), h('span', {}, t('bonus.farmGift'))) : null,
         h('p', {}, t('farm.completeBody', { n: fmt(o.passive) })),
-        o.allDone ? h('p', {}, h('b', {}, t('end.body'))) : null,
-        o.next ? h('p', {}, h('b', {}, t('farm.next', { name: t(`farm.${o.next}` as I18nKey) }))) : null,
+        o.nextName ? h('p', {}, h('b', {}, t('farm.nextDest', { name: o.nextName }))) : null,
         h(
           'div',
           { class: 'btn-row' },

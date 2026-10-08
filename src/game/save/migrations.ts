@@ -1,5 +1,7 @@
 import { SAVE_VERSION, type SaveData } from './schema.ts';
 import { validateGame, validateMeta } from './serialize.ts';
+import { STARTER_FARMS, type FarmStamp, type Journey } from '../types.ts';
+import { makeWorldSeed } from '../world/journey.ts';
 
 export type LoadResult =
   | { ok: true; save: SaveData; migratedFrom?: number }
@@ -39,6 +41,33 @@ const MIGRATIONS: Record<number, Migration> = {
     delete game.depot;
     return { v: 2, savedAtWall: x.savedAtWall, game, meta: x.meta, settings: x.settings };
   },
+  /**
+   * v2 → v3: the five farms become the Starter Tour. A journey is built from what the player did: farms completed,
+   * biomes visited, the frontier; with all five done, the World Tour is open (seeded from the save's own RNG).
+   */
+  2: (x) => {
+    const game = { ...obj(x.game) };
+    const starter = (a: unknown): string[] => (Array.isArray(a) ? a.filter((k): k is string => typeof k === 'string' && (STARTER_FARMS as readonly string[]).includes(k)) : []);
+    const completed = starter(game.completedFarms);
+    const unlocked = starter(game.unlockedFarms);
+    const here = typeof game.farmId === 'string' ? game.farmId : 'meadow';
+    const visited = [...new Set([here, ...Object.keys(obj(game.farmsProgress))])].filter((k) => (STARTER_FARMS as readonly string[]).includes(k));
+    const allDone = STARTER_FARMS.every((f) => completed.includes(f));
+    const frontier = Math.max(1, ...unlocked.map((k) => STARTER_FARMS.indexOf(k as never) + 1));
+    const rng = typeof game.rng === 'number' ? game.rng : 0x5eed;
+    const recent: FarmStamp[] = STARTER_FARMS.filter((f) => completed.includes(f)).map((f) => ({ key: f, ordinal: STARTER_FARMS.indexOf(f) + 1, biome: f, name: -1, seconds: 0 }));
+    const journey: Journey = {
+      seed: allDone ? makeWorldSeed(rng, 5) : 0,
+      ordinal: allDone ? STARTER_FARMS.length + 1 : frontier,
+      tours: allDone ? 1 : 0,
+      completed: completed.length,
+      biomes: (visited.length ? visited : ['meadow']) as Journey['biomes'],
+      recent,
+      best: { fastestS: 0 },
+    };
+    game.journey = journey;
+    return { v: 3, savedAtWall: x.savedAtWall, game, meta: x.meta, settings: x.settings };
+  },
 };
 
 export function parseSave(raw: string | null, wallNow: number): LoadResult {
@@ -60,7 +89,7 @@ export function parseSave(raw: string | null, wallNow: number): LoadResult {
     v = typeof x.v === 'number' ? x.v : v + 1;
   }
   const save: SaveData = {
-    v: 2,
+    v: 3,
     savedAtWall: typeof x.savedAtWall === 'number' ? x.savedAtWall : wallNow,
     game: validateGame(x.game as never),
     meta: validateMeta(x.meta as never, wallNow),

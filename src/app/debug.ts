@@ -1,8 +1,12 @@
 import type { Sim } from '../game/sim.ts';
-import type { UpgradeId } from '../game/types.ts';
+import type { BiomeId, SizeClass, UpgradeId } from '../game/types.ts';
+import { STARTER_FARMS } from '../game/types.ts';
+import { checkMap, generateBlueprint } from '../game/world/generate.ts';
+import { makeWorldSeed } from '../game/world/journey.ts';
+import { STARTER_COUNT, planFarm, worldKey } from '../game/world/plan.ts';
 import type { App } from './boot.ts';
 import { clock } from '../platform/clock.ts';
-import { BIOMES } from '../render/palette.ts';
+import { biomeLook } from '../render/palette.ts';
 import { DebugView } from '../render/views/DebugView.ts';
 import { markDirty } from '../game/field.ts';
 import { vMax } from '../game/config.ts';
@@ -77,7 +81,7 @@ export function installDebug(app: App): DebugApi {
       const colors = new Set<number>();
       let nonSky = 0;
       // Sky is a vertical gradient between the biome's sky and fog colours.
-      const b = BIOMES[sim.farm.id];
+      const b = biomeLook(sim.farm.biome);
       const refs = [b.sky, b.fog].map((h) => [(h >> 16) & 255, (h >> 8) & 255, h & 255]);
       for (let i = 0; i < px.length; i += 4 * 7) {
         colors.add((px[i] >> 3) | ((px[i + 1] >> 3) << 5) | ((px[i + 2] >> 3) << 10));
@@ -100,6 +104,69 @@ export function installDebug(app: App): DebugApi {
     },
     clearFrontier: (n: number) => sim.execute({ c: 'clearFrontier', n }),
     clearAll: () => sim.execute({ c: 'clearAll' }),
+    // ── World Tour QA ──
+    /** Clear the farm you are on and press FINISH (no yield). */
+    completeCurrentFarm: () => {
+      sim.execute({ c: 'grantCoins', amount: 1e15, reason: 'debug' });
+      while (sim.state.progress.zone < 3) sim.execute({ c: 'buy', id: 'expand' });
+      sim.execute({ c: 'clearAll' });
+      sim.execute({ c: 'buy', id: 'finish' });
+    },
+    /** Finish (if needed) and travel on; returns the new farm key. */
+    nextFarm: () => {
+      const st = sim.state;
+      if (!st.progress.finished) (api.completeCurrentFarm as () => void)();
+      const next = sim.nextDestination ?? STARTER_FARMS.find((f) => f !== st.farmId && st.unlockedFarms.includes(f) && !st.completedFarms.includes(f));
+      if (next) sim.execute({ c: 'travel', farm: next });
+      return sim.state.farmId;
+    },
+    /** Jump the journey to World Tour farm number n (≥ 6) and travel there. */
+    jumpToFarm: (n: number) => {
+      const st = sim.state;
+      const j = st.journey;
+      if (!j.seed) j.seed = makeWorldSeed(st.rng, 7);
+      const target = planFarm(j.seed, Math.max(STARTER_COUNT + 1, n));
+      sim.visitBlueprint(generateBlueprint(target));
+      return target.key;
+    },
+    /** A farm of a biome/seed/size without travelling (previews, the generator stress test). */
+    generateFarm: (biome: BiomeId, seed: number, size: SizeClass = 'standard') =>
+      generateBlueprint({ key: worldKey(6, biome, seed), ordinal: 6, tour: 1, slot: 0, biome, seed, size, modifier: null, showcase: false, name: 0, variant: 0 }),
+    /** Visit any generated blueprint right now (screenshots of a biome). */
+    visitFarm: (biome: BiomeId, seed: number, size: SizeClass = 'standard') => {
+      const bp = (api.generateFarm as (b: BiomeId, s: number, z: SizeClass) => ReturnType<typeof generateBlueprint>)(biome, seed, size);
+      sim.visitBlueprint(bp);
+      return bp.key;
+    },
+    /** The next n destinations of a journey seed. */
+    farmPreview: (seed: number, n = 8) => Array.from({ length: n }, (_, i) => planFarm(seed, STARTER_COUNT + 1 + i)),
+    /** Plan and generate Tours 1..n of a seed: farms, validation failures, attempts. */
+    validateTour: (n: number, seed = sim.state.journey.seed || 1) => {
+      let farms = 0;
+      let failures = 0;
+      for (let o = STARTER_COUNT + 1; o < STARTER_COUNT + 1 + n * 8; o++) {
+        const bp = generateBlueprint(planFarm(seed, o));
+        farms++;
+        if (!checkMap(bp.map, bp.size).ok) failures++;
+      }
+      return { farms, failures };
+    },
+    /** What the farm you are on is. */
+    farmInfo: () => ({
+      key: sim.farm.id,
+      ordinal: sim.farm.ordinal,
+      tour: sim.farm.tour,
+      slot: sim.farm.slot,
+      biome: sim.farm.biome,
+      size: sim.farm.size,
+      modifier: sim.farm.modifier,
+      archetype: sim.farm.bp?.archetype ?? 'authored',
+      crops: sim.farm.crops,
+      cropCount: sim.field.count,
+      pathLength: Math.round(sim.path.length),
+      seed: sim.farm.seed,
+      coreRank: sim.state.journey.tours,
+    }),
     /** Advance the simulation in fixed steps (throttle held) until `cond(state)` holds; returns whether it did. */
     runUntil: (cond: (st: Sim['state']) => boolean, maxSec = 60) => {
       const prev = input.force;

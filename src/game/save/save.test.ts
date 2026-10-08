@@ -84,7 +84,7 @@ describe('save', () => {
     const res = parseSave(JSON.stringify(v1), 5000);
     expect(res.ok && res.migratedFrom).toBe(1);
     if (!res.ok) return;
-    expect(res.save.v).toBe(2);
+    expect(res.save.v).toBe(3);
     expect('crops' in res.save).toBe(false);
     const g = res.save.game;
     expect(g.coins).toBe(777);
@@ -139,6 +139,110 @@ describe('save', () => {
     expect(parseSave('{nope', 0)).toMatchObject({ ok: false, reason: 'corrupt' });
     expect(parseSave(JSON.stringify({ v: 99 }), 0)).toMatchObject({ ok: false, reason: 'future' });
     expect(parseSave(null, 0)).toMatchObject({ ok: false, reason: 'empty' });
+  });
+  // ── v2 → v3 (endless World Tour) ──────────────────────────────────────────────────────────────────────────────
+  /** A v2 save of a game in this state (v3 minus the journey, blueprints and arrival times). */
+  const asV2 = (sim: Sim): string => {
+    sim.syncField();
+    const g = JSON.parse(JSON.stringify(sim.state));
+    delete g.journey;
+    delete g.progress.arrivedAt;
+    for (const p of Object.values(g.farmsProgress) as { arrivedAt?: number }[]) delete p.arrivedAt;
+    return JSON.stringify({ v: 2, savedAtWall: 1, game: g, meta: { sessions: 3 }, settings: { lang: 'de' } });
+  };
+  const finishHere = (sim: Sim) => {
+    sim.execute({ c: 'grantCoins', amount: 1e15, reason: 'debug' });
+    while (sim.state.progress.zone < 3) sim.execute({ c: 'buy', id: 'expand' });
+    sim.execute({ c: 'clearAll' });
+    sim.execute({ c: 'buy', id: 'finish' });
+    sim.drainEvents();
+  };
+  it('v2 → v3: a fresh Meadow save loads as the start of the Starter Tour', () => {
+    const res = parseSave(asV2(new Sim()), 5);
+    expect(res.ok && res.migratedFrom).toBe(2);
+    if (!res.ok) return;
+    expect(res.save.v).toBe(3);
+    expect(res.save.game.farmId).toBe('meadow');
+    expect(res.save.game.journey).toMatchObject({ seed: 0, ordinal: 1, tours: 0, completed: 0 });
+    expect(res.save.settings).toEqual({ lang: 'de' });
+    expect(res.save.meta.sessions).toBe(3);
+  });
+  it('v2 → v3: mid-Pumpkin keeps the farm, its cleared land, coins, upgrades and the progress on Meadow', () => {
+    const sim = new Sim();
+    finishHere(sim);
+    sim.execute({ c: 'travel', farm: 'pumpkin' });
+    sim.state.progress.segments = Array.from({ length: 5 }, (_, i) => ({ id: 80 + i, level: 3 }));
+    sim.state.progress.speedLevel = 6;
+    step(sim, 30 * 20);
+    sim.execute({ c: 'clearFrontier', n: 2 });
+    step(sim, 30 * 4);
+    const coins = sim.state.coins;
+    const res = parseSave(asV2(sim), 5);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const g = res.save.game;
+    expect(g.farmId).toBe('pumpkin');
+    expect(g.coins).toBeCloseTo(coins);
+    expect(g.progress.speedLevel).toBe(6);
+    expect(g.completedFarms).toEqual(['meadow']);
+    expect(g.farmsProgress.meadow?.finished).toBe(true);
+    expect(g.journey).toMatchObject({ ordinal: 2, tours: 0, completed: 1, seed: 0 });
+    expect(g.journey.biomes).toEqual(expect.arrayContaining(['meadow', 'pumpkin']));
+    const sim2 = new Sim(g);
+    expect(sim2.field.deadCount).toBe(sim.field.deadCount);
+    expect(fieldHash(sim2)).toBe(fieldHash(sim));
+  });
+  it('v2 → v3: all five done opens the World Tour (Core Rank 1) and keeps playing on Cactus Ranch', () => {
+    const sim = new Sim();
+    for (const id of ['pumpkin', 'sunflower', 'snowyberry', 'desert', null] as const) {
+      finishHere(sim);
+      if (id) sim.execute({ c: 'travel', farm: id });
+    }
+    // Build the v2 picture: what an old build would have saved after Cactus Ranch.
+    const res = parseSave(asV2(sim), 5);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const g = res.save.game;
+    expect(g.farmId).toBe('desert');
+    expect(g.journey.tours).toBe(1);
+    expect(g.journey.seed).not.toBe(0);
+    expect(g.journey.ordinal).toBe(6);
+    expect(g.journey.completed).toBe(5);
+    const sim2 = new Sim(g);
+    expect(sim2.nextDestination).toBeTruthy();
+    sim2.execute({ c: 'travel', farm: sim2.nextDestination! });
+    expect(sim2.farm.ordinal).toBe(6);
+  });
+  it('v3 recovers: a damaged blueprint is rebuilt from its key, an unknown farm lands on the frontier, a broken journey resets', () => {
+    const sim = new Sim();
+    for (let i = 0; i < 5; i++) {
+      finishHere(sim);
+      const next = sim.nextDestination ?? ['pumpkin', 'sunflower', 'snowyberry', 'desert'][i];
+      sim.execute({ c: 'travel', farm: next });
+    }
+    const key = sim.state.farmId;
+    const map = sim.farm.map;
+    const v3 = serialize(sim, newMeta(1), {}, 2);
+    const g1 = JSON.parse(JSON.stringify(v3));
+    g1.game.progress.bp.map = ['broken'];
+    const r1 = parseSave(JSON.stringify(g1), 3);
+    expect(r1.ok && r1.save.game.farmId).toBe(key);
+    if (r1.ok) expect(new Sim(r1.save.game).farm.map).toEqual(map);
+    const g2 = JSON.parse(JSON.stringify(v3));
+    g2.game.farmId = 'w9999-nowhere-00000000';
+    delete g2.game.progress.bp;
+    const r2 = parseSave(JSON.stringify(g2), 3);
+    expect(r2.ok && r2.save.game.farmId).toBe(key);
+    const g3 = JSON.parse(JSON.stringify(v3));
+    g3.game.journey = { seed: 'x', ordinal: -4, recent: 'nope' };
+    g3.game.farmId = 'meadow';
+    const r3 = parseSave(JSON.stringify(g3), 3);
+    expect(r3.ok).toBe(true);
+    if (r3.ok) {
+      expect(r3.save.game.journey.recent).toEqual([]);
+      expect(r3.save.game.farmId).toBe('meadow');
+      expect(() => new Sim(r3.save.game)).not.toThrow();
+    }
   });
   it('fills defaults for partial saves', () => {
     const res = parseSave(JSON.stringify({ v: 2, game: { coins: 'x', farmId: 'mars', depot: { active: true, segs: 0 } } }), 5);

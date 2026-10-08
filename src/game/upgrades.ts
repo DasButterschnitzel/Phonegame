@@ -1,6 +1,6 @@
 import type { GameState, PathTable, UpgradeId } from './types.ts';
 import type { FarmDef } from './farms/index.ts';
-import { BODY, MOVE, TERRITORY, cost, farmEco } from './config.ts';
+import { BODY, MOVE, TERRITORY, cost } from './config.ts';
 import { findMergePair } from './caterpillar.ts';
 import { clearedUpTo, type Territory } from './territory.ts';
 
@@ -24,7 +24,7 @@ export const zoneOpensFree = (st: GameState, terr: Territory): boolean => cleare
 export const farmCleared = (terr: Territory): number => clearedUpTo(terr, 3);
 
 export function upgradeCost(st: GameState, farm: FarmDef, terr: Territory, id: UpgradeId): number {
-  const m = farmEco(farm.index).costMult;
+  const m = farm.eco.costMult;
   const p = st.progress;
   switch (id) {
     case 'add':

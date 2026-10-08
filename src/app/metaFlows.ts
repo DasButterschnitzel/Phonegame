@@ -7,15 +7,19 @@ import type { SaveMeta } from '../game/save/schema.ts';
 import type { GameController } from './game.ts';
 import type { SaveManager } from '../platform/storage/SaveManager.ts';
 import { clock } from '../platform/clock.ts';
-import { openMap } from '../ui/modals/Map.ts';
+import { openMap, type MapNode } from '../ui/modals/Map.ts';
 import { openFarmComplete } from '../ui/modals/FarmComplete.ts';
 import { openDaily } from '../ui/modals/Daily.ts';
 import { Gift } from '../ui/Gift.ts';
 import { button, countUp, h, showWhen } from '../ui/dom.ts';
 import { icon } from '../ui/icons.ts';
 import { fmt, t } from '../platform/i18n/i18n.ts';
-import { FARM_ORDER } from '../game/types.ts';
+import { STARTER_FARMS, isStarterFarm } from '../game/types.ts';
 import { clearedOfSnapshot } from '../game/sim.ts';
+import { FARMS } from '../game/farms/index.ts';
+import { planForKey, upcoming, worldUnlocked } from '../game/world/journey.ts';
+import { FARMS_PER_TOUR, parseWorldKey } from '../game/world/plan.ts';
+import { farmTitle } from '../ui/farmNames.ts';
 
 /** How long the farm-finished celebration plays before its dialog (ms). */
 const CELEBRATE_MS = 1600;
@@ -28,15 +32,51 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
   game.openMap = () => {
     // The farm-finished celebration plays out first (its dialog leads to the map anyway).
     if (game.celebrating) return;
+    const st = sim.state;
+    const j = st.journey;
+    const here = sim.farm;
+    // The Starter Tour's five farms while it is still the chapter you are in.
+    const starter: MapNode[] | null =
+      here.tour === 0
+        ? STARTER_FARMS.map((id, i) => {
+            const unlocked = st.unlockedFarms.includes(id);
+            const current = id === st.farmId;
+            return {
+              key: id,
+              ordinal: i + 1,
+              biome: id,
+              name: -1,
+              state: current ? 'current' : st.completedFarms.includes(id) ? 'done' : unlocked ? 'next' : 'locked',
+              showcase: false,
+              cleared: current ? sim.cleared : clearedOfSnapshot(FARMS[id], st.farmsProgress[id]?.field),
+              passive: st.economy.passive[id],
+              canTravel: sim.canTravel(id),
+            };
+          })
+        : null;
+    // The World Tour around you: a few farms behind, where you are, and what is coming (bounded, never the history).
+    let world: { rank: number; nodes: MapNode[] } | null = null;
+    if (worldUnlocked(j)) {
+      const nodes: MapNode[] = [];
+      for (const s of j.recent.filter((r) => !isStarterFarm(r.key) && r.key !== st.farmId).slice(-3))
+        nodes.push({ key: s.key, ordinal: s.ordinal, biome: s.biome, name: s.name, state: 'done', showcase: !!s.showcase, cleared: 1, canTravel: false });
+      if (here.tour > 0)
+        nodes.push({ key: here.id, ordinal: here.ordinal, biome: here.biome, name: here.name, state: 'current', showcase: here.showcase, size: here.size, modifier: here.modifier, cleared: sim.cleared, canTravel: false });
+      let first = true;
+      for (const p of upcoming(j, 6)) {
+        if (p.key === st.farmId) continue;
+        nodes.push({ key: p.key, ordinal: p.ordinal, biome: p.biome, name: p.name, state: first ? 'next' : 'future', showcase: p.showcase, size: p.size, modifier: p.modifier, cleared: null, canTravel: sim.canTravel(p.key) });
+        first = false;
+        if (nodes.length >= 9) break;
+      }
+      world = { rank: j.tours, nodes };
+    }
     openMap(game.modals, {
-      current: sim.state.farmId,
-      unlocked: sim.state.unlockedFarms,
-      completed: sim.state.completedFarms,
-      passive: sim.state.economy.passive,
-      clearedOf: (id) => (id === sim.state.farmId ? sim.cleared : clearedOfSnapshot(id, sim.state.farmsProgress[id]?.field)),
-      travel: (id) =>
-        game.travelTo(id, () => {
-          sim.execute({ c: 'travel', farm: id });
+      starter,
+      world,
+      travel: (key) =>
+        game.travelTo(key, () => {
+          sim.execute({ c: 'travel', farm: key });
           void saves.saveNow();
         }),
     });
@@ -104,13 +144,19 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
       // ad break after it — waits until it's over.
       game.celebrateUntil = performance.now() + CELEBRATE_MS;
       const passive = sim.state.economy.passive[e.farm] ?? 0;
-      const allDone = sim.state.completedFarms.length >= FARM_ORDER.length;
+      const j = sim.state.journey;
+      const nextPlan = e.next ? (isStarterFarm(e.next) ? null : planForKey(e.next, j.seed)) : null;
+      const nextName = e.next ? farmTitle(nextPlan ?? { key: e.next, biome: parseWorldKey(e.next)?.biome ?? 'meadow', name: -1 }) : null;
+      const title = e.tourDone === 0 ? t('tour.starterDone') : e.tourDone ? t('tour.done', { n: e.tourDone }) : sim.farm.tour > 0 ? t('farm.completeNo', { n: e.ordinal }) : t('farm.complete');
+      const badge = e.tourDone !== null ? `${t('tour.rank', { n: j.tours })}${e.tourDone === 0 ? ` · ${t('tour.worldUnlocked')}` : ''}` : null;
+      const finale = !!nextPlan && nextPlan.slot === FARMS_PER_TOUR - 1;
       setTimeout(() => {
         openFarmComplete(game.modals, {
           reward: e.reward,
           passive,
-          next: e.next,
-          allDone,
+          title,
+          badge,
+          nextName: nextName && finale ? `${nextName} ★` : nextName,
           gift: true,
           adAvailable: () => ads.rewardedAvailable,
           double: async () => {

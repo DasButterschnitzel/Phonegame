@@ -5,7 +5,7 @@ import { payoutTier } from '../game/economy.ts';
 import { plotRect } from '../game/territory.ts';
 import type { GameRenderer } from '../render/Renderer.ts';
 import { MERGE_TRAVEL } from '../render/views/CaterpillarView.ts';
-import { TIER_BLOCK_COLORS, levelColor } from '../render/palette.ts';
+import { levelColor, tierColors } from '../render/palette.ts';
 import type { AudioEngine } from '../platform/audio/AudioEngine.ts';
 import type { Haptics } from '../platform/haptics.ts';
 
@@ -30,7 +30,7 @@ const sprayDir = (x: number, z: number, b: { x: number; z: number; tx: number; t
 /** Particles, sound and haptics for simulation events. */
 export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine, haptics: Haptics): void {
   const f = sim.field;
-  const colors = TIER_BLOCK_COLORS[sim.farm.id];
+  const colors = tierColors(sim.farm.crops);
   const now = performance.now() / 1000;
   switch (e.t) {
     case 'chunk': {

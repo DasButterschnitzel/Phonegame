@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
 import { ROCK, VOID } from '../../game/farms/layout.ts';
 import { TERRITORY } from '../../game/config.ts';
-import { BIOMES } from '../palette.ts';
+import { biomeLook } from '../palette.ts';
 import { decorGeometry, fenceSegmentGeometry, flowerClusterGeometry, plotFrameGeometry, rockGeometry, tuftGeometry } from '../geo/world.ts';
 import { toon } from '../materials.ts';
 import { C, E, M4, Q, S, V, ZERO_SCALE } from '../scratch.ts';
@@ -83,7 +83,7 @@ export class TerritoryView {
     this.animating.clear();
     const { farm, terr } = this.sim;
     const l = farm.layout;
-    const biome = BIOMES[farm.id];
+    const biome = biomeLook(farm.biome);
     const n = l.cols * l.rows;
     const P = l.plot;
 
@@ -223,7 +223,7 @@ export class TerritoryView {
   private writeBed(p: number, u: number): void {
     const { farm, terr, state } = this.sim;
     const l = farm.layout;
-    const biome = BIOMES[farm.id];
+    const biome = biomeLook(farm.biome);
     const zone = l.zone[p];
     const o = p * 18;
     if (zone < 0) {
