@@ -74,6 +74,7 @@ export class AudioEngine {
       this.musicBus = this.ctx.createGain();
       this.musicBus.gain.value = 0.16;
       this.musicBus.connect(this.master);
+      // Half a second of noise; sources longer than what is left after their random start offset loop it.
       const len = this.ctx.sampleRate * 0.5;
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noise.getChannelData(0);
@@ -254,6 +255,7 @@ export class AudioEngine {
     const t = ctx.currentTime + when;
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
+    src.loop = true;
     const f = ctx.createBiquadFilter();
     f.type = 'bandpass';
     f.frequency.value = freq;
@@ -277,6 +279,7 @@ export class AudioEngine {
     const t = ctx.currentTime + when;
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
+    src.loop = true;
     const f = ctx.createBiquadFilter();
     f.type = 'bandpass';
     f.Q.value = q;
@@ -405,6 +408,7 @@ export class AudioEngine {
     const t = ctx.currentTime;
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
+    src.loop = true;
     const f = ctx.createBiquadFilter();
     f.type = 'bandpass';
     f.Q.value = 2;
