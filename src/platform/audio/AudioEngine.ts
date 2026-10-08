@@ -542,10 +542,12 @@ export class AudioEngine {
     this.tone(990, 0.09, 'square', 0.018, 0.11);
   }
 
-  /** The motor got hot: a short hiss of steam. */
-  overheat(): void {
-    if (!this.ctx || !this.can('overheat', 2000)) return;
-    this.noiseHit(0.45, 5200, 0.7, 0.035, 0);
+  /** OVERDRIVE burnt out: the motor chokes — a hiss of steam, a falling whine and three sputters. */
+  burnout(): void {
+    if (!this.ctx || !this.can('burnout', 1500)) return;
+    this.noiseHit(0.5, 5200, 0.7, 0.04, 0);
+    this.sweep(0.45, 1500, 320, 3, 0.04);
+    for (let k = 0; k < 3; k++) this.tone(230 - k * 25, 0.07, 'square', 0.03, 0.14 + k * 0.15, 180 - k * 20);
   }
 
   tap(): void {

@@ -36,6 +36,9 @@ test('mix levels and spectra: a quiet, clean motor under every gameplay sound; v
   // The HOT! warning is a nudge in the motor's family, never an alarm over the harvest.
   expect.soft(r.heatWarn.rms, 'heat warning under a bite').toBeLessThan(r.chomp.rms);
   expect.soft(r.heatWarn.rms, 'heat warning over the motor').toBeGreaterThan(r.motorFull.rms);
+  // A burnout is the consequence the warning promised: plainly over the warning, still under the zone fanfare.
+  expect.soft(r.burnout.rms, 'burnout over the heat warning').toBeGreaterThan(r.heatWarn.rms);
+  expect.soft(r.burnout.rms, 'burnout under the zone fanfare').toBeLessThan(r.zoneOpen.rms);
   // Music flavours: every family's tune plays as loud as the meadow tune and leans no more on bass.
   const { music, ambience } = r as unknown as { music: Record<string, Measure>; ambience: Record<string, Measure> };
   expect(Object.keys(music).length).toBeGreaterThanOrEqual(18);

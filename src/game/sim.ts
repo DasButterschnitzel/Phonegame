@@ -101,6 +101,11 @@ export class Sim {
   private events: SimEvent[] = [];
   /** OVERDRIVE boost share applied in the last step (0 = none, 1 = full). */
   overdrive = 0;
+  /** OVERDRIVE burnt out: seconds until it can be used again (0 when the motor is fine). */
+  burnout = 0;
+  /** The second finger is ignored until it lifts: it landed on a too-hot or burnt-out motor, or burnt it out. */
+  odRefused = false;
+  private odPressed = false;
   /** FINAL HARVEST was on last step (it is announced once, when it starts during play). */
   private wasFinal = false;
   /** Seconds left of the surge a SPEED purchase gives. */
@@ -244,11 +249,24 @@ export class Sim {
     st.boosts.incomeX2 = Math.max(0, st.boosts.incomeX2 - dt);
     st.boosts.autopilot = Math.max(0, st.boosts.autopilot - dt);
 
-    // OVERDRIVE: only while actually crawling at full throttle; the motor heats up and the boost fades with it.
-    const od = input.overdrive === true && (input.throttleHeld || st.boosts.autopilot > 0);
+    // OVERDRIVE: only while actually crawling at full throttle; the motor heats up and the boost fades with it. A
+    // finger that lands on a motor that is too hot (or burnt out) does nothing until it lifts; pushed all the way, the
+    // motor burns out — it sputters, and OVERDRIVE is locked while it cools.
+    const pressing = input.overdrive === true;
+    if (!pressing) this.odRefused = false;
+    else if (!this.odPressed && (this.burnout > 0 || st.heat > OVERDRIVE.REFUSE_AT)) this.odRefused = true;
+    this.odPressed = pressing;
+    this.burnout = Math.max(0, this.burnout - dt);
+    const od = pressing && !this.odRefused && (input.throttleHeld || st.boosts.autopilot > 0);
     st.heat = od ? Math.min(1, st.heat + dt / OVERDRIVE.HEAT_S) : Math.max(0, st.heat - dt / OVERDRIVE.COOL_S);
-    this.overdrive = od ? overdriveShare(st.heat) : 0;
-    const boost = 1 + (OVERDRIVE.MULT - 1) * this.overdrive;
+    if (od && st.heat >= 1) {
+      this.burnout = OVERDRIVE.BURNOUT_S;
+      this.odRefused = true;
+      this.events.push({ t: 'burnout' });
+    }
+    this.overdrive = od && !this.odRefused ? overdriveShare(st.heat) : 0;
+    const stall = this.burnout > OVERDRIVE.BURNOUT_S - OVERDRIVE.STALL_S ? OVERDRIVE.STALL_SPEED : 1;
+    const boost = (1 + (OVERDRIVE.MULT - 1) * this.overdrive) * stall;
 
     const final = this.final;
     if (final && !this.wasFinal) this.events.push({ t: 'finalHarvest' });

@@ -121,6 +121,17 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       haptics.fire('success');
       break;
     }
+    case 'burnout': {
+      // Pushed past the red: the motor chokes — a puff of smoke and a spray of sparks off the head, a jolt.
+      const hp = r.cat.poses[0];
+      r.fx.burst(hp.x, 1, hp.z, 0x5a5458, 14, 1, 0.26, 1.2, 1.6, -1.2);
+      r.fx.burst(hp.x, 0.8, hp.z, 0xffa040, 10, 3.4, 0.07, 0.45, 2.6, 8);
+      r.cat.overdriveKick(false);
+      r.rig.addKick(0.04);
+      audio.burnout();
+      haptics.fire('heavy');
+      break;
+    }
     case 'unloadStart':
       // The wave starts: each segment tips its stack so it lands as that segment is paid.
       r.stacks.beginUnload(e.segs, e.elapsed, now);
@@ -277,7 +288,6 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
 
 /** Approach cue levels already played on this lap (0 = none, 1 = 50 %, 2 = 25 %, 3 = almost there). */
 let approachLevel = 0;
-let wasHot = false;
 let lastHeat = 0;
 
 export function juiceFrame(sim: Sim, audio: AudioEngine, held: boolean, r: GameRenderer, paused = false): void {
@@ -285,10 +295,6 @@ export function juiceFrame(sim: Sim, audio: AudioEngine, held: boolean, r: GameR
   const st = sim.state;
   // Under a dialog the world stands still: so does the motor. OVERDRIVE winds the servo a little higher.
   audio.setSpeed(paused ? 0 : Math.min(1.4, st.v / vMax(st.progress.speedLevel)));
-  // The motor runs hot: one hiss of steam (once per overheat).
-  const hot = st.heat > 0.97;
-  if (hot && !wasHot && !paused) audio.overheat();
-  wasHot = hot;
   // Crossing into the red (HOT!) while pushing: a soft two-beep warning.
   if (lastHeat < 0.8 && st.heat >= 0.8 && !paused) audio.heatWarn();
   lastHeat = st.heat;

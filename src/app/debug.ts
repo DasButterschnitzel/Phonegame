@@ -331,6 +331,7 @@ export function installDebug(app: App): DebugApi {
       out.coin = await render((a) => a.coin(), 0.4);
       out.arrive = await render((a) => a.arrive(true), 1.2);
       out.heatWarn = await render((a) => a.heatWarn(), 0.4);
+      out.burnout = await render((a) => a.burnout(), 0.9);
       // Bites vary on purpose: measure six, report the median one and the spread of their spectral centroids.
       const bites: R[] = [];
       for (let k = 0; k < 6; k++) bites.push(await render((a) => a.chomp(false, 0), 0.3));

@@ -1,6 +1,6 @@
 import type { Sim } from '../game/sim.ts';
 import type { BoostId, FarmId, SimEvent, UpgradeId } from '../game/types.ts';
-import { MISC, capacityOf } from '../game/config.ts';
+import { MISC, OVERDRIVE, capacityOf } from '../game/config.ts';
 import { payoutTier } from '../game/economy.ts';
 import { recommend, upgradeValues, type CoreUpgrade } from '../game/advisor.ts';
 import type { GameRenderer } from '../render/Renderer.ts';
@@ -387,6 +387,9 @@ export class GameController {
       case 'finalHarvest':
         this.toasts.banner(t('banner.final'), t('banner.finalSub'));
         break;
+      case 'burnout':
+        this.heatArc.burn();
+        break;
       default:
         break;
     }
@@ -429,13 +432,14 @@ export class GameController {
   frame(dt: number): void {
     const { sim, renderer, input } = this.d;
     const now = performance.now();
-    // OVERDRIVE: the heat arc rides above the head while it is engaged or the motor is still warm.
-    const engaged = input.effectiveOverdrive;
+    // OVERDRIVE: the heat arc rides above the head while it is engaged, the motor is still warm or it is burnt out.
+    const engaged = input.effectiveOverdrive && !sim.odRefused && sim.burnout <= 0;
     const heat = sim.state.heat;
-    if (engaged || heat > 0.02 || this.heatArc.visible) {
+    const burnt = sim.burnout / OVERDRIVE.BURNOUT_S;
+    if (engaged || heat > 0.02 || burnt > 0 || this.heatArc.visible) {
       const hp = renderer.cat.poses[0];
       const on = !this.modals.open && renderer.project(hp.x, 2.7, hp.z, tmpP);
-      this.heatArc.update(on ? tmpP.x : null, tmpP.y, heat, engaged, sim.overdrive);
+      this.heatArc.update(on ? tmpP.x : null, tmpP.y, heat, engaged, sim.overdrive, burnt);
     }
     // Flush aggregated chunk floaters above the segment that chomped them.
     for (const [body, a] of this.agg) {

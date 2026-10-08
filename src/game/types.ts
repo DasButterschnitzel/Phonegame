@@ -284,6 +284,8 @@ export type SimEvent =
   | { t: 'basketFull' }
   | { t: 'plotReady'; plot: number }
   | { t: 'routeGrew'; plots: number[]; prevLength: number }
+  /** OVERDRIVE was pushed all the way: the motor burnt out (stall, then locked while it cools). */
+  | { t: 'burnout' }
   | { t: 'zoneOpened'; zone: number; free: boolean }
   /** `elapsed`: seconds of the pass already gone when the event fires (the head crossed mid-step). */
   | { t: 'unloadStart'; segs: number; value: number; mass: number; massByTier: number[]; elapsed: number }

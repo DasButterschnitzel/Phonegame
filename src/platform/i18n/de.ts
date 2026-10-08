@@ -213,6 +213,8 @@ export const de: Record<I18nKey, string> = {
   'tut.overdriveKey': 'SHIFT beim Krabbeln halten: OVERDRIVE!',
   'od.label': 'OVERDRIVE!',
   'od.hot': 'HEISS!',
+  'od.burnout': 'ÜBERHITZT!',
+  'od.burnoutHint': 'Überhitzt! Lass los, solange der Bogen rot ist, bevor er voll ist – in ein paar Sekunden ist er wieder kühl.',
   'toast.saved': 'Fortschritt gespeichert',
   'toast.readOnly': 'Dieser Spielstand ist von einer neueren Version – Fortschritt wird nicht gespeichert.',
   'toast.tornadoDrop': 'Goldenes Glück! +1 Tornado',

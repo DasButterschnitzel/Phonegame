@@ -211,6 +211,8 @@ export const en = {
   'tut.overdriveKey': 'Hold SHIFT while crawling: OVERDRIVE!',
   'od.label': 'OVERDRIVE!',
   'od.hot': 'HOT!',
+  'od.burnout': 'BURNOUT!',
+  'od.burnoutHint': 'Burnt out! Let go while the arc is red, before it fills up — it cools down in a few seconds.',
   'toast.saved': 'Progress saved',
   'toast.readOnly': 'This save is from a newer version — progress will not be saved.',
   'toast.tornadoDrop': 'Golden luck! +1 tornado',

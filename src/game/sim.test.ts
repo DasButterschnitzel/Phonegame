@@ -68,14 +68,70 @@ describe('overdrive (second finger)', () => {
     const sim = new Sim();
     barren(sim);
     runOd(sim, 3, true, false);
-    runOd(sim, OVERDRIVE.HEAT_S + 2, true, true);
-    expect(sim.state.heat).toBe(1);
-    expect(sim.overdrive).toBe(0);
-    expect(sim.state.v).toBeLessThan(vMax(1) * 1.02);
+    runOd(sim, OVERDRIVE.HEAT_S * 0.95, true, true);
+    expect(sim.state.heat).toBeCloseTo(0.95, 2);
+    expect(sim.overdrive).toBeLessThan(0.2);
+    expect(sim.burnout).toBe(0);
     runOd(sim, OVERDRIVE.COOL_S + 0.1, true, false);
     expect(sim.state.heat).toBe(0);
     runOd(sim, 0.5, true, true);
     expect(sim.overdrive).toBe(1);
+  });
+  it('pushed all the way it burns out: a sputter, then no OVERDRIVE while it cools — and a held finger stays ignored', () => {
+    const sim = new Sim();
+    barren(sim);
+    runOd(sim, 3, true, false);
+    const cruise = sim.state.v;
+    let burns = 0;
+    const push = (seconds: number, overdrive: boolean) => {
+      for (let i = 0; i < Math.round(seconds / SIM.DT); i++) {
+        sim.step(SIM.DT, { throttleHeld: true, overdrive });
+        for (const e of sim.drainEvents()) if (e.t === 'burnout') burns++;
+      }
+    };
+    push(OVERDRIVE.HEAT_S - 0.2, true);
+    expect(burns).toBe(0);
+    push(0.4, true);
+    expect(burns).toBe(1);
+    expect(sim.overdrive).toBe(0);
+    expect(sim.burnout).toBeGreaterThan(OVERDRIVE.BURNOUT_S - 0.3);
+    // The stall: the crawler sputters well under its normal speed.
+    push(OVERDRIVE.STALL_S - 0.3, true);
+    expect(sim.state.v).toBeLessThan(cruise * 0.8);
+    // Fingers still down through the whole lock: it cools, nothing re-engages, no second burnout.
+    push(OVERDRIVE.BURNOUT_S, true);
+    expect(sim.burnout).toBe(0);
+    expect(sim.overdrive).toBe(0);
+    expect(sim.state.heat).toBeLessThan(0.1);
+    expect(sim.state.v).toBeGreaterThan(cruise * 0.98);
+    expect(burns).toBe(1);
+    // Lift and press again: OVERDRIVE is back.
+    push(SIM.DT, false);
+    push(0.5, true);
+    expect(sim.overdrive).toBe(1);
+  });
+  it('a second finger landing on a motor above REFUSE_AT does nothing until it lifts', () => {
+    const sim = new Sim();
+    barren(sim);
+    runOd(sim, 3, true, false);
+    runOd(sim, OVERDRIVE.HEAT_S * 0.94, true, true);
+    runOd(sim, SIM.DT, true, false);
+    const hot = sim.state.heat;
+    expect(hot).toBeGreaterThan(OVERDRIVE.REFUSE_AT);
+    runOd(sim, 1, true, true);
+    expect(sim.overdrive).toBe(0);
+    expect(sim.state.heat).toBeLessThan(hot);
+    expect(sim.burnout).toBe(0);
+  });
+  it('the rhythm a good player keeps (5 s pushing, 5 s cooling) never burns out', () => {
+    const sim = new Sim();
+    barren(sim);
+    let burns = 0;
+    for (let i = 0; i < Math.round(120 / SIM.DT); i++) {
+      sim.step(SIM.DT, { throttleHeld: true, overdrive: (i * SIM.DT) % 10 < 5 });
+      for (const e of sim.drainEvents()) if (e.t === 'burnout') burns++;
+    }
+    expect(burns).toBe(0);
   });
   it('needs the throttle: a second finger alone does nothing, and release eases down (no snap)', () => {
     const sim = new Sim();

@@ -1309,6 +1309,59 @@
   animation: hot-blink 0.45s ease-in-out infinite alternate;
 }
 
+/* Burnt out: the arc goes smoky and drains as the motor cools (OVERDRIVE is locked meanwhile). */
+.od-arc.burnout {
+  --heat: #8a8290;
+}
+
+.od-arc.burnout .rim {
+  stroke: rgba(46, 40, 52, 0.7);
+}
+
+.od-arc.burnout .od-hot {
+  opacity: 0;
+  animation: none;
+}
+
+.od-arc .od-burn {
+  position: absolute;
+  left: 50%;
+  top: -16px;
+  transform: translateX(-50%);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #ffb070;
+  background: #3a3440;
+  border-radius: 8px;
+  padding: 1px 7px 2px;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.od-arc.burnout .od-burn {
+  opacity: 1;
+}
+
+.od-body.burn {
+  animation: od-burn 0.55s ease-out;
+}
+
+@keyframes od-burn {
+  0% {
+    transform: scale(1.3) rotate(-8deg);
+  }
+  25% {
+    transform: scale(1.12) rotate(6deg);
+  }
+  50% {
+    transform: scale(1.05) rotate(-4deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
 .od-body.pop {
   animation: od-pop 0.22s cubic-bezier(0.2, 1.6, 0.4, 1);
 }
@@ -1340,6 +1393,7 @@
 
 .reduce-motion .od-body.pop,
 .reduce-motion .od-body.deny,
+.reduce-motion .od-body.burn,
 .reduce-motion .od-arc.max .od-hot {
   animation: none;
 }

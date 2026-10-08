@@ -10,6 +10,7 @@ import { offlineReward } from '../game/economy.ts';
 import { serialize } from '../game/save/serialize.ts';
 import { newMeta, type SaveMeta } from '../game/save/schema.ts';
 import { canClaimDaily } from '../game/daily.ts';
+import { OVERDRIVE } from '../game/config.ts';
 import { GameRenderer } from '../render/Renderer.ts';
 import { Loop } from './loop.ts';
 import { PauseController } from './pause.ts';
@@ -182,12 +183,18 @@ export async function boot(): Promise<App | null> {
   tutorial.touch = matchMedia('(pointer: coarse)').matches;
   game.tutorialActive = () => tutorial.active;
   // OVERDRIVE: the second finger lands → the head digs in, the servo winds up, a tick in the hand; the first few
-  // times the word itself pops over the head. A hot motor ignores the finger until it has cooled down.
+  // times the word itself pops over the head. A motor that is too hot or burnt out ignores the finger until it lifts.
+  let odLive = false;
   input.onOverdrive((on) => {
     lastInputAt = performance.now();
-    // The heat arc answers in this very event (before any frame): a pop — or a red shake when the motor is hot.
-    if (on) game.heatArc.kick(sim.state.heat > 0.9);
-    if (on && sim.state.heat > 0.9) return;
+    // The heat arc answers in this very event (before any frame): a pop — or a red shake when the motor is too hot or
+    // burnt out (the simulation ignores that finger until it lifts).
+    const refused = sim.burnout > 0 || sim.state.heat > OVERDRIVE.REFUSE_AT;
+    if (on) game.heatArc.kick(refused);
+    if (on && refused) return;
+    // Letting go of a press that was refused or burnt out has nothing left to switch off.
+    if (!on && !odLive) return;
+    odLive = on;
     renderer.cat.overdriveKick(on);
     if (on) renderer.overdriveBurst();
     audio.overdrive(on);
@@ -207,6 +214,15 @@ export async function boot(): Promise<App | null> {
   game.listeners.push((e) => {
     juice(e, sim, renderer, audio, haptics);
     tutorial.onEvent(e);
+    if (e.t === 'burnout') {
+      odLive = false;
+      // The first burnout explains itself.
+      if (!meta.tutorial.odBurnout) {
+        meta.tutorial.odBurnout = true;
+        game.toasts.show(t('od.burnoutHint'), 5000);
+        saves.saveSoon();
+      }
+    }
     if ((e.t === 'merged' && e.firstTime) || e.t === 'farmFinished') portal.happy();
     if (e.t === 'merged' && e.firstTime) {
       // Let the player see the merge land before the celebration dialog covers it.

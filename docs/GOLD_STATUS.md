@@ -1,6 +1,6 @@
 # Gold status — Crop Crawler 05 (Endless World Tour)
 
-**STATUS: SILVER** — the endless World Tour is complete and every Gold gate has been worked and measured (W7: screenshot matrix and per-biome review, long sessions, a 100-farm journey through the real UI, memory, low tier, CI/Android), but Gold is not reached: the OVERDRIVE P1 came from a phone and stays open until it is checked on one, and eight scorecard categories are at 7 (most because the new screens and sounds have not been seen or heard on a phone). Updated after every loop.
+**STATUS: SILVER** — the endless World Tour is complete and every Gold gate has been worked and measured (W7), and the first phone test of the W8 build is in: the OVERDRIVE arc reads, the World Tour looks good, the biome sound levels are fine. Gold is not reached: the same test found that OVERDRIVE heat had no consequence (a new P1, answered with a burnout in W9 — it stays open until a phone has felt it), and seven scorecard categories are at 7, most because nobody has judged them on a phone yet. Updated after every loop.
 
 ## Loop log
 | Loop | Commit | What changed | Status after |
@@ -20,7 +20,8 @@
 | W7b | 55493c6 | 100 farms through the real UI (`e2e/playthrough.spec.ts`): 0 errors; found and fixed a GPU geometry leak (~11 per farm: depot meshes, stubble geometry) and closed farm-complete dialogs kept alive by the ×2 offer's poll; GPU resources, DOM and save flat, heap bounded | BRONZE |
 | W7c | d7d7302 | Biome matrix review (scores per family); family ground pieces on cleared World plots; look-alike grounds pulled apart (vineyard, lavender, lunar, nordic); the matrix waits for claim dust to settle | BRONZE |
 | W7d | a2a45e0 | SPEED on World farms measured (`--roi-world`): the biggest gain per purchase, pays back in 63/69 samples; all gates re-scored on the W7 evidence | SILVER |
-| W8 | (this) | Showcase pass: Volcanic Chili's cleared ash crossed by glowing ember cracks, Giant's Garden a giant's lawn (grass and flowers twice the size, daisies as tall as the crawler), Marsh mushrooms glow — all four showcase families at 8.5 | SILVER |
+| W8 | 815b283 | Showcase pass: Volcanic Chili's cleared ash crossed by glowing ember cracks, Giant's Garden a giant's lawn (grass and flowers twice the size, daisies as tall as the crawler), Marsh mushrooms glow — all four showcase families at 8.5 | SILVER |
+| W9 | (this) | Phone test of the W8 APK: the arc reads, but HOT! had no consequence → OVERDRIVE burns out when pushed all the way: a 1.6 s sputter at 55 % speed, then locked 5 s while it cools, the finger must lift; a finger on a motor above 90 % is ignored; smoky BURNOUT! arc that drains, smoke, sparks, a choking motor, a haptic thump, a first-time hint (EN/DE) | SILVER |
 
 ## Gates (✅ met with evidence · ⬜ open · ❌ failing)
 ### Core
@@ -57,8 +58,9 @@
 - ⬜ cliffs: ~2 % of farms take > 1.6× their class median (worst 2.06×); no layout trap left (river bend fixed), the rest is spread across archetypes
 
 ### OVERDRIVE
-- ✅ second-finger activation obvious — the heat arc pops in inside the pointer event itself (`e2e/overdrive.spec.ts`: visible and popping before the handler returns, < 150 ms asserted), a cyan ring rolls out and sparks fly off the head on the next frame, the head digs in, the servo winds up, a haptic tick; a hot motor answers a second finger with a red shake instead of silence · ⬜ confirmed on a phone (the original complaint came from one)
+- ✅ second-finger activation obvious — the heat arc pops in inside the pointer event itself (`e2e/overdrive.spec.ts`: visible and popping before the handler returns, < 150 ms asserted), a cyan ring rolls out and sparks fly off the head on the next frame, the head digs in, the servo winds up, a haptic tick; a hot motor answers a second finger with a red shake instead of silence · ✅ readable on a phone — the user's test of the W8 APK: the arc reads
 - ✅ heat indicator clear — arc fill = heat, colour bands cool (cyan) / warm (yellow) / hot (orange, 60–80 %) / max (red, 80–100 %, HOT! badge) asserted at 0.37 / 0.63 / 0.9 heat, screenshots `e2e-screens/od-*.png`; a light rim keeps it readable on dark ground; soft beeps when it turns red · ✅ boost fade understandable — the bolt in the arc is bright while the boost is full and dims with it (bright at 37 % and 63 %, dim at 90 %) · ✅ no permanent HUD clutter — nothing over the head while the motor is cold (asserted before and after)
+- ✅ heat has a consequence (W9, from the phone test: "it just says HOT") — pushed all the way the motor burns out: a sputter (55 % speed for 1.6 s), then no OVERDRIVE for 5 s while it cools, and the finger has to lift; unit tests (`sim.test.ts`: one burnout, the stall, a held finger stays ignored, a press above 90 % heat is refused, the 5/5 rhythm never burns out) and `e2e/overdrive.spec.ts` (BURNOUT! arc, first-time hint, the sputter, the lock, re-press); balance reports identical (no profile pushes past 5 s), and on the Meadow pushing past the red costs time: 5/5 rhythm 16:01, 8 s on / 2 s off 16:44, no OVERDRIVE 18:04 · ⬜ the burnout felt on a phone
 
 ### Visual · Performance · Monetization · QA
 - ✅ each biome readable without UI — every family recognisable from the screenshots alone at arrival and in the bird's-eye finish (trees, props, landmark, weather, crops); mid-farm, cleared plots now carry the family's ground piece (W7c) — see Biome review · ✅ no recolours — every pair of families differs in ≥ 3 major features (duplication test); the look-alike yellow-green grounds were pulled apart where the family is new (vineyard, lavender, lunar, nordic), the starter families keep their accepted palettes · ✅ crops readable — four tiers per family in close-up: distinct silhouettes and colours per tier, size classes (2 × 2 trees, plot-filling giants), bitten states · ✅ depot obvious — each family's barn on the painted unloading bay with hazard edges where the route starts (arrival shots) · ✅ rare farms wow — the four showcase families at 8.5 in the screenshot review: glowing mushrooms at dusk, the moon, an ash field with glowing ember cracks and a giant's lawn (W8)
@@ -66,13 +68,13 @@
 - ✅ ads optional — every rewarded ad is an offer; nothing on the World Tour needs one (the no-ad bot finishes 100 farms, W3) · ✅ forced-ad rate not increased — the interstitial policy is unchanged (≤ 4 an hour, 8 min apart, 5 quiet min after a rewarded ad); `npm run sessions`: World Tour sessions see as many or fewer interstitials than the same player's Starter Tour sessions (two-finger: 6 vs 5 in 2 h, the only +1); the one new flow (one-tap travel) never gets one (e2e) · ✅ big moments protected — 10 quiet seconds after route growth, merges, new fields, FINAL HARVEST and farm finished (unit test); none during travel or a farm's entrance (e2e) · ✅ long sessions not ad spam — max 4 in any rolling hour in every 2 h session of every profile, 2 h ≤ 8 (CI runs it with --assert); see `docs/WORLD_TOUR.md`
 - ✅ typecheck · ✅ unit (172) · ✅ e2e (full suite green before each push) · ✅ balance (`--assert` in CI) · ✅ Android workflow (the APK builds on every push) · ✅ screenshot matrix (`e2e/biomes.spec.ts`, CI artifact `e2e-screens`) · ✅ 100-farm sim (`npm run endless`, 6 profiles) and the 100-farm UI playthrough
 - ✅ migration tests — v2 fresh Meadow, v2 mid-Pumpkin (field identical), v2 all five done (World Tour opens), v3 damaged blueprint (rebuilt from key), unknown key (→ frontier), broken journey (→ defaults)
-- ✅ no P0 · ❌ one P1 open — OVERDRIVE readability: raised on a phone, addressed in W6, closes when a phone confirms it
+- ✅ no P0 · ❌ one P1 open — OVERDRIVE heat had no consequence (phone test of the W8 APK): answered with a burnout in W9, closes when a phone has felt it
 
 ## Scorecard (1–10; GOLD needs average ≥ 8.5, none < 8, no P0/P1)
 | Category | Score | Evidence |
 |---|---|---|
 | Core game feel | 8 | accepted on a real phone (goal 04) |
-| World Tour clarity | 7 | journey trail map, arrival card, completion context with one-tap next farm, Starter Tour transition — e2e + screenshots (EN/DE, 360/412 px); not yet seen on a phone |
+| World Tour clarity | 7 | journey trail map, arrival card, completion context with one-tap next farm, Starter Tour transition — e2e + screenshots (EN/DE, 360/412 px); on a phone (W8 APK) it "looks good", but whether it is clear has not been judged yet |
 | Biome variety | 8 | 18 families incl. 2 rare + 2 legendary showcases, each with its own crops/trees/props/landmark/rocks/barn/weather and now a ground piece for cleared plots, plus a music flavour and ambience (measured offline, not yet heard on a phone); per-biome review from the screenshot matrix: mean 7.9, none below 7, showcase families all 8.5 (Biome review) |
 | Farm generation | 7 | 16 archetypes, organic outlines, static + play-out validation over 8,000 farms with 0 failures; outlines at 12×12 plots still simple |
 | Long-term progression | 7 | endless journey; Core Rank shown on the map and on each Tour's end (before → after, bonus), Tours ~20 % faster by rank 12; the 18-stamp collection runs to farm #85 for the median journey (p10 #53, p90 #157) — measured, not yet felt on a phone |
@@ -81,17 +83,16 @@
 | Pacing | 7 | five farms measured (goal 04) |
 | Visual polish | 7 | screenshot matrix reviewed for all 18 families on the low tier; mid-farm ground identity improved (W7c); the four showcase families at 8.5 after W8 |
 | Animation | 8 | goal 04 pop pass |
-| Audio | 8 | accepted on a real phone (goal 04); W5c flavours/ambience are measured offline only (levels, spectra, clips) — no device listening yet |
-| OVERDRIVE readability | 7 | heat arc + bolt + HOT!, activation in the input event, ring/sparks — e2e + screenshots; the complaint came from a phone and this redesign has not been on one yet |
+| Audio | 8 | accepted on a real phone (goal 04); biome music and ambience levels fine on a phone so far (W8 APK) — the music itself is to be replaced by the user's own tracks |
+| OVERDRIVE readability | 8 | heat arc + bolt + HOT!, activation in the input event, ring/sparks — readable on a phone (W8 APK); the burnout that gives the heat its meaning (W9) has not been on one yet |
 | Performance | 8 | goal 04 measurements; budgets 49–55 draw calls and ≤ 166k triangles per family (high tier, grand farm); a 100-farm UI playthrough stays flat after two leak fixes (W7b) |
 | Save robustness | 8 | v3 bounded, migration + recovery tests |
 | Android stability | 8 | CI + device |
 | Monetization fairness | 8 | goal 04 ad policy unchanged; long sessions replayed (W7a): ≤ 4 interstitials in any rolling hour, World Tour sessions never above the Starter Tour ones (+1 in 2 h at most), none during travel |
 | Replayability | 7 | endless: 18 families × 16 layout archetypes × 3 size classes × modifiers, no family twice within 4 farms, rare/legendary Tour finales; anticipation on the map (mysteries, NEW BIOME, finale) and on arrival; long sessions fair (W7a); whether it holds attention for weeks is a feel question for a phone |
 
-Average 7.5 (17 categories), eight of them below 8 — not Gold. Most of the 7s are capped by the same thing: the new
-World Tour screens, the OVERDRIVE arc and the biome audio have only been seen in e2e captures and offline audio
-measurements, never on a phone.
+Average 7.6 (17 categories), seven of them below 8 — not Gold. Most of the 7s are capped by the same thing: nobody has
+judged them on a phone yet (World Tour clarity and map, the long game, the variety over weeks).
 
 ## Biome review (W7c)
 From the screenshot matrix (`e2e/biomes.spec.ts`, Pixel 7 viewport on the low SwiftShader tier — the tier most phones
@@ -131,6 +132,7 @@ shot: the debug clear claims dozens of plots at once, and under parallel load th
 ## Open P0/P1
 - ~~P0: the game ends after five farms.~~ fixed in W1.
 - ~~P1: only 3 new biome families so far~~ — 18 families incl. rare/legendary showcases, each with a music flavour and ambience (W5c).
-- P1: OVERDRIVE state/heat not readable (real device) — addressed in the build (W6: heat arc, bolt, HOT!, activation in the input event); stays open until it is checked on a phone.
+- ~~P1: OVERDRIVE state/heat not readable (real device)~~ — the W6 heat arc reads on a phone (W8 APK).
+- P1: OVERDRIVE heat has no consequence — "it just says HOT, no burnout, no timeout" (real device, W8 APK) — addressed in W9 (burnout: sputter, 5 s lock, re-press); stays open until it is felt on a phone.
 - ~~P1: World Tour economy not yet tuned or measured over 100 farms~~ — W3: measured and tuned (see Balance).
 - ~~P1: memory grows on a long journey~~ — found by the 100-farm UI playthrough and fixed in W7b: every farm left ~11 GPU geometries behind (depot, stubble), and a farm-complete dialog closed within half a second stayed in memory for good.

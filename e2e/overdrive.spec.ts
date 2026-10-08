@@ -78,3 +78,40 @@ test('OVERDRIVE: the second finger shows at once; a heat arc above the head clim
   expect(d.body).toContain('deny');
   await fingers(page, 'pointerup', [21, 22]);
 });
+
+test('OVERDRIVE burns out when pushed all the way: a jolt, BURNOUT!, a sputter, then locked until it cools and the finger lifts', async ({ page }, info) => {
+  test.skip(info.project.name !== 'pixel7', 'one device');
+  test.setTimeout(120_000);
+  await ready(page);
+  await g(page, veteran);
+  await g(page, 'g.setTimeScale(0)');
+  await fingers(page, 'pointerdown', [11, 12]);
+  // 6 s of OVERDRIVE from cold reach the top of the arc.
+  await g(page, 'g.fastForward(5.8)');
+  expect(await g<number>(page, 'g.sim.burnout')).toBe(0);
+  const fast = await g<number>(page, 'g.state().v');
+  await g(page, 'g.fastForward(0.4)');
+  expect(await g<number>(page, 'g.sim.burnout')).toBeGreaterThan(4.5);
+  expect(await g<number>(page, 'g.sim.overdrive')).toBe(0);
+  await expect.poll(async () => (await arcState(page)).cls).toContain('burnout');
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.od-arc .od-burn')!).opacity)).not.toBe('0');
+  // The first burnout explains itself.
+  await expect(page.locator('.toast', { hasText: 'Burnt out' })).toBeVisible();
+  await shotArc(page, 'od-5-burnout');
+  // It sputters: well under the speed it had.
+  await g(page, 'g.fastForward(1)');
+  expect(await g<number>(page, 'g.state().v')).toBeLessThan(fast * 0.75);
+  // Fingers still down through the lock: it cools, the arc drains, nothing re-engages afterwards.
+  await g(page, 'g.fastForward(4.5)');
+  expect(await g<number>(page, 'g.sim.burnout')).toBe(0);
+  expect(await g<number>(page, 'g.sim.overdrive')).toBe(0);
+  await expect.poll(async () => (await arcState(page)).cls).not.toContain('burnout');
+  // Lift the second finger and press again: OVERDRIVE is back.
+  await fingers(page, 'pointerup', [12]);
+  await g(page, 'g.fastForward(0.1)');
+  const r = await fingers(page, 'pointerdown', [13]);
+  expect(r.body).toContain('pop');
+  await g(page, 'g.fastForward(0.3)');
+  expect(await g<number>(page, 'g.sim.overdrive')).toBe(1);
+  await fingers(page, 'pointerup', [11, 13]);
+});

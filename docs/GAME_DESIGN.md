@@ -24,15 +24,21 @@ soil turns into meadow, and the farm visibly transforms from a dense field into 
   buttons used to ignore it. Covered by a real multi-touch e2e (CDP touches, `e2e/touch.spec.ts`).
 - **OVERDRIVE.** A second finger on the field (Shift + Space on a keyboard) pushes harder: top speed × 1.3 on top of
   the SPEED level (it multiplies upgrades, never replaces them). The motor heats up in 6 s — full boost for the
-  first 3.6 s, then it fades — and cools down in 6 s, so it is a burst, not a mode: holding two fingers all the time
-  gains nothing. A player who pulses it perfectly (5 s on, 5 s off) finishes farms 14–24 % sooner, five farms in
-  1:32:08 instead of 1:51:03 (bot ACTIVE_TWO_FINGER vs ACTIVE_NO_ADS); the economy is balanced for one finger.
+  first 3.6 s, then it fades — and cools down in 6 s, so it is a burst, not a mode. Pushed all the way (6 s) the
+  motor **burns out**: the crawler sputters at 55 % speed for 1.6 s, and OVERDRIVE is locked for 5 s while it cools;
+  the finger has to lift before it works again, and a finger that lands on a motor above 90 % heat is ignored. A
+  player who pulses it perfectly (5 s on, 5 s off) never burns out and finishes farms 14–24 % sooner, five farms in
+  1:32:08 instead of 1:51:03 (bot ACTIVE_TWO_FINGER vs ACTIVE_NO_ADS); the economy is balanced for one finger. On the
+  Meadow: no OVERDRIVE 18:04, the 5/5 rhythm 16:01, pushing past the red (8 s on, 2 s off) 16:44, two fingers all the
+  time 17:34 — timing it is what pays.
 - Fingers on buttons never count, nor do fingers that land within 22 px of one (a near-miss must not surge the
   crawler); a third finger adds nothing; cancel, focus loss and backgrounding clear every finger.
 - Feedback: the head digs in and the antennae whip back on the next frame, the servo winds up, a light haptic tick,
   blades flare, the head's blades kick dirt sideways, "OVERDRIVE!" pops over the head the first three times; as the
-  motor gets hot the antennae glow orange to red and it lets off steam with a hiss; on release the body settles
-  and the speed eases back. The one-time tip appears once ADD, MERGE and OPEN FIELD are known.
+  motor gets hot the heat arc over the head climbs to red (HOT! and two soft beeps) and the antennae glow; a burnout
+  jolts the arc to a smoky BURNOUT! that drains with the lock, puffs smoke and sparks off the head, chokes the motor
+  (a hiss, a falling whine, three sputters) and thumps the hand — the first one also explains itself in a toast; on
+  release the body settles and the speed eases back. The one-time tip appears once ADD, MERGE and OPEN FIELD are known.
 - Accessibility toggle mode: a single-finger tap starts/stops the crawl (on release), a two-finger hold overdrives.
 
 ### Territory and route growth (src/game/territory.ts)
