@@ -70,6 +70,26 @@ export function installDebug(app: App): DebugApi {
     forceGift: () => sim.execute({ c: 'forceGift' }),
     forceGolden: (n) => sim.execute({ c: 'forceGolden', n }),
     perf: () => ({ fps, ...renderer.info, frames: loop.frames }),
+    /** Draw calls and triangles per view: renders the frame again with each view hidden in turn (budget work). */
+    drawBreakdown: () => {
+      const r = renderer.renderer;
+      const R = renderer as unknown as Record<string, { group?: { visible: boolean }; mesh?: { visible: boolean } }>;
+      const measure = () => {
+        r.render(renderer.scene, renderer.rig.camera);
+        return { calls: r.info.render.calls, tris: r.info.render.triangles };
+      };
+      const all = measure();
+      const out: Record<string, { calls: number; tris: number }> = { all };
+      for (const k of ['world', 'territory', 'depot', 'field', 'cat', 'stacks', 'fx', 'tornado', 'waves', 'weather']) {
+        const o = R[k]?.group ?? R[k]?.mesh;
+        if (!o?.visible) continue;
+        o.visible = false;
+        const m = measure();
+        o.visible = true;
+        out[k] = { calls: all.calls - m.calls, tris: all.tris - m.tris };
+      }
+      return out;
+    },
     pixelStats: () => {
       const r = renderer.renderer;
       r.render(renderer.scene, renderer.rig.camera);

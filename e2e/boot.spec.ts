@@ -41,12 +41,13 @@ test('long caterpillar on a big farm renders within budget', async ({ page }, in
     for (let i = 0; i < 12; i++) g.buy('merge');
     g.fastForward(8, true);
   });
-  // Let transient effects (shockwaves from the last growth/merges) finish; software GL runs at a few fps.
-  await page.waitForTimeout(1600);
-  const perf = await page.evaluate(() => (window as any).__game.perf());
-  expect(perf.drawCalls).toBeLessThan(45);
+  // Let transient effects finish (shockwaves from the last growth/merges, and the field catching up with 70 plots
+  // cleared in one go): software GL runs at a few fps, slower still with parallel workers, so wait for the frame to
+  // settle rather than a fixed time. A scene over budget still fails once the poll times out.
+  const perf = () => page.evaluate(() => (window as any).__game.perf() as { drawCalls: number; triangles: number });
+  await expect.poll(async () => (await perf()).drawCalls, { timeout: 15_000 }).toBeLessThan(45);
   // Was ~200k before dead/bitten crops and unclaimed plots' dressing stopped being drawn as zero-scaled instances.
-  expect(perf.triangles).toBeLessThan(170_000);
+  await expect.poll(async () => (await perf()).triangles, { timeout: 15_000 }).toBeLessThan(170_000);
   await page.screenshot({ path: `e2e-screens/bigfarm-${info.project.name}.png` });
 });
 
