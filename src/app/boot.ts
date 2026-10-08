@@ -143,6 +143,7 @@ export async function boot(): Promise<App | null> {
 
   // Sound, haptics, tutorial and juice.
   const audio = new AudioEngine();
+  audio.setFlavour(sim.farm.biome);
   const haptics = new Haptics();
   const unlockAudio = () => audio.unlock();
   root.addEventListener('pointerdown', unlockAudio, { capture: true });
@@ -230,6 +231,7 @@ export async function boot(): Promise<App | null> {
     }
     if (e.t === 'traveled') {
       renderer.onFarmChanged();
+      audio.setFlavour(sim.farm.biome);
       shownPath = sim.path;
     }
     game.onEvent(e);

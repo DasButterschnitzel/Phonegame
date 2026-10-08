@@ -117,6 +117,26 @@ and dust) on top of their accepted look.
 Rarity: Tour finales favour the rare and legendary families (a legendary finale about one Tour in five); elsewhere
 they almost never appear, so they stay special.
 
+### Music flavour and ambience (`platform/audio/flavours.ts`)
+Every family plays through the one procedural music engine — a melody voice, a bass and an optional accent, in the
+same two or three synth timbres — and changes only the mood: tempo (66–104 bpm), key and four-bar progression, the
+scale the melody walks on (major or minor pentatonic, a six-note major, dorian, lydian), its contour, note length and
+whether it adds pick-up notes. Nothing imitates a traditional music or instrument: a farm inspired by a region gets a
+mood, never a costume. Sunny Meadow keeps the original tune note for note (test). The tune restarts from its first bar
+when you travel.
+
+Ambience is one quiet sound every few seconds on its own bus (with the sound setting): birds (Meadow, Orchard,
+Tropical, Giant's Garden — pitched per family), crickets (Pumpkin, Vineyard), wind (Snowy Berry, Desert, Christmas
+trees, Andes), water (Rice, Sakura, Nordic), bees (Sunflower, Lavender), frogs (Marsh), crackling embers (Volcanic),
+distant beeps (Lunar).
+
+Checks: a unit test gives every family its own flavour and ambience, keeps melodies in their scale and in a register
+phone speakers play, and requires every pair of tunes to differ in at least two ways (tempo, key, scale, melody,
+timbre, feel). The offline audio QA (`e2e/audio.spec.ts`) renders 8 s of every tune and one sound of every ambience:
+all tunes play within 1.1 dB of the meadow tune's loudness, none has more energy below 150 Hz than it (bass never
+under C3), and every ambience sits ≥ 12 dB under a bite, at about the motor's level, with nothing below 150 Hz.
+Listening clips and spectrograms for a human: `CAPTURE=1 npx playwright test capture -g listening` → `capture/audio/`.
+
 ## Save v3
 `v2 → v3`: `farmId` stays the key (starter ids are valid keys); a `journey` is created from the starter progress
 (completed count, discovered biomes, World Tour unlocked when all five are done); everything else carries over.

@@ -9,10 +9,9 @@
 | W1 | dbf4e6c | Endless core: farm keys ≠ biomes, blueprints, journey, World Tour scheduler + first generator, forward travel with Tour recalibration, save v3 + migration, debug hooks | BRONZE |
 | W2 | 83cab8a · 769099a · 5eab0df | Organic generated outlines; 1,000-seed stress test with real-sim play-outs; 500-farm journey bench; crop size classes (trees 2×2, giants 1×1, same economy per plot); data-driven biome looks (trees, props, landmarks, rocks, barn skins, weather); 3 new families (Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard); starter families gain a signature each; duplication detector; screenshot matrix | BRONZE |
 | W3 | 1234168 | Endless economy: 100-farm bot report (`npm run endless`, 6 profiles); fixed Tour-start bank flood, lost passive income, cost drift, river-bend lobe; size classes get depth (tougher crops); quick farms avoid cross-cutting layouts | BRONZE |
-
 | W5a | 9639a6d | Biome library batch A: Tropical Plantation, Christmas Tree Farm, Sakura Tea Garden, Andean Terraces, Nordic Berry (20 crops incl. huge grand firs, 9 trees, 11 props, 5 landmarks, 4 rock styles, butterflies + petals); per-prop scale | BRONZE |
-
-| W5b | (this) | Biome library batch B: Lavender Valley, Mushroom Marsh (rare), Volcanic Chili (rare), Giant's Garden (legendary), Lunar Farm (legendary) — 20 crops incl. 3 huge, 8 trees, 11 props, 5 landmarks, bees/fireflies/embers/stardust; lathes auto-orient (inside-out caps fixed) | BRONZE |
+| W5b | d0a5180 | Biome library batch B: Lavender Valley, Mushroom Marsh (rare), Volcanic Chili (rare), Giant's Garden (legendary), Lunar Farm (legendary) — 20 crops incl. 3 huge, 8 trees, 11 props, 5 landmarks, bees/fireflies/embers/stardust; lathes auto-orient (inside-out caps fixed) | BRONZE |
+| W5c | e5d0f40 · 5f10d92 · (this) | Music flavour per family through the shared engine (tempo, key, scale, contour, timbre; no imitation of traditional music) + a quiet ambience per family; audio QA measures every tune and ambience; fixed noise bursts cut off by the 0.5 s noise buffer (farm-complete cymbal, zone crash, overheat, route swoosh); big-farm budget e2e waits for a settled frame (+ per-view draw breakdown hook) | BRONZE |
 
 ## Gates (✅ met with evidence · ⬜ open · ❌ failing)
 ### Core
@@ -34,6 +33,7 @@
 - ✅ ≥ 12 genuinely distinct biome families — 18 (13 listed below + Lavender Valley, Mushroom Marsh, Volcanic Chili, Giant's Garden, Lunar Farm). Earlier count, 13: 5 starter + Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard, Tropical Plantation, Christmas Tree Farm, Sakura Tea Garden, Andean Terraces, Nordic Berry; duplication detector green (every pair ≥ 3 major differences); screenshot matrix + crop close-ups reviewed per family (`e2e/biomes.spec.ts`); 400 farms × 13 families generated, 1,040 played out, 0 failures
 - ✅ different layout archetypes — 16 archetypes, all in use (stress test counts) · ✅ repeat protection — no family twice within 4 farms over 400 farms × 3 seeds (`world.test.ts`) · ⬜ anticipation · ✅ rare/showcase farms — 2 rare + 2 legendary families (Tour 2+/3+) favoured for Tour finales; huge one-per-plot crops (glowing giant caps, ember peppers, prize pumpkins, grand firs)
 - ⬜ good generated names (12 curated per family, EN + DE, never repeated — test; review pending) · ⬜ no cultural caricatures (landscape-based names and props; review pending)
+- ✅ music flavour per family through the shared engine, quiet ambience — every family has its own tune (unit test: ≥ 2 differences per pair, meadow tune unchanged) and ambience; offline audio QA: tunes within 1.1 dB of the meadow tune, no extra sub-bass, ambience ≥ 12 dB under a bite · ⬜ heard on a phone
 
 ### Map
 - ❌ map no longer a finite checklist (it is a list of five cards)
@@ -64,7 +64,7 @@
 |---|---|---|
 | Core game feel | 8 | accepted on a real phone (goal 04) |
 | World Tour clarity | 4 | exists; map is still a list with a World Tour section |
-| Biome variety | 8 | 18 families incl. 2 rare + 2 legendary showcases, each with its own crops/trees/props/landmark/rocks/barn/weather, screenshot-reviewed; no per-family music flavour yet |
+| Biome variety | 8 | 18 families incl. 2 rare + 2 legendary showcases, each with its own crops/trees/props/landmark/rocks/barn/weather, screenshot-reviewed, plus a music flavour and ambience each (measured offline, not yet heard on a phone); per-biome quality scores pending (W7) |
 | Farm generation | 7 | 16 archetypes, organic outlines, static + play-out validation over 8,000 farms with 0 failures; outlines at 12×12 plots still simple |
 | Long-term progression | 5 | endless journey, Core Rank bonus measurable (Tours ~20 % faster by rank 12); no Core Rank UI / collection extension yet |
 | Map UX | 4 | five cards |
@@ -72,16 +72,16 @@
 | Pacing | 7 | five farms measured (goal 04) |
 | Visual polish | 7 | |
 | Animation | 8 | goal 04 pop pass |
-| Audio | 8 | accepted on a real phone |
+| Audio | 8 | accepted on a real phone (goal 04); W5c flavours/ambience are measured offline only (levels, spectra, clips) — no device listening yet |
 | OVERDRIVE readability | 4 | real-device feedback: too weak |
 | Performance | 8 | goal 04 measurements |
 | Save robustness | 8 | v3 bounded, migration + recovery tests |
 | Android stability | 8 | CI + device |
 | Monetization fairness | 8 | goal 04 ad policy |
-| Replayability | 3 | endless, but only starter biomes so far |
+| Replayability | 5 | endless: 18 families × 16 layout archetypes × 3 size classes × modifiers, rare/legendary Tour finales; but no anticipation yet (bounded map, NEW BIOME reveal, collection, Core Rank UI — W4) |
 
 ## Open P0/P1
 - ~~P0: the game ends after five farms.~~ fixed in W1.
-- ~~P1: only 3 new biome families so far~~ — 18 families now incl. rare/legendary showcases; still missing: music flavour per family.
+- ~~P1: only 3 new biome families so far~~ — 18 families incl. rare/legendary showcases, each with a music flavour and ambience (W5c).
 - P1: OVERDRIVE state/heat not readable (real device).
 - ~~P1: World Tour economy not yet tuned or measured over 100 farms~~ — W3: measured and tuned (see Balance).

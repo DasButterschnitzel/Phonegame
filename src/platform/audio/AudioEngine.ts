@@ -1,5 +1,9 @@
+import type { BiomeId } from '../../game/types.ts';
+import { bassNote, flavourOf, type AmbienceKind, type MusicFlavour } from './flavours.ts';
+
 /**
- * Procedural WebAudio sound: no audio files. SFX pitch and motor/music tempo follow the caterpillar's speed.
+ * Procedural WebAudio sound: no audio files. SFX pitch and motor/music tempo follow the caterpillar's speed; the
+ * farm's biome family picks the music flavour and a quiet ambience.
  */
 type Ctx = BaseAudioContext;
 
@@ -14,12 +18,25 @@ const BITES = [
 ];
 /** Bigger crops (higher tiers) sound lower and hollower. */
 const TIER_PITCH = [1, 0.86, 0.74, 0.62];
+/** Seconds between two ambience sounds (random in this range): occasional, never a bed of noise. */
+const AMB_GAP: Record<AmbienceKind, [number, number]> = {
+  birds: [4, 9],
+  crickets: [3.5, 7],
+  wind: [6, 11],
+  water: [4, 8],
+  bees: [6, 11],
+  frogs: [4.5, 9],
+  crackle: [3, 6],
+  blips: [5, 10],
+};
 
 export class AudioEngine {
   private ctx: Ctx | null = null;
   private master!: GainNode;
   private sfx!: GainNode;
   private musicBus!: GainNode;
+  /** Ambience: its own quiet bus, on with the sound setting. */
+  private ambBus!: GainNode;
   private noise!: AudioBuffer;
   /**
    * Motor = a soft band-passed noise "movement texture" plus a faint electric sine whine (and its octave) with a
@@ -49,6 +66,10 @@ export class AudioEngine {
   private combo = 0;
   private lastChompAt = 0;
   private lastBite = 0;
+  /** The farm's music flavour and ambience (flavours.ts). */
+  private flavour: MusicFlavour = flavourOf('meadow');
+  /** Context time of the next ambience sound (-1: pick one shortly after the farm starts). */
+  private nextAmb = -1;
 
   /** Rendering into an OfflineAudioContext (audio QA): automation is allowed while not "running". */
   private offline = false;
@@ -74,6 +95,8 @@ export class AudioEngine {
       this.musicBus = this.ctx.createGain();
       this.musicBus.gain.value = 0.16;
       this.musicBus.connect(this.master);
+      this.ambBus = this.ctx.createGain();
+      this.ambBus.connect(this.master);
       // Half a second of noise; sources longer than what is left after their random start offset loop it.
       const len = this.ctx.sampleRate * 0.5;
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -135,12 +158,18 @@ export class AudioEngine {
     const run = !this.muted && (this.soundOn || this.musicOn);
     if (run && ac.state === 'suspended') void ac.resume();
     if (!run && ac.state === 'running') void ac.suspend();
-    const wantMusic = run && this.musicOn;
-    if (wantMusic && !this.sched) this.sched = setInterval(() => this.scheduleMusic(), 90);
-    if (!wantMusic && this.sched) {
+    // One timer schedules the music and the ambience a little ahead.
+    const wantTimer = run && (this.musicOn || (this.soundOn && !!this.flavour.ambience));
+    if (wantTimer && !this.sched) this.sched = setInterval(() => this.tick(), 90);
+    if (!wantTimer && this.sched) {
       clearInterval(this.sched);
       this.sched = null;
     }
+  }
+
+  private tick(): void {
+    if (this.musicOn) this.scheduleMusic();
+    if (this.soundOn) this.scheduleAmbience();
   }
 
   get ready(): boolean {
@@ -164,6 +193,17 @@ export class AudioEngine {
     if (!this.ctx) return;
     this.sfx.gain.value = this.soundOn ? 0.6 : 0;
     this.musicBus.gain.value = this.musicOn ? 0.14 : 0;
+    this.ambBus.gain.value = this.soundOn ? 0.6 : 0;
+  }
+
+  /** The farm's biome family picks the music flavour and the ambience; the tune starts again from its first bar. */
+  setFlavour(biome: BiomeId): void {
+    const f = flavourOf(biome);
+    if (f === this.flavour) return;
+    this.flavour = f;
+    this.beat = 0;
+    this.nextAmb = -1;
+    this.syncRunning();
   }
 
   /** 0..1 speed fraction; drives the motor (pitch and level) and the music tempo. */
@@ -234,7 +274,7 @@ export class AudioEngine {
     return true;
   }
 
-  private tone(freq: number, dur: number, type: OscillatorType, vol: number, when = 0, slideTo?: number): void {
+  private tone(freq: number, dur: number, type: OscillatorType, vol: number, when = 0, slideTo?: number, bus: AudioNode = this.sfx): void {
     const ctx = this.ctx!;
     const t = ctx.currentTime + when;
     const o = ctx.createOscillator();
@@ -245,12 +285,12 @@ export class AudioEngine {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(this.sfx);
+    o.connect(g).connect(bus);
     o.start(t);
     o.stop(t + dur + 0.02);
   }
 
-  private noiseHit(dur: number, freq: number, q: number, vol: number, when = 0): void {
+  private noiseHit(dur: number, freq: number, q: number, vol: number, when = 0, bus: AudioNode = this.sfx): void {
     const ctx = this.ctx!;
     const t = ctx.currentTime + when;
     const src = ctx.createBufferSource();
@@ -263,7 +303,7 @@ export class AudioEngine {
     const g = ctx.createGain();
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f).connect(g).connect(this.sfx);
+    src.connect(f).connect(g).connect(bus);
     src.start(t, Math.random() * 0.3);
     src.stop(t + dur + 0.02);
   }
@@ -274,7 +314,7 @@ export class AudioEngine {
    * like one sample on repeat. Back-to-back bites climb a touch.
    */
   /** Band-passed noise whose centre glides from f0 to f1 (whooshes). */
-  private sweep(dur: number, f0: number, f1: number, q: number, vol: number, when = 0): void {
+  private sweep(dur: number, f0: number, f1: number, q: number, vol: number, when = 0, bus: AudioNode = this.sfx): void {
     const ctx = this.ctx!;
     const t = ctx.currentTime + when;
     const src = ctx.createBufferSource();
@@ -289,7 +329,7 @@ export class AudioEngine {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.3);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f).connect(g).connect(this.sfx);
+    src.connect(f).connect(g).connect(bus);
     src.start(t, Math.random() * 0.2);
     src.stop(t + dur + 0.02);
   }
@@ -570,25 +610,113 @@ export class AudioEngine {
     [0, 7, 12, 16].forEach((s, i) => this.tone(midi(84 + s), 0.15, 'sine', 0.1, i * 0.05));
   }
 
-  private scheduleMusic(): void {
+  /** Schedules the farm's tune `horizon` seconds ahead (8th-note grid: `beat` counts half beats, a bar is 8). */
+  private scheduleMusic(horizon = 0.25): void {
     if (!this.ctx || !this.musicOn || this.muted) return;
     const ctx = this.ctx;
-    const bpm = 92 * (0.95 + 0.2 * this.speed);
+    const fl = this.flavour;
+    const bpm = fl.bpm * (0.95 + 0.2 * this.speed);
     const spb = 60 / bpm / 2;
     if (this.nextBeat < ctx.currentTime) this.nextBeat = ctx.currentTime + 0.05;
-    while (this.nextBeat < ctx.currentTime + 0.25) {
+    while (this.nextBeat < ctx.currentTime + horizon) {
       const b = this.beat++;
-      const bar = Math.floor(b / 8) % 4;
-      const roots = [60, 65, 67, 64];
+      const root = fl.roots[Math.floor(b / 8) % 4];
       const t = this.nextBeat - ctx.currentTime;
       if (b % 2 === 0) {
-        const step = [0, 2, 4, 2, 5, 4, 2, 1][Math.floor(b / 2) % 8];
-        this.musicNote(midi(roots[bar] + PENTA[step]), 0.22, t, 'triangle', 0.5);
+        const step = fl.pattern[Math.floor(b / 2) % 8];
+        this.musicNote(midi(root + fl.scale[step]), fl.leadLen, t, fl.lead, 0.5 * fl.gain);
+      } else if (fl.fills && b % 4 === 3) {
+        // A soft pick-up from the step below into the next beat's note.
+        const next = fl.pattern[(Math.floor(b / 2) + 1) % 8];
+        this.musicNote(midi(root + fl.scale[next > 0 ? next - 1 : 1]), 0.12, t, fl.lead, 0.25 * fl.gain);
       }
-      // Bass an octave up from where it was: phone speakers don't play 65 Hz.
-      if (b % 4 === 0) this.musicNote(midi(roots[bar] - 12), 0.35, t, 'triangle', 0.5);
-      if (b % 8 === 4) this.musicNote(midi(roots[bar] + 12), 0.1, t, 'square', 0.12);
+      if (b % (fl.bassEvery * 2) === 0) this.musicNote(midi(bassNote(root)), 0.35, t, 'triangle', 0.5 * fl.gain);
+      if (fl.sparkle && b % 8 === 4) this.musicNote(midi(root + fl.sparkle.oct), 0.1, t, fl.sparkle.type, fl.sparkle.vol * fl.gain);
       this.nextBeat += spb;
+    }
+  }
+
+  /** The farm's ambience: one quiet sound every few seconds, scheduled `horizon` seconds ahead. */
+  private scheduleAmbience(horizon = 0.25): void {
+    const amb = this.flavour.ambience;
+    if (!this.ctx || !amb || !this.soundOn || this.muted) return;
+    const now = this.ctx.currentTime;
+    if (this.nextAmb < 0 || this.nextAmb < now - 1) this.nextAmb = now + 1.5 + Math.random() * 2;
+    while (this.nextAmb < now + horizon) {
+      this.ambient(amb.kind, amb.pitch, Math.max(0, this.nextAmb - now));
+      const [lo, hi] = AMB_GAP[amb.kind];
+      this.nextAmb += lo + Math.random() * (hi - lo);
+    }
+  }
+
+  /**
+   * One ambience sound, far quieter than any gameplay sound: a few bird tweets, a cricket's chirps, a gust, drops of
+   * water, a passing bee, a frog, crackling embers, a distant beep. Nothing below ~250 Hz.
+   */
+  private ambient(kind: AmbienceKind, pitch: number, when: number): void {
+    const ctx = this.ctx!;
+    const bus = this.ambBus;
+    const r = Math.random;
+    switch (kind) {
+      case 'birds': {
+        const base = (2700 + r() * 900) * pitch;
+        const n = 2 + Math.floor(r() * 3);
+        for (let i = 0; i < n; i++) {
+          const f = base * (0.96 + r() * 0.08);
+          this.tone(f * 1.25, 0.07, 'sine', 0.009, when + i * (0.1 + r() * 0.04), f * 0.85, bus);
+        }
+        break;
+      }
+      case 'crickets':
+        for (let burst = 0; burst < 2 + Math.floor(r() * 2); burst++)
+          for (let p = 0; p < 4; p++) this.tone(4300 * pitch, 0.018, 'sine', 0.006, when + burst * 0.32 + p * 0.04, undefined, bus);
+        break;
+      case 'wind':
+        this.sweep(3 + r() * 1.5, 480 * pitch, 900 * pitch, 0.8, 0.02, when, bus);
+        break;
+      case 'water': {
+        const n = 2 + Math.floor(r() * 2);
+        for (let i = 0; i < n; i++) {
+          const f = (600 + r() * 500) * pitch;
+          this.tone(f, 0.08, 'sine', 0.007, when + i * (0.15 + r() * 0.2), f * 1.7, bus);
+        }
+        break;
+      }
+      case 'bees': {
+        // A bee flying past: a soft buzz that swells and fades, its pitch wobbling a little.
+        const t = ctx.currentTime + when;
+        const dur = 1.3 + r() * 0.6;
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(230 * pitch, t);
+        o.frequency.linearRampToValueAtTime(250 * pitch, t + dur * 0.5);
+        o.frequency.linearRampToValueAtTime(215 * pitch, t + dur);
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1100;
+        bp.Q.value = 1.2;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.012, t + dur * 0.45);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(bp).connect(g).connect(bus);
+        o.start(t);
+        o.stop(t + dur + 0.02);
+        break;
+      }
+      case 'frogs':
+        for (let i = 0; i < 2; i++) {
+          const f = 390 * pitch * (0.97 + r() * 0.06);
+          this.tone(f, 0.05, 'square', 0.004, when + i * 0.24, f * 0.8, bus);
+          this.tone(f * 1.12, 0.07, 'square', 0.004, when + i * 0.24 + 0.07, f * 0.85, bus);
+        }
+        break;
+      case 'crackle':
+        for (let i = 0, n = 4 + Math.floor(r() * 4); i < n; i++) this.noiseHit(0.008, (3000 + r() * 2500) * pitch, 1, 0.02, when + r() * 0.7, bus);
+        break;
+      case 'blips':
+        for (let i = 0; i < 2 + Math.floor(r() * 2); i++) this.tone((1300 + 300 * (i % 2)) * pitch, 0.07, 'sine', 0.008, when + i * 0.13, undefined, bus);
+        break;
     }
   }
 

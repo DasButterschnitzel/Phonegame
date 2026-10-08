@@ -11,6 +11,7 @@ import { DebugView } from '../render/views/DebugView.ts';
 import { markDirty } from '../game/field.ts';
 import { vMax } from '../game/config.ts';
 import { AudioEngine } from '../platform/audio/AudioEngine.ts';
+import { AMBIENCE_KINDS, FLAVOURS, type AmbienceKind } from '../platform/audio/flavours.ts';
 
 export interface DebugApi {
   ready: boolean;
@@ -257,16 +258,18 @@ export function installDebug(app: App): DebugApi {
         }
         return { centroid: Math.round(tot > 0 ? cen / tot : 0), low150: tot > 0 ? +(lo150 / tot).toFixed(4) : 0, low300: tot > 0 ? +(lo300 / tot).toFixed(4) : 0 };
       };
-      const render = async (play: (a: AudioEngine) => void, dur = 1.2, from = 0) => {
+      const render = async (play: (a: AudioEngine) => void, dur = 1.2, from = 0, music = false) => {
         const ctx = new OfflineAudioContext(1, Math.ceil(SR * dur), SR);
         const a = new AudioEngine();
         a.unlock(ctx);
-        a.setEnabled(true, false);
+        a.setEnabled(!music, music);
         play(a);
         const d = (await ctx.startRendering()).getChannelData(0);
         let peak = 0;
         let sum = 0;
         let n = 0;
+        let all = 0;
+        for (let i = Math.floor(from * SR); i < d.length; i++) all += d[i] * d[i];
         // RMS over 50 ms windows; report the loudest window (what the ear notices).
         const win = 2205;
         let best = 0;
@@ -287,7 +290,8 @@ export function installDebug(app: App): DebugApi {
           if (first < 0) first = i;
           last = i;
         }
-        return { rms: db(best), peak: db(peak), ms: first < 0 ? 0 : Math.round(((last - first) / SR) * 1000), ...spectrum(d, from) };
+        const mean = db(Math.sqrt(all / Math.max(1, d.length - Math.floor(from * SR))));
+        return { rms: db(best), mean, peak: db(peak), ms: first < 0 ? 0 : Math.round(((last - first) / SR) * 1000), ...spectrum(d, from) };
       };
       type R = Awaited<ReturnType<typeof render>>;
       const out: Record<string, R | { spread: number }> = {};
@@ -316,7 +320,13 @@ export function installDebug(app: App): DebugApi {
       out.chomp = bites[3];
       const cents = bites.map((b) => b.centroid);
       out.variety = { spread: +((Math.max(...cents) - Math.min(...cents)) / (cents.reduce((p, c) => p + c, 0) / cents.length)).toFixed(3) };
-      return out;
+      // Each family's tune (8 s, music only) and one sound of each ambience kind.
+      type Sched = { scheduleMusic: (horizon: number) => void; ambient: (k: AmbienceKind, pitch: number, when: number) => void };
+      const music: Record<string, R> = {};
+      for (const id of Object.keys(FLAVOURS) as BiomeId[]) music[id] = await render((a) => (a.setFlavour(id), (a as unknown as Sched).scheduleMusic(8)), 8, 0.1, true);
+      const ambience: Record<string, R> = {};
+      for (const k of AMBIENCE_KINDS) ambience[k] = await render((a) => (a as unknown as Sched).ambient(k, 1, 0.05), 4.8);
+      return { ...out, music, ambience };
     },
     /**
      * Listening clips (mono, 44.1 kHz) for a human to audition on a phone: the motor at crawl and full speed with its
@@ -324,11 +334,11 @@ export function installDebug(app: App): DebugApi {
      */
     audioClips: async () => {
       const SR = 44100;
-      const clip = async (dur: number, play: (a: AudioEngine) => void) => {
+      const clip = async (dur: number, play: (a: AudioEngine) => void, music = false) => {
         const ctx = new OfflineAudioContext(1, Math.ceil(SR * dur), SR);
         const a = new AudioEngine();
         a.unlock(ctx);
-        a.setEnabled(true, false);
+        a.setEnabled(!music, music);
         play(a);
         return Array.from((await ctx.startRendering()).getChannelData(0), (v) => Math.round(v * 32767));
       };
@@ -368,11 +378,17 @@ export function installDebug(app: App): DebugApi {
         for (let k = 0; k < 8; k++) at(0.1 + 0.36 + k * 0.053, () => a.unloadSeg(k, k === 7));
         at(0.1 + 0.36 + 7 * 0.053 + 0.02, () => a.unload(80));
       };
+      // Each family's tune (6 s) and three sounds of each ambience kind.
+      type Sched = { scheduleMusic: (horizon: number) => void; ambient: (k: AmbienceKind, pitch: number, when: number) => void };
+      const tunes: Record<string, number[]> = {};
+      for (const id of Object.keys(FLAVOURS) as BiomeId[]) tunes[`music-${id}`] = await clip(6, (a) => (a.setFlavour(id), (a as unknown as Sched).scheduleMusic(6)), true);
+      for (const k of AMBIENCE_KINDS) tunes[`ambience-${k}`] = await clip(9, (a) => [0.2, 3.2, 6.2].forEach((t) => (a as unknown as Sched).ambient(k, 1, t)));
       return {
         'motor-crawl': await clip(4, motor(0.2, 0.6)),
         'motor-full': await clip(4, motor(1, 3)),
         bites: await clip(1.8, bites),
         'unload-wave': await clip(2, wave),
+        ...tunes,
       };
     },
     /** Grow the territory to at least `plots` claimed plots (clears frontier plots and lets the route catch up). */

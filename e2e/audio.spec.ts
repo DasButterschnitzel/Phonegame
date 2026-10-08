@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { ready, g } from './helpers.ts';
 
-type Measure = { rms: number; peak: number; ms: number; centroid: number; low150: number; low300: number };
+type Measure = { rms: number; mean: number; peak: number; ms: number; centroid: number; low150: number; low300: number };
 
 // Audio QA: every procedural sound rendered offline and measured. Loudness and spectra are guardrails, not a verdict
 // on how it sounds — that still needs ears on a phone.
@@ -30,4 +30,17 @@ test('mix levels and spectra: a quiet, clean motor under every gameplay sound; v
   expect.soft(r.collapse.ms, 'collapse rings longer than a bite').toBeGreaterThan(r.chomp.ms * 1.2);
   // Payoff moments carry the mix.
   expect(r.unloadDone.rms).toBeGreaterThan(r.chomp.rms - 3);
+  // Music flavours: every family's tune plays as loud as the meadow tune and leans no more on bass.
+  const { music, ambience } = r as unknown as { music: Record<string, Measure>; ambience: Record<string, Measure> };
+  expect(Object.keys(music).length).toBeGreaterThanOrEqual(18);
+  for (const [id, m] of Object.entries(music)) {
+    expect.soft(Math.abs(m.mean - music.meadow.mean), `${id} loudness vs the meadow tune`).toBeLessThan(2);
+    expect.soft(m.low150, `${id} energy below 150 Hz`).toBeLessThan(music.meadow.low150 + 0.05);
+  }
+  // Ambience is quiet — well under a bite, around the motor — but never silent, and has nothing low.
+  for (const [k, a] of Object.entries(ambience)) {
+    expect.soft(a.rms, `${k} under a bite`).toBeLessThan(r.chomp.rms - 8);
+    expect.soft(a.rms, `${k} audible`).toBeGreaterThan(r.motorIdle.rms - 6);
+    expect.soft(a.low150, `${k} energy below 150 Hz`).toBeLessThan(0.05);
+  }
 });
