@@ -54,15 +54,15 @@ const set = (g: Grid, c: number, r: number, v: number): void => {
 
 /** Plot counts per size class (the authored starter farms have ~95–125). */
 export const SIZE_PLOTS: Record<SizeClass, [number, number]> = {
-  quick: [52, 78],
-  standard: [88, 124],
-  grand: [128, 170],
+  quick: [50, 82],
+  standard: [90, 130],
+  grand: [130, 178],
 };
 
 const DIMS: Record<SizeClass, { cols: [number, number]; rows: [number, number] }> = {
-  quick: { cols: [9, 10], rows: [8, 9] },
-  standard: { cols: [11, 13], rows: [10, 11] },
-  grand: { cols: [13, 15], rows: [12, 13] },
+  quick: { cols: [9, 10], rows: [8, 10] },
+  standard: { cols: [11, 13], rows: [10, 12] },
+  grand: { cols: [13, 15], rows: [12, 14] },
 };
 
 interface Ctx {
@@ -110,21 +110,27 @@ function band(x: Ctx, c0: number, r0: number, dc: number, dr: number, len: numbe
   }
 }
 
-/** Base field: a rounded rectangle (deeper cuts on the far corners), the start block on the near edge. */
+/**
+ * Base field: an organic outline — a superellipse whose radius wobbles with two seeded harmonics (rounder or boxier per
+ * archetype) — flattened towards the near edge, where the start block and depot sit.
+ */
 function baseShape(x: Ctx, roundness: number): void {
   const { g, rnd } = x;
-  g.c.fill(PLOT);
-  const cut = (row: number, fromLeft: number, fromRight: number) => {
-    for (let c = 0; c < fromLeft; c++) set(g, c, row, VOID);
-    for (let c = 0; c < fromRight; c++) set(g, g.cols - 1 - c, row, VOID);
-  };
-  // Far corners: 1–3 cells over the first rows; near corners: 0–1 cell.
-  const farL = ri(rnd, 1, 2 + roundness);
-  const farR = ri(rnd, 1, 2 + roundness);
-  for (let r = 0; r < farL; r++) cut(r, farL - r, 0);
-  for (let r = 0; r < farR; r++) cut(r, 0, farR - r);
-  if (rnd() < 0.7) cut(g.rows - 1, 1, 0);
-  if (rnd() < 0.7) cut(g.rows - 1, 0, 1);
+  const p = Math.max(2, 2.3 + rnd() * 1.5 - roundness * 0.3);
+  const h1 = rnd() * Math.PI * 2;
+  const h2 = rnd() * Math.PI * 2;
+  const a1 = 0.06 + rnd() * 0.09;
+  const a2 = 0.04 + rnd() * 0.07;
+  for (let r = 0; r < g.rows; r++)
+    for (let c = 0; c < g.cols; c++) {
+      const u = ((c + 0.5) / g.cols) * 2 - 1;
+      let v = ((r + 0.5) / g.rows) * 2 - 1;
+      // The near half is squashed so the outline runs almost straight along the near edge.
+      if (v > 0) v *= 0.6;
+      const ang = Math.atan2(v, u);
+      const rad = 1.03 + a1 * Math.sin(2 * ang + h1) + a2 * Math.sin(3 * ang + h2);
+      g.c[r * g.cols + c] = Math.abs(u) ** p + Math.abs(v) ** p <= rad ** p ? PLOT : VOID;
+    }
   // Start block: 3 × 2 on the near edge, the depot plot in the middle of the last row.
   for (let r = g.rows - 2; r < g.rows; r++) for (let c = x.sc - 1; c <= x.sc + 1; c++) g.c[r * g.cols + c] = START;
   g.c[(g.rows - 1) * g.cols + x.sc] = DEPOT;
@@ -141,8 +147,11 @@ const ARCHETYPES: Record<ArchetypeId, Drawer> = {
   },
   riverbend: (x) => {
     const s = side(x);
-    const r0 = ri(x.rnd, 2, Math.floor(x.g.rows * 0.45));
-    band(x, edgeCol(x, s), r0, -s, 0, Math.floor(x.g.cols * (0.45 + 0.2 * x.rnd())), 2, WATER, 0.3);
+    const r0 = ri(x.rnd, Math.floor(x.g.rows * 0.3), Math.floor(x.g.rows * 0.5));
+    const run = Math.floor(x.g.cols * (0.35 + 0.15 * x.rnd()));
+    band(x, edgeCol(x, s), r0, -s, 0, run, 2, WATER, 0.2);
+    // …then it bends towards the far side and peters out.
+    band(x, edgeCol(x, s) - s * run, r0, 0, -1, Math.floor(r0 * 0.6), 2, WATER, 0.25);
   },
   twinponds: (x) => {
     blob(x, ri(x.rnd, 1, Math.floor(x.g.cols / 2) - 1), 0, 1.6, WATER);

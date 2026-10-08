@@ -28,7 +28,9 @@
     "bundle:check": "node scripts/check-bundle.ts",
     "package:portals": "node scripts/package-portal.ts",
     "cap:sync": "npm run build:native && cap sync",
-    "android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug"
+    "android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "worldgen": "node scripts/worldgen.ts",
+    "journey": "node scripts/journey-bench.ts"
   },
   "dependencies": {
     "@capacitor-community/admob": "8.2.1",
