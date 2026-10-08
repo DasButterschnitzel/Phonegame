@@ -320,6 +320,137 @@ const WORLD_BUILDERS = {
     ...crown(1.12, 0.6, [0x3f8a3a, 0x4f9a46], 0xc8e8a8, 0.5),
     ...hanging(7, 0.55, 0.82, 0.085, [0x7ccf3a, 0xe8322a, 0x9ad84a], 1.0),
   ],
+  // ——— Lavender valley ———
+  chamomile: (): Part[] => [
+    ...leafFan(2, 0.08, 0.3, 0x7ab85a, 0.0),
+    ...[
+      [-0.1, 0.02, 0.5],
+      [0.12, -0.06, 0.44],
+      [0, 0.12, 0.38],
+    ].flatMap(([x, z, h]): Part[] => [
+      { geo: cone(0.02, h, 3), color: 0x7ab85a, pos: [x, h / 2, z], rot: [Math.PI, 0, 0], flesh: 0xe0f0c8 },
+      { geo: octa(0.1), color: 0xf8f4e8, pos: [x, h + 0.02, z], scale: [1.3, 0.35, 1.3], leaf: true },
+      { geo: octa(0.045), color: 0xffd23f, pos: [x, h + 0.05, z], leaf: true },
+    ]),
+  ],
+  lavenderbush: (): Part[] => [
+    { geo: ball(0.24, 0), color: 0x8aa078, pos: [0, 0.2, 0], scale: [1.3, 0.75, 1.3], jitter: 0.15, flesh: 0xdce8d0 },
+    ...Array.from({ length: 8 }, (_, i): Part => {
+      const a = (i / 8) * Math.PI * 2;
+      return { geo: cone(0.05, 0.42, 3), color: i % 2 ? 0x8a6ab8 : 0x9a7ac8, pos: [Math.cos(a) * 0.16, 0.5, Math.sin(a) * 0.16], rot: [Math.PI + Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35], leaf: true };
+    }),
+  ],
+  melon: (): Part[] => [
+    { geo: lathe(ribbed(0.3, 0.42), 7), color: 0xbfd06a, pos: [0, 0.02, 0], jitter: 0.14, flesh: 0xffa860 },
+    { geo: cone(0.08, 0.45, 3), color: LEAF, pos: [0.3, 0.12, 0.1], rot: [0, 0, -1.2], scale: [1.6, 1, 0.4], leaf: true },
+    { geo: cone(0.08, 0.4, 3), color: LEAF_DARK, pos: [-0.28, 0.12, -0.1], rot: [0, 0, 1.2], scale: [1.6, 1, 0.4], leaf: true },
+  ],
+  almond: (): Part[] => [
+    { geo: cyl(0.1, 0.15, 0.7, 5), color: 0x5a4636, pos: [0, 0.35, 0], jitter: 0.1, flesh: 0xd8c0a8 },
+    ...crown(1.12, 0.58, [0xfff0f4, 0xf8e0e8], 0xffffff, 0.5),
+    ...hanging(6, 0.5, 0.82, 0.07, [0x9ac85a, 0x8ab84a], 1.4),
+  ],
+  // ——— Mushroom marsh ———
+  puffball: (): Part[] => [
+    { geo: ball(0.17, 0), color: 0xf4f0e6, pos: [0, 0.14, 0], scale: [1, 0.85, 1], jitter: 0.08, flesh: 0xffffff },
+    { geo: ball(0.12, 0), color: 0xece6d8, pos: [0.22, 0.1, 0.08], scale: [1, 0.85, 1], jitter: 0.08, flesh: 0xffffff },
+    { geo: ball(0.09, 0), color: 0xf8f4ea, pos: [-0.18, 0.08, -0.12], scale: [1, 0.85, 1], jitter: 0.08, flesh: 0xffffff },
+    { geo: cone(0.04, 0.3, 3), color: 0x5a8a4a, pos: [0.05, 0.15, -0.2], leaf: true },
+    { geo: cone(0.04, 0.26, 3), color: 0x6a9a52, pos: [-0.1, 0.13, 0.2], leaf: true },
+  ],
+  chanterelle: (): Part[] =>
+    [
+      [0, 0, 0.3],
+      [0.18, 0.08, 0.24],
+      [-0.15, 0.1, 0.22],
+      [0.05, -0.18, 0.2],
+    ].flatMap(([x, z, h]): Part[] => [
+      { geo: cone(0.05, h, 3), color: 0xf0b850, pos: [x, h / 2, z], rot: [Math.PI, 0, 0], flesh: 0xfff0c8 },
+      { geo: cone(0.13, 0.16, 5), color: 0xf0a030, pos: [x, h + 0.02, z], rot: [Math.PI, 0, 0], jitter: 0.12, leaf: true },
+    ]),
+  // A big red cap with white spots.
+  toadstool: (): Part[] => [
+    { geo: cyl(0.14, 0.2, 0.8, 6), color: 0xf0e6cc, pos: [0, 0.4, 0], jitter: 0.06, flesh: 0xffffff },
+    { geo: lathe([[0.66, 0], [0.62, 0.2], [0.35, 0.4], [0, 0.45]], 8), color: 0xd8302a, pos: [0, 0.78, 0], jitter: 0.1, flesh: 0xfff4e8 },
+    ...[0, 1, 2, 3, 4].map((i): Part => ({ geo: octa(0.08), color: 0xffffff, pos: [Math.cos(i * 1.26 + 0.3) * 0.4, 1.08 + (i % 2) * 0.06, Math.sin(i * 1.26 + 0.3) * 0.4], scale: [1.3, 0.4, 1.3], leaf: true })),
+  ],
+  // A mushroom as big as a hut, its spots glowing — fills a plot alone.
+  giantcap: (): Part[] => [
+    { geo: cyl(0.32, 0.45, 1.3, 8), color: 0xece2c8, pos: [0, 0.65, 0], jitter: 0.06, flesh: 0xffffff },
+    { geo: lathe([[1.2, 0], [1.3, 0.12], [1.05, 0.45], [0.6, 0.78], [0, 0.85]], 10), color: 0x2f8a9a, pos: [0, 1.25, 0], jitter: 0.1, flesh: 0xd8fff4 },
+    { geo: cyl(1.15, 0.5, 0.12, 10), color: 0xd8d0b8, pos: [0, 1.2, 0] },
+    ...Array.from({ length: 7 }, (_, i): Part => ({ geo: octa(0.13), color: 0xa8ffe8, pos: [Math.cos(i * 0.9) * (0.45 + (i % 2) * 0.35), 1.85 + (i % 2 ? -0.18 : 0.05), Math.sin(i * 0.9) * (0.45 + (i % 2) * 0.35)], scale: [1.3, 0.4, 1.3], leaf: true })),
+  ],
+  // ——— Volcanic chili farm ———
+  chili: (): Part[] => [
+    { geo: ball(0.24, 0), color: 0x3f8a3a, pos: [0, 0.32, 0], scale: [1.15, 1, 1.15], jitter: 0.18, flesh: 0xc8e8b0 },
+    ...fruitsAround(4, 0.24, 0.2, 0.06, 0xe8202a, () => cone(0.055, 0.3, 4)).map((p): Part => ({ ...p, rot: [Math.PI, 0, 0] })),
+    ...fruitsAround(2, 0.18, 0.5, 0.1, 0x4f9a46, () => octa(0.1)),
+  ],
+  sweetpotato: (): Part[] => [
+    ...fruitsAround(5, 0.24, 0.12, 0.12, 0x4f9a46, () => octa(0.12)).map((p): Part => ({ ...p, scale: [1.3, 0.3, 1.1] })),
+    { geo: octa(0.11), color: 0xa84a6a, pos: [0.12, 0.06, 0.05], scale: [1.6, 0.8, 0.9], rot: [0, 0.4, 0], flesh: 0xffc890 },
+    { geo: octa(0.1), color: 0xb85a7a, pos: [-0.12, 0.05, -0.08], scale: [1.6, 0.8, 0.9], rot: [0, -0.6, 0], flesh: 0xffc890 },
+  ],
+  coffee: (): Part[] => [
+    { geo: cyl(0.06, 0.09, 0.5, 4), color: 0x5e4630, pos: [0, 0.25, 0], flesh: 0xd8c09a },
+    { geo: dodeca(0.5), color: 0x1f5a2e, pos: [0, 0.85, 0], scale: [1, 1.25, 1], jitter: 0.16, flesh: 0xb8e0a0 },
+    { geo: dodeca(0.36), color: 0x2a6e3a, pos: [0.25, 1.3, 0.1], jitter: 0.16, flesh: 0xb8e0a0 },
+    ...hanging(8, 0.42, 0.7, 0.06, [0xc8202a, 0x8a1a1a, 0xe0402a], 1.1),
+  ],
+  // A pepper as big as a car, glowing like a coal — fills a plot alone.
+  emberpepper: (): Part[] => [
+    { geo: lathe([[0, 0], [0.4, 0.1], [0.75, 0.55], [0.85, 1.05], [0.7, 1.5], [0.3, 1.7], [0, 1.72]], 8), color: 0xff4a1a, pos: [0, 0.05, 0], jitter: 0.12, flesh: 0xffc840 },
+    { geo: cyl(0.1, 0.16, 0.45, 6), color: 0x3a6a2a, pos: [0.05, 1.9, 0], rot: [0, 0, -0.3] },
+    { geo: cone(0.18, 0.7, 3), color: 0x4a8a3a, pos: [0.4, 1.75, 0], rot: [0, 0, -1.1], scale: [1.6, 1, 0.4], leaf: true },
+    { geo: octa(0.25), color: 0xffd040, pos: [0.4, 0.9, 0.5], scale: [1, 1.6, 0.5], leaf: true },
+  ],
+  // ——— Giant's garden (everything oversized) ———
+  bigradish: (): Part[] => [
+    { geo: ball(0.42, 1), color: 0xe8325a, pos: [0, 0.38, 0], scale: [1, 1.1, 1], jitter: 0.08, flesh: 0xfff4f6 },
+    { geo: cone(0.06, 0.3, 3), color: 0xf4e0e4, pos: [0, 0.02, 0], rot: [Math.PI, 0, 0] },
+    ...leafFan(5, 0.08, 0.75, 0x4f9e3a, 0.75),
+  ],
+  bigberry: (): Part[] => [
+    { geo: cone(0.42, 0.85, 7), color: 0xe8203a, pos: [0, 0.48, 0], rot: [Math.PI, 0, 0], jitter: 0.1, flesh: 0xffd0d8 },
+    { geo: ball(0.42, 0), color: 0xe8203a, pos: [0, 0.82, 0], scale: [1, 0.55, 1], flesh: 0xffd0d8 },
+    ...[0, 1, 2, 3, 4, 5].map((i): Part => ({ geo: octa(0.05), color: 0xffe08a, pos: [Math.cos(i * 1.05) * 0.3, 0.45 + (i % 3) * 0.12, Math.sin(i * 1.05) * 0.3], leaf: true })),
+    ...leafFan(5, 0.18, 0.4, 0x3e9b47, 0.88),
+  ],
+  bigcabbage: (): Part[] => [
+    { geo: ball(0.48, 1), color: 0x9fd987, pos: [0, 0.45, 0], scale: [1, 0.85, 1], jitter: 0.1, flesh: 0xf2fbe0 },
+    ...[0, 1, 2, 3, 4].map((i): Part => ({ geo: octa(0.42), color: i % 2 ? 0x6fbf6a : 0x5fae5a, pos: [Math.cos(i * 1.26) * 0.45, 0.25, Math.sin(i * 1.26) * 0.45], rot: [Math.sin(i * 1.26) * 0.6, 0, -Math.cos(i * 1.26) * 0.6], scale: [1.2, 0.2, 1], jitter: 0.12, leaf: true })),
+  ],
+  // A prize pumpkin that fills a plot alone.
+  giantpumpkin: (): Part[] => [
+    { geo: lathe(ribbed(1.15, 1.4), 10), color: 0xff7b1c, pos: [0, 0, 0], jitter: 0.1, flesh: 0xffc35a },
+    { geo: cyl(0.12, 0.16, 0.45, 5), color: 0x5a7d2a, pos: [0, 1.5, 0], rot: [0, 0, 0.2], leaf: true },
+    { geo: box(0.8, 0.05, 0.45), color: LEAF, pos: [0.55, 1.3, 0.2], rot: [0, 0.6, 0.35], leaf: true },
+    { geo: box(0.7, 0.05, 0.4), color: LEAF_DARK, pos: [-0.5, 1.25, -0.25], rot: [0, -0.5, -0.3], leaf: true },
+  ],
+  // ——— Lunar farm (hydroponics under glass) ———
+  moonsprout: (): Part[] => [
+    { geo: box(0.5, 0.1, 0.5), color: 0xd8d8e0, pos: [0, 0.05, 0] },
+    { geo: cyl(0.2, 0.22, 0.12, 6), color: 0x5a6a7a, pos: [0, 0.14, 0] },
+    ...[0, 1, 2].map((i): Part => ({ geo: cone(0.05, 0.36, 3), color: i % 2 ? 0x8affc8 : 0x6ae8a8, pos: [Math.cos(i * 2.1) * 0.08, 0.36, Math.sin(i * 2.1) * 0.08], rot: [Math.sin(i * 2.1) * 0.3, 0, -Math.cos(i * 2.1) * 0.3], leaf: true })),
+  ],
+  spacepotato: (): Part[] => [
+    { geo: lathe([[0.22, 0], [0.28, 0.22], [0.3, 0.24]], 6), color: 0xc8ccd8, jitter: 0.06, flesh: 0xe8ecf4 },
+    ...fruitsAround(4, 0.16, 0.36, 0.1, 0x5fae52, () => octa(0.1)),
+    ...fruitsAround(2, 0.08, 0.5, 0.05, 0xc8a8f0),
+  ],
+  podlettuce: (): Part[] => [
+    { geo: box(0.46, 0.14, 0.46), color: 0xe8e8f0, pos: [0, 0.07, 0] },
+    { geo: box(0.48, 0.04, 0.06), color: 0x8ae0ff, pos: [0, 0.15, 0.22] },
+    { geo: ball(0.2, 0), color: 0x9be564, pos: [0, 0.28, 0], scale: [1, 0.75, 1], jitter: 0.2, flesh: 0xe6f8b4 },
+    ...leafFan(4, 0.12, 0.26, 0x7ed957, 0.14),
+  ],
+  // A star-fruit tree that glows faintly in the lunar night.
+  starfruit: (): Part[] => [
+    { geo: cyl(0.09, 0.14, 0.7, 5), color: 0x6a6a7a, pos: [0, 0.35, 0], jitter: 0.1, flesh: 0xd8d8e8 },
+    ...crown(1.1, 0.56, [0x3ab8a8, 0x4ac8b8], 0xc8fff4, 0.5),
+    ...hanging(6, 0.5, 0.8, 0.09, [0xfff27a, 0xffe14d]),
+  ],
 } satisfies Partial<Record<CropId, () => Part[]>>;
 
 const BUILDERS: Record<CropId, () => Part[]> = {

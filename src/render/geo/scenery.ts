@@ -178,6 +178,76 @@ export function treeGeometry(kind: TreeKind): THREE.BufferGeometry {
         { geo: cone(0.55, 1.3, 6), color: 0x1f5636, pos: [0, 1.85, 0], jitter: 0.12 },
         { geo: cone(0.36, 1.1, 6), color: 0x26603e, pos: [0, 2.6, 0], jitter: 0.12 },
       ], 0.3, 2.2);
+    case 'plane':
+      // Plane tree: a mottled trunk and a broad round crown.
+      return build([
+        { geo: cyl(0.16, 0.22, 1.4, 5), color: 0xb8ad8a, pos: [0, 0.7, 0] },
+        { geo: box(0.2, 0.25, 0.05), color: 0x8a8068, pos: [0.12, 0.6, 0.12], rot: [0, 0.6, 0] },
+        { geo: dodeca(1.0), color: 0x5a9a3a, pos: [0, 2.0, 0], scale: [1.25, 0.85, 1.25], jitter: 0.16 },
+        { geo: dodeca(0.6), color: 0x6aaa46, pos: [0.6, 2.35, 0.2], jitter: 0.16 },
+      ], 0.3, 1.8);
+    case 'willow': {
+      // Weeping willow: curtains of drooping green.
+      const parts: Part[] = [
+        { geo: cyl(0.14, 0.2, 1.4, 5), color: 0x5a4a3a, pos: [0, 0.7, 0] },
+        { geo: dodeca(0.75), color: 0x5a8a4a, pos: [0, 1.9, 0], scale: [1.2, 0.7, 1.2], jitter: 0.15 },
+      ];
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        parts.push({ geo: cone(0.32, 1.5, 4), color: i % 2 ? 0x4f7f42 : 0x5f9050, pos: [Math.cos(a) * 0.62, 1.15, Math.sin(a) * 0.62], rot: [Math.PI, a, 0], scale: [1, 1, 0.45], jitter: 0.15 });
+      }
+      return build(parts, 0.25, 1.6);
+    }
+    case 'deadtree':
+      // A bare, twisted marsh tree.
+      return build([
+        { geo: cyl(0.1, 0.18, 1.6, 5), color: 0x5a5048, pos: [0, 0.8, 0], rot: [0, 0, 0.12] },
+        { geo: cyl(0.05, 0.08, 0.9, 4), color: 0x5a5048, pos: [0.35, 1.5, 0], rot: [0, 0, -0.9] },
+        { geo: cyl(0.04, 0.07, 0.8, 4), color: 0x5a5048, pos: [-0.3, 1.7, 0.1], rot: [0.3, 0, 0.8] },
+        { geo: cyl(0.03, 0.05, 0.6, 4), color: 0x5a5048, pos: [0.1, 2.0, -0.25], rot: [-0.7, 0, 0.1] },
+        { geo: octa(0.18), color: 0x6a8a5a, pos: [0.7, 1.75, 0], scale: [1.3, 0.5, 1.3] },
+      ], 0.3, 1.6);
+    case 'charred':
+      // A burnt tree on the volcano's slope, a few red leaves left.
+      return build([
+        { geo: cyl(0.09, 0.15, 1.5, 5), color: 0x2a2422, pos: [0, 0.75, 0], rot: [0, 0, -0.1] },
+        { geo: cyl(0.05, 0.07, 0.8, 4), color: 0x2a2422, pos: [-0.3, 1.45, 0], rot: [0, 0, 0.8] },
+        { geo: cyl(0.04, 0.06, 0.7, 4), color: 0x2a2422, pos: [0.28, 1.6, 0.1], rot: [0.2, 0, -0.7] },
+        { geo: octa(0.16), color: 0xc8402a, pos: [-0.6, 1.75, 0], scale: [1.3, 0.6, 1.3] },
+        { geo: octa(0.13), color: 0xe0602a, pos: [0.55, 1.88, 0.15], scale: [1.3, 0.6, 1.3] },
+      ], 0.3, 1.5);
+    case 'giantflower':
+      // A daisy as tall as a house.
+      return build([
+        { geo: cyl(0.12, 0.16, 3.4, 5), color: 0x5aa83a, pos: [0, 1.7, 0] },
+        { geo: cone(0.3, 1.1, 4), color: 0x4f9a36, pos: [0.4, 1.2, 0], rot: [0, 0, -1.0], scale: [1.6, 1, 0.3] },
+        { geo: cyl(1.05, 1.05, 0.12, 10), color: 0xffffff, pos: [0, 3.45, 0.1], rot: [1.15, 0, 0], jitter: 0.06 },
+        { geo: cyl(0.42, 0.42, 0.2, 8), color: 0xffc83a, pos: [0, 3.5, 0.18], rot: [1.15, 0, 0] },
+      ], 0.25, 2.5);
+    case 'grassblade': {
+      // Blades of grass towering like trees.
+      const parts: Part[] = [];
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.4;
+        const h = 2.6 + (i % 2) * 0.9;
+        parts.push({ geo: cone(0.22, h, 3), color: i % 2 ? 0x4fae3a : 0x5fbe46, pos: [Math.cos(a) * 0.25, h / 2, Math.sin(a) * 0.25], rot: [Math.sin(a) * 0.25, 0, -Math.cos(a) * 0.25], scale: [1, 1, 0.35], jitter: 0.12 });
+      }
+      return build(parts, 0.2, 2.5);
+    }
+    case 'dome':
+      // A glass habitat dome on the regolith (green inside).
+      return build([
+        { geo: cyl(1.1, 1.15, 0.2, 10), color: 0xd8d8e0, pos: [0, 0.1, 0] },
+        { geo: lathe([[1.1, 0], [1.05, 0.35], [0.85, 0.75], [0.55, 1.0], [0, 1.1]], 10), color: 0xbfe8ff, pos: [0, 0.2, 0], jitter: 0.04 },
+        { geo: dodeca(0.45), color: 0x5aaa5a, pos: [0, 0.55, 0], scale: [1.3, 0.8, 1.3] },
+      ], 0.15, 1.2);
+    case 'dish':
+      // A satellite dish on a tripod.
+      return build([
+        { geo: cyl(0.06, 0.08, 1.2, 4), color: 0x9a9aa8, pos: [0, 0.6, 0] },
+        { geo: lathe([[0, 0], [0.45, 0.06], [0.8, 0.28], [0.9, 0.36]], 10), color: 0xe8e8f0, pos: [0, 1.25, 0.1], rot: [-0.7, 0, 0] },
+        { geo: cyl(0.03, 0.03, 0.6, 4), color: 0x7a7a88, pos: [0, 1.55, 0.35], rot: [-0.7, 0, 0] },
+      ], 0.15, 1.2);
   }
 }
 
@@ -235,6 +305,12 @@ export function rockGeometry(kind: RockKind = 'stone'): THREE.BufferGeometry {
         { geo: box(0.8, 0.18, 0.6), color: 0x5a6068, pos: [0, 0.09, 0], rot: [0, 0.3, 0], jitter: 0.08 },
         { geo: box(0.6, 0.16, 0.5), color: 0x4e545c, pos: [0.05, 0.26, 0.02], rot: [0, -0.2, 0.04], jitter: 0.08 },
         { geo: box(0.4, 0.14, 0.35), color: 0x666c74, pos: [-0.02, 0.41, 0], rot: [0, 0.6, 0], jitter: 0.08 },
+      ]);
+    case 'regolith':
+      // Pale, porous moon rocks.
+      return build([
+        { geo: dodeca(0.42), color: 0xb0b0b8, pos: [0, 0.2, 0], scale: [1.25, 0.65, 1], jitter: 0.22 },
+        { geo: dodeca(0.24), color: 0x9a9aa4, pos: [0.42, 0.12, 0.2], jitter: 0.22 },
       ]);
     case 'limestone':
       // Pale angular blocks.
@@ -425,6 +501,95 @@ export function propGeometry(kind: PropKind): THREE.BufferGeometry {
         { geo: dodeca(0.25), color: 0x9a9a92, pos: [0.03, 0.42, 0], scale: [1.3, 0.55, 1.2] },
         { geo: octa(0.2), color: 0x7a7a74, pos: [-0.02, 0.62, 0.02], scale: [1.3, 0.6, 1.2] },
         { geo: octa(0.13), color: 0xa4a49c, pos: [0, 0.78, 0], scale: [1.2, 0.7, 1.2] },
+      ]);
+    case 'cart': {
+      // A wooden cart heaped with lavender bundles.
+      const parts: Part[] = [
+        { geo: box(1.1, 0.3, 0.7), color: 0x9a6a3a, pos: [0, 0.45, 0], jitter: 0.08 },
+        { geo: cyl(0.28, 0.28, 0.08, 8), color: 0x6a4a2a, pos: [0.25, 0.28, 0.4], rot: [Math.PI / 2, 0, 0] },
+        { geo: cyl(0.28, 0.28, 0.08, 8), color: 0x6a4a2a, pos: [0.25, 0.28, -0.4], rot: [Math.PI / 2, 0, 0] },
+        { geo: box(0.7, 0.05, 0.05), color: 0x7a5232, pos: [-0.85, 0.42, 0], rot: [0, 0, 0.25] },
+      ];
+      for (let i = 0; i < 4; i++) parts.push({ geo: cone(0.12, 0.5, 4), color: i % 2 ? 0x8a6ab8 : 0x9a7ac8, pos: [-0.3 + i * 0.2, 0.75, (i % 2) * 0.15 - 0.07], rot: [0, 0, 1.4 - (i % 2) * 0.2] });
+      return build(parts);
+    }
+    case 'reeds': {
+      // Cattails at the water's edge.
+      const parts: Part[] = [];
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const h = 0.9 + (i % 3) * 0.2;
+        parts.push({ geo: cyl(0.02, 0.025, h, 3), color: 0x6a8a4a, pos: [Math.cos(a) * 0.12, h / 2, Math.sin(a) * 0.12], rot: [Math.sin(a) * 0.12, 0, -Math.cos(a) * 0.12] });
+        if (i % 2 === 0) parts.push({ geo: cyl(0.05, 0.05, 0.22, 4), color: 0x6a4a2a, pos: [Math.cos(a) * 0.14, h - 0.12, Math.sin(a) * 0.14] });
+      }
+      return build(parts);
+    }
+    case 'glowshroom':
+      // Little mushrooms that glow in the dusk.
+      return build([
+        { geo: cyl(0.05, 0.06, 0.3, 4), color: 0xe8e0c8, pos: [0, 0.15, 0] },
+        { geo: cone(0.2, 0.16, 6), color: 0x8affc8, pos: [0, 0.34, 0] },
+        { geo: cyl(0.04, 0.05, 0.2, 4), color: 0xe8e0c8, pos: [0.22, 0.1, 0.1] },
+        { geo: cone(0.14, 0.12, 6), color: 0xc8ff8a, pos: [0.22, 0.23, 0.1] },
+      ]);
+    case 'steamvent':
+      // A fumarole: a crusted mound with a glowing mouth.
+      return build([
+        { geo: lathe([[0, 0], [0.55, 0], [0.42, 0.3], [0.22, 0.42], [0.2, 0.45]], 7), color: 0x6a5a50, jitter: 0.15 },
+        { geo: cyl(0.18, 0.18, 0.04, 7), color: 0xffa040, pos: [0, 0.44, 0] },
+        { geo: octa(0.14), color: 0xe8d84a, pos: [0.3, 0.16, 0.25], scale: [1.4, 0.5, 1.2] },
+      ]);
+    case 'obsidian':
+      return build([
+        { geo: octa(0.3), color: 0x1a1a24, pos: [0, 0.3, 0], scale: [0.7, 1.4, 0.8], jitter: 0.1 },
+        { geo: octa(0.2), color: 0x2a2a38, pos: [0.25, 0.18, 0.12], scale: [0.7, 1.4, 0.8], rot: [0, 0, -0.5], jitter: 0.1 },
+      ]);
+    case 'volcano':
+      // A distant volcano with a glowing crater (placed far beyond the farm).
+      return build([
+        { geo: lathe([[3.2, 0], [2.6, 0.9], [1.6, 2.2], [0.9, 3.2], [0.7, 3.4], [0, 3.4]], 8), color: 0x4a3c38, jitter: 0.08 },
+        { geo: cyl(0.62, 0.55, 0.12, 8), color: 0xff6a20, pos: [0, 3.36, 0] },
+        { geo: cone(0.6, 1.4, 6), color: 0xff8a2a, pos: [0.9, 2.3, 0.6], rot: [0.3, 0, -0.4], scale: [0.5, 1, 0.3] },
+      ]);
+    case 'wateringcan':
+      // A watering can the size of a shed.
+      return build([
+        { geo: cyl(0.6, 0.65, 1.1, 8), color: 0x5aa8d8, pos: [0, 0.55, 0], jitter: 0.06 },
+        { geo: cyl(0.08, 0.12, 1.2, 6), color: 0x4a98c8, pos: [0.85, 0.85, 0], rot: [0, 0, -0.9] },
+        { geo: cyl(0.2, 0.12, 0.18, 6), color: 0x4a98c8, pos: [1.35, 1.25, 0], rot: [0, 0, -0.9] },
+        { geo: box(0.08, 0.6, 0.6), color: 0x3a88b8, pos: [-0.6, 1.0, 0], rot: [0, 0, 0.3] },
+      ]);
+    case 'flowerpot':
+      // A giant terracotta pot with a sprout.
+      return build([
+        { geo: lathe([[0, 0], [0.55, 0], [0.75, 0.9], [0.85, 1.0], [0, 1.0]], 8), color: 0xc8643a, jitter: 0.08 },
+        { geo: cyl(0.75, 0.75, 0.05, 8), color: 0x5a3a28, pos: [0, 0.98, 0] },
+        { geo: cone(0.18, 0.9, 3), color: 0x5fbe46, pos: [0.1, 1.4, 0], rot: [0, 0, -0.3], scale: [1.6, 1, 0.4] },
+        { geo: cone(0.16, 0.8, 3), color: 0x4fae3a, pos: [-0.12, 1.35, 0], rot: [0, 0, 0.4], scale: [1.6, 1, 0.4] },
+      ]);
+    case 'rover':
+      // A little six-wheeled rover.
+      return build([
+        { geo: box(0.9, 0.25, 0.6), color: 0xe8e8f0, pos: [0, 0.38, 0], jitter: 0.05 },
+        ...[-0.32, 0, 0.32].flatMap((x): Part[] => [
+          { geo: cyl(0.13, 0.13, 0.1, 6), color: 0x3a3a48, pos: [x, 0.13, 0.36], rot: [Math.PI / 2, 0, 0] },
+          { geo: cyl(0.13, 0.13, 0.1, 6), color: 0x3a3a48, pos: [x, 0.13, -0.36], rot: [Math.PI / 2, 0, 0] },
+        ]),
+        { geo: box(0.7, 0.04, 0.5), color: 0x3a5a9a, pos: [-0.05, 0.55, 0] },
+        { geo: cyl(0.03, 0.03, 0.4, 4), color: 0x9a9aa8, pos: [0.32, 0.7, 0] },
+        { geo: box(0.16, 0.12, 0.12), color: 0xff8a2a, pos: [0.32, 0.92, 0] },
+      ]);
+    case 'solarpanel':
+      return build([
+        { geo: cyl(0.04, 0.05, 0.5, 4), color: 0x9a9aa8, pos: [0, 0.25, 0] },
+        { geo: box(1.2, 0.04, 0.7), color: 0x2a4a8a, pos: [0, 0.55, 0], rot: [0.5, 0, 0] },
+        { geo: box(1.24, 0.03, 0.04), color: 0xd8d8e0, pos: [0, 0.56, 0], rot: [0.5, 0, 0] },
+      ]);
+    case 'crater':
+      // A small crater rim in the dust.
+      return build([
+        { geo: cyl(0.9, 1.0, 0.16, 10), color: 0x9a9aa4, pos: [0, 0.08, 0], jitter: 0.12 },
+        { geo: cyl(0.62, 0.62, 0.17, 10), color: 0x7a7a84, pos: [0, 0.09, 0] },
       ]);
     case 'stilthut':
       // A small raised hut on stilts, thatched.
@@ -672,6 +837,106 @@ function redhouse(): Landmark {
   };
 }
 
+/** A stone lavender distillery with a copper still and a chimney. */
+function distillery(): Landmark {
+  return {
+    base: build(
+      [
+        { geo: box(2.2, 1.4, 1.6), color: 0xf2e4c8, pos: [0, 0.7, 0], jitter: 0.06 },
+        { geo: cone(1.7, 0.8, 4), color: 0xb0603a, pos: [0, 1.8, 0], rot: [0, Math.PI / 4, 0], scale: [1.25, 1, 0.92] },
+        { geo: box(0.3, 1.4, 0.3), color: 0xd8c8a8, pos: [0.75, 2.0, -0.3] },
+        ...[-0.6, 0.6].map((x): Part => ({ geo: box(0.4, 0.45, 0.05), color: 0x8a6ab8, pos: [x, 0.85, 0.82] })),
+        { geo: box(0.45, 0.8, 0.05), color: 0x7a5aa8, pos: [0, 0.4, 0.82] },
+        { geo: ball(0.42, 1), color: 0xd0803a, pos: [1.55, 0.55, 0.3], scale: [1, 1.15, 1] },
+        { geo: cyl(0.06, 0.06, 0.9, 6), color: 0xc0703a, pos: [1.55, 1.15, 0.3] },
+      ],
+      0.2,
+      2,
+    ),
+    rotor: null,
+    hub: [0, 0, 0],
+    spin: 0,
+    count: 1,
+  };
+}
+
+/** A giant red-capped mushroom with a door and a window: somebody lives in it. */
+function mushhouse(): Landmark {
+  return {
+    base: build(
+      [
+        { geo: cyl(0.75, 0.9, 1.6, 8), color: 0xf0e6cc, pos: [0, 0.8, 0], jitter: 0.06 },
+        { geo: lathe([[1.4, 0], [1.75, 0.2], [1.6, 0.6], [0.9, 1.15], [0, 1.3]], 10), color: 0xc83a32, pos: [0, 1.55, 0], jitter: 0.08 },
+        ...[0, 1, 2, 3, 4].map((i): Part => ({ geo: octa(0.18), color: 0xffffff, pos: [Math.cos(i * 1.26) * 1.05, 2.3 + (i % 2) * 0.25, Math.sin(i * 1.26) * 1.05], scale: [1.3, 0.4, 1.3] })),
+        { geo: box(0.45, 0.75, 0.06), color: 0x6a4a2e, pos: [0, 0.4, 0.86] },
+        { geo: cyl(0.2, 0.2, 0.06, 8), color: 0xe8ff9a, pos: [0.45, 1.05, 0.8], rot: [Math.PI / 2, 0, 0] },
+      ],
+      0.2,
+      2,
+    ),
+    rotor: null,
+    hub: [0, 0, 0],
+    spin: 0,
+    count: 2,
+  };
+}
+
+/** A drying rack hung with strings of red chillies. */
+function chilirack(): Landmark {
+  const wood = 0x5a3e2a;
+  const parts: Part[] = [
+    { geo: box(0.12, 2.0, 0.12), color: wood, pos: [-1.0, 1.0, 0] },
+    { geo: box(0.12, 2.0, 0.12), color: wood, pos: [1.0, 1.0, 0] },
+    { geo: box(2.3, 0.12, 0.12), color: wood, pos: [0, 1.95, 0] },
+    { geo: cone(1.5, 0.5, 4), color: 0x3a2e28, pos: [0, 2.25, 0], rot: [0, Math.PI / 4, 0], scale: [1, 1, 0.45] },
+  ];
+  for (let i = 0; i < 6; i++) parts.push({ geo: cone(0.1, 1.1, 4), color: i % 2 ? 0xd8202a : 0xe8402a, pos: [-0.75 + i * 0.3, 1.35, 0], rot: [Math.PI, 0, 0], scale: [1, 1, 0.8], jitter: 0.15 });
+  return { base: build(parts, 0.2, 2), rotor: null, hub: [0, 0, 0], spin: 0, count: 2 };
+}
+
+/** A garden gnome as tall as a tower. */
+function gnome(): Landmark {
+  return {
+    base: build(
+      [
+        { geo: cyl(0.5, 0.65, 0.4, 8), color: 0x3a5aa8, pos: [0, 0.2, 0] },
+        { geo: cyl(0.7, 0.75, 1.2, 8), color: 0x3a8ad8, pos: [0, 1.0, 0], jitter: 0.05 },
+        { geo: ball(0.48, 1), color: 0xf4c8a0, pos: [0, 1.95, 0.08] },
+        { geo: cone(0.6, 1.1, 8), color: 0xffffff, pos: [0, 1.55, 0.35], rot: [Math.PI + 0.3, 0, 0] },
+        { geo: ball(0.12, 0), color: 0xe8908a, pos: [0, 1.95, 0.5] },
+        { geo: cone(0.55, 1.4, 8), color: 0xd62e3a, pos: [0, 2.85, -0.05], rot: [-0.15, 0, 0] },
+      ],
+      0.2,
+      2,
+    ),
+    rotor: null,
+    hub: [0, 0, 0],
+    spin: 0,
+    count: 1,
+  };
+}
+
+/** A lunar lander on four legs. */
+function lander(): Landmark {
+  const gold = 0xe0b040;
+  const parts: Part[] = [
+    { geo: box(1.2, 0.7, 1.2), color: gold, pos: [0, 1.0, 0], jitter: 0.05 },
+    { geo: cyl(0.55, 0.7, 0.8, 8), color: 0xd8d8e0, pos: [0, 1.75, 0] },
+    { geo: box(0.25, 0.2, 0.05), color: 0x2a2a3a, pos: [0, 1.8, 0.62] },
+    { geo: cyl(0.04, 0.04, 0.8, 4), color: 0x9a9aa8, pos: [0.3, 2.5, 0] },
+  ];
+  for (const [x, z] of [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ]) {
+    parts.push({ geo: cyl(0.04, 0.05, 1.2, 4), color: 0x9a9aa8, pos: [x * 0.8, 0.55, z * 0.8], rot: [z * 0.5, 0, -x * 0.5] });
+    parts.push({ geo: cyl(0.16, 0.18, 0.06, 6), color: 0x9a9aa8, pos: [x * 1.05, 0.03, z * 1.05] });
+  }
+  return { base: build(parts, 0.15, 2), rotor: null, hub: [0, 0, 0], spin: 0, count: 1 };
+}
+
 export function landmarkGeometry(kind: LandmarkKind): Landmark {
   switch (kind) {
     case 'windmill':
@@ -692,6 +957,16 @@ export function landmarkGeometry(kind: LandmarkKind): Landmark {
       return stonehut();
     case 'redhouse':
       return redhouse();
+    case 'distillery':
+      return distillery();
+    case 'mushhouse':
+      return mushhouse();
+    case 'chilirack':
+      return chilirack();
+    case 'gnome':
+      return gnome();
+    case 'lander':
+      return lander();
   }
 }
 

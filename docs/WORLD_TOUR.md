@@ -107,8 +107,15 @@ and dust) on top of their accepted look.
 | Sakura Tea Garden | tea, daikon, aubergine, cherry trees (L) | cherry blossom, garden pines, stone lanterns, bamboo fences, river pebbles, raked-gravel paths | tea pavilion · falling petals |
 | Andean Terraces | potato, quinoa, amaranth, purple corn | queñua trees, puya spikes, alpacas, dry-stone walls, slate, golden puna grass, distant snowy peaks | round stone hut · mist |
 | Nordic Berry Farm | lingonberry, cloudberry, rhubarb, apple trees (L) | white birches, spruce, woodpiles, cairns, granite, lakes, low golden sun | falu-red cottage · — |
+| Lavender Valley | chamomile, lavender, melon, almond trees (L) | plane trees, cypresses, beehives, lavender carts, limestone, sage grass | lavender distillery · bees |
+| Mushroom Marsh *(rare, Tour 2+)* | puffballs, chanterelles, toadstools (L), giant glowing caps (H) | willows, dead trees, reeds, glowing mushrooms, moss, purple dusk | mushroom house · fireflies |
+| Volcanic Chili Farm *(rare, Tour 2+)* | chilies, sweet potatoes, coffee (L), ember peppers (H) | charred trees, tree ferns, steam vents, obsidian, lava for water, volcanoes on the horizon | chili drying racks · embers |
+| Giant's Garden *(legendary, Tour 2+)* | giant radishes, strawberries, cabbages (all L), prize pumpkins (H) | daisies like trees, grass like poles, a shed-sized watering can, giant flower pots | garden gnome as tall as a tower · butterflies |
+| Lunar Farm *(legendary, Tour 3+)* | moon sprouts, space potatoes, pod lettuce, star-fruit trees (L) | glass domes, dishes, rovers, solar panels, craters, regolith, coolant channels, a black sky | lander · stardust |
 
 (L) large crops stand 2 × 2 in a plot, (H) huge ones fill a plot alone — the same HP and value per plot either way.
+Rarity: Tour finales favour the rare and legendary families (a legendary finale about one Tour in five); elsewhere
+they almost never appear, so they stay special.
 
 ## Save v3
 `v2 → v3`: `farmId` stays the key (starter ids are valid keys); a `journey` is created from the starter progress

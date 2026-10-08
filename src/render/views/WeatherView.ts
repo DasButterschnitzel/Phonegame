@@ -66,6 +66,38 @@ const KINDS: Record<Exclude<WeatherKind, 'none'>, Kind> = {
     y: [0, 5],
     size: [0.8, 1.3],
   },
+  // Bees zipping between the lavender rows.
+  bees: {
+    n: 30,
+    geo: () => new THREE.OctahedronGeometry(0.05, 0).scale(1.4, 1, 1),
+    mat: () => new THREE.MeshBasicMaterial({ color: 0xf2c12e }),
+    y: [0.4, 1.4],
+    size: [0.9, 1.2],
+  },
+  // Fireflies blinking over the marsh.
+  fireflies: {
+    n: 40,
+    geo: () => new THREE.OctahedronGeometry(0.06, 0),
+    mat: () => new THREE.MeshBasicMaterial({ color: 0xd8ff6a, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }),
+    y: [0.3, 2.2],
+    size: [0.8, 1.3],
+  },
+  // Embers rising from the volcanic ground.
+  embers: {
+    n: 70,
+    geo: () => new THREE.OctahedronGeometry(0.05, 0),
+    mat: () => new THREE.MeshBasicMaterial({ color: 0xff7a2a, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }),
+    y: [0, 4.5],
+    size: [0.7, 1.3],
+  },
+  // Glittering dust under a black sky.
+  stardust: {
+    n: 40,
+    geo: () => new THREE.OctahedronGeometry(0.045, 0),
+    mat: () => new THREE.MeshBasicMaterial({ color: 0xf0f4ff, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }),
+    y: [0.3, 3.0],
+    size: [0.7, 1.3],
+  },
   // Golden vine leaves tumbling down.
   leaves: {
     n: 40,
@@ -96,8 +128,8 @@ function softTexture(): THREE.CanvasTexture {
 /**
  * The biome's weather: a few dozen ambient particles (one draw call) in a box of air that follows the camera — warm
  * dust over the orchard, mist on the terraces, leaves over the vineyard, snow on the berry farm, pollen over the
- * sunflowers, butterflies in the plantation, cherry petals in the tea garden. Purely decorative; thinned on low
- * quality.
+ * sunflowers, butterflies in the plantation, cherry petals in the tea garden, bees over the lavender, fireflies in the
+ * marsh, embers on the volcano, stardust on the moon. Purely decorative; thinned on low quality.
  */
 export class WeatherView {
   readonly group = new THREE.Group();
@@ -175,6 +207,7 @@ export class WeatherView {
       let rx = 0;
       let ry = 0;
       let rz = 0;
+      let flicker = 1;
       if (this.kind === 'dust' || this.kind === 'pollen') {
         const slow = this.kind === 'pollen' ? 0.5 : 1;
         this.x[i] += (0.35 + 0.15 * Math.sin(now * 0.7 + p)) * dt * slow;
@@ -189,6 +222,31 @@ export class WeatherView {
           this.x[i] = cx + (Math.random() * 2 - 1) * R;
           this.z[i] = cz + (Math.random() * 2 - 1) * R;
         }
+      } else if (this.kind === 'bees') {
+        // Quick zig-zags.
+        const hd = p * 6 + now * 2.2 + Math.sin(now * 5 + p * 4) * 1.5;
+        this.x[i] += Math.cos(hd) * 1.4 * dt;
+        this.z[i] += Math.sin(hd) * 1.4 * dt;
+        this.y[i] = k.y[0] + (k.y[1] - k.y[0]) * (0.5 + 0.5 * Math.sin(now * 2.3 + p * 5));
+        ry = -hd;
+      } else if (this.kind === 'fireflies' || this.kind === 'stardust') {
+        // Slow wander; they blink (fireflies) or twinkle (stardust).
+        const hd = p * 6 + now * 0.25;
+        this.x[i] += Math.cos(hd) * 0.25 * dt;
+        this.z[i] += Math.sin(hd) * 0.25 * dt;
+        this.y[i] += Math.sin(now * 0.9 + p * 3) * 0.15 * dt;
+        const blink = this.kind === 'fireflies' ? Math.max(0, Math.sin(now * 1.8 + p * 7)) : 0.5 + 0.5 * Math.sin(now * 3.1 + p * 11);
+        flicker = 0.15 + 0.85 * blink;
+      } else if (this.kind === 'embers') {
+        // Rise, sway and fade out up high; back to the ground.
+        this.y[i] += (0.55 + 0.25 * Math.sin(p * 5)) * dt;
+        this.x[i] += 0.3 * Math.sin(now * 1.5 + p * 3) * dt;
+        if (this.y[i] > k.y[1]) {
+          this.y[i] = k.y[0];
+          this.x[i] = cx + (Math.random() * 2 - 1) * R;
+          this.z[i] = cz + (Math.random() * 2 - 1) * R;
+        }
+        flicker = 1 - this.y[i] / k.y[1];
       } else if (this.kind === 'butterflies') {
         // Wander on a slowly turning heading, bobbing, wings flapping.
         const hd = p * 6 + now * (0.35 + 0.2 * Math.sin(p * 3));
@@ -219,7 +277,7 @@ export class WeatherView {
       this.z[i] = wrapAxis(this.z[i], cz);
       V.set(this.x[i], this.y[i], this.z[i]);
       Q.setFromEuler(E.set(rx, ry, rz));
-      S.setScalar(this.sz[i]);
+      S.setScalar(this.sz[i] * flicker);
       m.setMatrixAt(i, M4.compose(V, Q, S));
     }
     m.instanceMatrix.needsUpdate = true;

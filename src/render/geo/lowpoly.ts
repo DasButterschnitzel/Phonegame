@@ -76,9 +76,14 @@ export const cyl = (rt = 0.5, rb = 0.5, h = 1, seg = 6) => new THREE.CylinderGeo
 export const cone = (r = 0.5, h = 1, seg = 6) => new THREE.ConeGeometry(r, h, seg, 1);
 export const dodeca = (r = 0.5) => new THREE.DodecahedronGeometry(r, 0);
 export const octa = (r = 0.5) => new THREE.OctahedronGeometry(r, 0);
-/** Ribbed lathe (pumpkins, melons): profile points (radius, y) revolved with `seg` facets. */
-export const lathe = (pts: [number, number][], seg = 8) =>
-  new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), seg);
+/**
+ * Ribbed lathe (pumpkins, melons, caps): profile points (radius, y) revolved with `seg` facets. The faces point outwards
+ * only when the profile runs upwards, so a profile given top-down is reversed (an inside-out cap looks hollow).
+ */
+export const lathe = (pts: [number, number][], seg = 8) => {
+  const up = pts[0][1] <= pts[pts.length - 1][1] ? pts : [...pts].reverse();
+  return new THREE.LatheGeometry(up.map(([x, y]) => new THREE.Vector2(x, y)), seg);
+};
 
 /** Shared material for nearly everything: per-vertex colours, flat normals from geometry. */
 export function lambert(): THREE.MeshLambertMaterial {

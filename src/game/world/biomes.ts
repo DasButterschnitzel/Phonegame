@@ -158,6 +158,47 @@ export const BIOMES: Partial<Record<BiomeId, BiomeDef>> = {
     layouts: { twinponds: 1.6, archipelago: 1.2, coast: 1, bowl: 0.8, brokenriver: 0.6 },
     minTour: 1,
   },
+  // Provence in July: chamomile, rows of lavender, melons, almond trees.
+  lavender: {
+    id: 'lavender',
+    rarity: 'common',
+    crops: [['chamomile'], ['lavenderbush'], ['melon'], ['almond']],
+    layouts: { twinfields: 1.6, valley: 1.2, ridge: 1, bowl: 0.8, terraces: 0.6 },
+    minTour: 1,
+  },
+  // ——— Showcase families: rarer, from the second Tour on, favoured for Tour finales ———
+  // A glowing twilight bog: puffballs, chanterelles, toadstools and giant caps that fill a plot alone.
+  marsh: {
+    id: 'marsh',
+    rarity: 'rare',
+    crops: [['puffball'], ['chanterelle'], ['toadstool'], ['giantcap']],
+    layouts: { twinponds: 1.6, archipelago: 1.4, brokenriver: 1.2, riverbend: 0.8, bowl: 0.6 },
+    minTour: 2,
+  },
+  // Fields on a volcano's flank: chilies, sweet potatoes, coffee, and ember peppers as big as a car.
+  volcanic: {
+    id: 'volcanic',
+    rarity: 'rare',
+    crops: [['chili'], ['sweetpotato'], ['coffee'], ['emberpepper']],
+    layouts: { canyon: 1.6, centralrock: 1.4, brokenriver: 1.2, ridge: 1, crossing: 0.6 },
+    minTour: 2,
+  },
+  // Everything oversized: giant radishes, strawberries, cabbages and a prize pumpkin per plot.
+  giant: {
+    id: 'giant',
+    rarity: 'legendary',
+    crops: [['bigradish'], ['bigberry'], ['bigcabbage'], ['giantpumpkin']],
+    layouts: { bowl: 1.4, centralrock: 1, horseshoe: 1, valley: 0.8, spiral: 0.8 },
+    minTour: 2,
+  },
+  // Hydroponics under glass on the Moon: sprouts, potatoes, pod lettuce, star-fruit trees.
+  lunar: {
+    id: 'lunar',
+    rarity: 'legendary',
+    crops: [['moonsprout'], ['spacepotato'], ['podlettuce'], ['starfruit']],
+    layouts: { centralrock: 1.4, archipelago: 1, bowl: 1, crossing: 0.8, twinponds: 0.6 },
+    minTour: 3,
+  },
 };
 
 /** Biome families with complete content (crops, look, names): only these are scheduled. */

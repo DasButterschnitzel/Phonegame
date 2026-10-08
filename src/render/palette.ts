@@ -4,22 +4,27 @@ import type { BiomeId, CropId } from '../game/types.ts';
 export const TREE_KINDS = [
   'tree', 'pine', 'cactus', 'birch', 'baobab', 'acacia', 'bamboo', 'broadleaf', 'cypress', 'stonepine',
   'palm', 'fern', 'fir', 'sakura', 'blackpine', 'polylepis', 'puya', 'whitebirch', 'spruce',
+  'plane', 'willow', 'deadtree', 'charred', 'giantflower', 'grassblade', 'dome', 'dish',
 ] as const;
 export type TreeKind = (typeof TREE_KINDS)[number];
 /** Smaller scenery scattered in the decor ring. */
 export const PROP_KINDS = [
   'snowman', 'termite', 'tallgrass', 'stonewall', 'haybale', 'urn', 'stilthut', 'sheep', 'scarecrow', 'beehive',
   'hibiscus', 'fruitcrate', 'giftbox', 'sled', 'lamppost', 'stonelantern', 'bamboofence', 'alpaca', 'peak', 'woodpile', 'cairn',
+  'cart', 'reeds', 'glowshroom', 'steamvent', 'obsidian', 'volcano', 'wateringcan', 'flowerpot', 'rover', 'solarpanel', 'crater',
 ] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 /** Landmarks beyond the field corners (some have a spinning rotor). */
-export const LANDMARK_KINDS = ['windmill', 'windpump', 'granary', 'farmhouse', 'lookout', 'cabin', 'teahouse', 'stonehut', 'redhouse'] as const;
+export const LANDMARK_KINDS = [
+  'windmill', 'windpump', 'granary', 'farmhouse', 'lookout', 'cabin', 'teahouse', 'stonehut', 'redhouse',
+  'distillery', 'mushhouse', 'chilirack', 'gnome', 'lander',
+] as const;
 export type LandmarkKind = (typeof LANDMARK_KINDS)[number];
 /** Rocks: field obstacles and the ring. */
-export const ROCK_KINDS = ['stone', 'granite', 'mossy', 'limestone', 'sandstone', 'basalt', 'ice', 'pebble', 'slate'] as const;
+export const ROCK_KINDS = ['stone', 'granite', 'mossy', 'limestone', 'sandstone', 'basalt', 'ice', 'pebble', 'slate', 'regolith'] as const;
 export type RockKind = (typeof ROCK_KINDS)[number];
 /** Ambient particles drifting over the farm. */
-export type WeatherKind = 'none' | 'dust' | 'mist' | 'leaves' | 'snow' | 'pollen' | 'butterflies' | 'petals';
+export type WeatherKind = 'none' | 'dust' | 'mist' | 'leaves' | 'snow' | 'pollen' | 'butterflies' | 'petals' | 'bees' | 'fireflies' | 'embers' | 'stardust';
 
 export interface PropSpec {
   kind: PropKind;
@@ -155,6 +160,54 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     landmark: 'redhouse', weather: 'none',
     depot: { wall: 0xa83a2a, roof: 0x3a3a3a, trim: 0xffffff, door: 0x7a2a20, silo: 0xe8e0d0, siloTop: 0x3a3a3a, loft: 0xffe08a },
   },
+  // Lavender Valley: ochre soil, sage grass, rows of purple, plane trees and cypresses, carts and hives, a distillery, bees.
+  lavender: {
+    sky: 0x8ccaf5, fog: 0xf0e4f4, groundA: 0xb08a5a, groundB: 0xa47f52, outside: 0x9fae86, path: 0xf0e2c0, pathEdge: 0xcfb88a,
+    hemiSky: 0xfff6ff, hemiGround: 0x7a7a5a, sun: 0xfff0d8, decor: 'plane', decor2: 'cypress', yaw: Math.PI / 4,
+    cleared: 0xb0c47a, water: 0x6fb2c9, rock: 'limestone', tuft: [0x9aae7a, 0x8a9e6a, 0xaabe88], flowers: [0x9a7ac8, 0xb39ddb, 0xffffff],
+    props: [{ kind: 'beehive', n: 8, dMin: 2, dMax: 8 }, { kind: 'cart', n: 4, dMin: 2.5, dMax: 8 }],
+    landmark: 'distillery', weather: 'bees',
+    depot: { wall: 0xf2e4c8, roof: 0xb0603a, trim: 0x8a6ab8, door: 0x7a5aa8, silo: 0xe8dcc0, siloTop: 0xb0603a, loft: 0xffe6a8 },
+  },
+  // Mushroom Marsh (rare): a purple dusk, dark peat, moss, willows and dead trees, reeds and glowing mushrooms, fireflies.
+  marsh: {
+    sky: 0x6a7ab0, fog: 0x8a8ab8, groundA: 0x4a3a3a, groundB: 0x403232, outside: 0x3f6a5a, path: 0x9a8a78, pathEdge: 0x6a5a4a,
+    hemiSky: 0xc8b8ff, hemiGround: 0x2a4a3a, sun: 0xd8c8ff, decor: 'willow', decor2: 'deadtree', yaw: Math.PI / 4,
+    cleared: 0x5f8a6a, water: 0x4a7a6a, rock: 'mossy', tuft: [0x4a7a5a, 0x5a8a64, 0x3a6a4e], flowers: [0x8affc8, 0xc8ff8a, 0xb8a8ff],
+    props: [{ kind: 'reeds', n: 40, dMin: 1.4, dMax: 10 }, { kind: 'glowshroom', n: 30, dMin: 1.4, dMax: 9 }],
+    landmark: 'mushhouse', weather: 'fireflies',
+    depot: { wall: 0x6a5a48, roof: 0xb8483a, trim: 0xe8e0c8, door: 0x4a3a2a, silo: 0x8a7a62, siloTop: 0xb8483a, loft: 0xe8ff9a },
+  },
+  // Volcanic Chili Farm (rare): black volcanic soil and ash, lava for water, charred trees, vents and obsidian, a volcano
+  // on the horizon, chili drying racks, embers.
+  volcanic: {
+    sky: 0x8a6a6a, fog: 0x9a7a72, groundA: 0x3a3030, groundB: 0x332a2a, outside: 0x4a4440, path: 0x8a6a5a, pathEdge: 0x5a4038,
+    hemiSky: 0xffd0b0, hemiGround: 0x5a3020, sun: 0xffc890, decor: 'charred', decor2: 'fern', yaw: Math.PI / 4,
+    cleared: 0x6e6a58, water: 0xff6a20, rock: 'basalt', tuft: [0x6a6a4a, 0x7a7a52, 0x5a5a40], flowers: [0xff6a2a, 0xffd040, 0xe8202a],
+    props: [{ kind: 'steamvent', n: 12, dMin: 2, dMax: 10 }, { kind: 'obsidian', n: 16, dMin: 1.6, dMax: 12 }, { kind: 'volcano', n: 3, dMin: 8, dMax: 12, scale: 2.2 }],
+    landmark: 'chilirack', weather: 'embers',
+    depot: { wall: 0x5a4a44, roof: 0x2a2420, trim: 0xff8a3a, door: 0x3a2a24, silo: 0x6a5a54, siloTop: 0xff6a2a, loft: 0xffa040 },
+  },
+  // Giant's Garden (legendary): everything oversized — daisies like trees, grass like poles, a watering can like a shed,
+  // a garden gnome like a tower.
+  giant: {
+    sky: 0x8ad8ff, fog: 0xd0f0ff, groundA: 0x8a5a32, groundB: 0x7e5230, outside: 0x5ec850, path: 0xf0d8a0, pathEdge: 0xd0a868,
+    hemiSky: 0xffffff, hemiGround: 0x5a8a3a, sun: 0xfff4d8, decor: 'giantflower', decor2: 'grassblade', yaw: Math.PI / 4,
+    cleared: 0x7cd65a, water: 0x5cc8f0, rock: 'pebble', tuft: [0x4fae3a, 0x5fbe46, 0x6cc85a], flowers: [0xffffff, 0xffd23f, 0xff6fb5],
+    props: [{ kind: 'wateringcan', n: 3, dMin: 3, dMax: 9, scale: 1.6 }, { kind: 'flowerpot', n: 5, dMin: 3, dMax: 10, scale: 1.4 }],
+    landmark: 'gnome', weather: 'butterflies',
+    depot: { wall: 0xe8a838, roof: 0x4a8ad8, trim: 0xffffff, door: 0xd84a3a, silo: 0xf0f0f0, siloTop: 0x4a8ad8, loft: 0xffffff },
+  },
+  // Lunar Farm (legendary): grey regolith under a black sky, glass domes and dishes, rovers and solar panels, craters,
+  // a lander, stardust.
+  lunar: {
+    sky: 0x0a0a1a, fog: 0x1a1a2e, groundA: 0x8a8a90, groundB: 0x7e7e86, outside: 0xa8a8b0, path: 0xd0d0d8, pathEdge: 0x9090a0,
+    hemiSky: 0xdfe8ff, hemiGround: 0x505060, sun: 0xffffff, decor: 'dome', decor2: 'dish', yaw: Math.PI / 4,
+    cleared: 0x9acf9a, water: 0x6ae0ff, rock: 'regolith', tuft: [0x9a9aa4, 0x8a8a94, 0xaaaab4], flowers: null,
+    props: [{ kind: 'rover', n: 3, dMin: 3, dMax: 9 }, { kind: 'solarpanel', n: 12, dMin: 2, dMax: 10 }, { kind: 'crater', n: 14, dMin: 1.5, dMax: 12, scale: 1.4 }],
+    landmark: 'lander', weather: 'stardust',
+    depot: { wall: 0xe8e8f0, roof: 0x8a8aa0, trim: 0xff8a2a, door: 0x3a3a4a, silo: 0xd8d8e0, siloTop: 0xff8a2a, loft: 0x8ae0ff },
+  },
 };
 
 /** Segment body colours by level (cycles; accessories distinguish later cycles). */
@@ -216,6 +269,26 @@ export const CROP_COLORS: Record<CropId, number> = {
   cloudberry: 0xffa84a,
   rhubarb: 0xff7a8a,
   apple: 0x7ccf3a,
+  chamomile: 0xf8f4e0,
+  lavenderbush: 0x9a7ac8,
+  melon: 0xffa860,
+  almond: 0xd8b890,
+  puffball: 0xf4f0e6,
+  chanterelle: 0xf0a030,
+  toadstool: 0xe0302a,
+  giantcap: 0x3ab8c8,
+  chili: 0xe8202a,
+  sweetpotato: 0xc85a7a,
+  coffee: 0x8a3a2a,
+  emberpepper: 0xff8a1a,
+  bigradish: 0xf08ab0,
+  bigberry: 0xe8203a,
+  bigcabbage: 0x8fd694,
+  giantpumpkin: 0xff7b1c,
+  moonsprout: 0x8affc8,
+  spacepotato: 0xc9b28a,
+  podlettuce: 0x9be564,
+  starfruit: 0xfff27a,
 };
 
 export const GOLD_BLOCK = 0xffd700;

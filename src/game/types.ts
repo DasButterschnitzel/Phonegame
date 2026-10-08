@@ -93,7 +93,13 @@ export type CropId =
   | 'holly' | 'sapling' | 'firtree' | 'bigfir'
   | 'teabush' | 'daikon' | 'eggplant' | 'cherry'
   | 'potato' | 'quinoa' | 'amaranth' | 'purplecorn'
-  | 'lingonberry' | 'cloudberry' | 'rhubarb' | 'apple';
+  | 'lingonberry' | 'cloudberry' | 'rhubarb' | 'apple'
+  // lavender valley, mushroom marsh, volcanic chili farm, giant's garden, lunar farm.
+  | 'chamomile' | 'lavenderbush' | 'melon' | 'almond'
+  | 'puffball' | 'chanterelle' | 'toadstool' | 'giantcap'
+  | 'chili' | 'sweetpotato' | 'coffee' | 'emberpepper'
+  | 'bigradish' | 'bigberry' | 'bigcabbage' | 'giantpumpkin'
+  | 'moonsprout' | 'spacepotato' | 'podlettuce' | 'starfruit';
 
 export type UpgradeId = 'add' | 'merge' | 'speed' | 'capacity' | 'expand' | 'finish';
 export type BoostId = 'incomeX2' | 'autopilot';
