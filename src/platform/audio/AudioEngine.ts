@@ -605,6 +605,22 @@ export class AudioEngine {
     this.tone(midi(96), 0.9, 'sine', 0.045, 0.52);
   }
 
+  /**
+   * Arriving at a farm (as the curtain lifts): a soft rising arpeggio in the farm's own key and timbre; the first farm
+   * of a new family adds a high sparkle and a shimmer.
+   */
+  arrive(newBiome = false): void {
+    if (!this.ctx || !this.can('arrive', 800)) return;
+    this.duck(0.4, 0.7);
+    const f = this.flavour;
+    const root = f.roots[0] + 12;
+    [0, 2, 4, 5].forEach((k, i) => this.tone(midi(root + f.scale[k]), i === 3 ? 0.45 : 0.2, f.lead, 0.09, i * 0.09));
+    if (newBiome) {
+      this.tone(midi(root + 24), 0.6, 'sine', 0.05, 0.4);
+      this.sweep(0.45, 2000, 6000, 2, 0.04, 0.32);
+    }
+  }
+
   gift(): void {
     if (!this.ctx) return;
     [0, 7, 12, 16].forEach((s, i) => this.tone(midi(84 + s), 0.15, 'sine', 0.1, i * 0.05));

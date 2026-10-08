@@ -144,6 +144,10 @@ export async function boot(): Promise<App | null> {
   // Sound, haptics, tutorial and juice.
   const audio = new AudioEngine();
   audio.setFlavour(sim.farm.biome);
+  game.onArrive = (newBiome) => {
+    audio.arrive(newBiome);
+    haptics.fire(newBiome ? 'success' : 'light');
+  };
   const haptics = new Haptics();
   const unlockAudio = () => audio.unlock();
   root.addEventListener('pointerdown', unlockAudio, { capture: true });

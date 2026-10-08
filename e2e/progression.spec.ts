@@ -26,16 +26,16 @@ test('open every field, clear the farm, finish it and travel @smoke', async ({ p
   await expect(page.locator('.modal-farmcomplete .btn-big.ad')).toBeDisabled({ timeout: 5000 });
   await page.locator('.modal-farmcomplete .btn-big:not(.ad)').click();
   await expect(page.locator('.modal-map')).toBeVisible();
-  // The welcome banner is short-lived: record banners as they are inserted, before travelling.
+  // The arrival card is short-lived: record it as it is inserted, before travelling.
   await page.evaluate(() => {
     const seen: string[] = ((window as unknown as { __banners: string[] }).__banners = []);
     new MutationObserver((recs) => {
-      for (const r of recs) for (const n of r.addedNodes) if (n instanceof HTMLElement && n.classList.contains('banner')) seen.push(n.textContent ?? '');
+      for (const r of recs) for (const n of r.addedNodes) if (n instanceof HTMLElement && n.classList.contains('arrival')) seen.push(n.textContent ?? '');
     }).observe(document.getElementById('ui')!, { childList: true });
   });
   await page.locator('.farm-pumpkin').click();
   await expect(page.locator('.modal-map')).toBeHidden();
-  // The farm swaps behind a cloud wipe, then a welcome banner.
+  // The farm swaps behind a cloud wipe, then its arrival card.
   await expect(page.locator('.travel-wipe')).toBeVisible();
   await expect.poll(() => g<string>(page, 'g.state().farmId')).toBe('pumpkin');
   // The curtain stays up while the new farm's shaders compile (slow on software GL).

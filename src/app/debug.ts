@@ -313,6 +313,7 @@ export function installDebug(app: App): DebugApi {
       out.upgradeSpeed = await render((a) => a.upgrade('speed'), 0.5);
       out.full = await render((a) => a.full(), 0.5);
       out.coin = await render((a) => a.coin(), 0.4);
+      out.arrive = await render((a) => a.arrive(true), 1.2);
       // Bites vary on purpose: measure six, report the median one and the spread of their spectral centroids.
       const bites: R[] = [];
       for (let k = 0; k < 6; k++) bites.push(await render((a) => a.chomp(false, 0), 0.3));

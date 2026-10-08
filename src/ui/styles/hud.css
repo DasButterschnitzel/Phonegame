@@ -1205,6 +1205,149 @@
   height: 100%;
 }
 
+/* ——— Farm entrance: a short card as the curtain lifts (pointer events pass through: play starts at once) ——— */
+.arrival {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Above the crawler's head (screen centre), below the HUD's top pills. */
+  top: calc(var(--sat) + max(12%, 92px));
+  margin: 0 auto;
+  width: max-content;
+  /* Clear of the side buttons and the basket meter on narrow phones; long names wrap. */
+  max-width: min(92%, calc(100% - 132px));
+  z-index: 31;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  animation: arrive 1.45s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+}
+
+.arrival .arr-top {
+  font-size: clamp(13px, 3.8vw, 16px);
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arrival .arr-ribbon {
+  background: linear-gradient(180deg, #7ee05a, var(--green-d));
+  border-radius: 16px;
+  padding: 6px 22px 8px;
+  box-shadow: 0 5px 0 #2b7319;
+}
+
+.arrival.finale .arr-ribbon {
+  background: linear-gradient(180deg, #ffe066, #f7b500);
+  box-shadow: 0 5px 0 #b77f00;
+}
+
+.arrival.fresh .arr-ribbon {
+  background: linear-gradient(180deg, #b06dff, #7b2ff0);
+  box-shadow: 0 5px 0 #5419b8;
+}
+
+.arrival .arr-name {
+  font-size: clamp(24px, 7.6vw, 40px);
+  line-height: 1.1;
+  font-weight: 700;
+  color: #fff;
+}
+
+.arrival .arr-sub {
+  font-size: clamp(14px, 4.2vw, 18px);
+  font-weight: 700;
+  color: #fff;
+  background: rgba(30, 32, 50, 0.82);
+  border-radius: 12px;
+  padding: 3px 12px 4px;
+}
+
+.arrival .arr-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.arrival .arr-tags .ftag {
+  font-size: 13px;
+  padding: 3px 9px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+}
+
+.arrival .arr-stamp {
+  margin-top: 4px;
+  font-size: clamp(18px, 5.6vw, 24px);
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #ff7b6b, #e63946);
+  border: 3px solid #fff;
+  border-radius: 12px;
+  padding: 2px 14px 4px;
+  transform: rotate(-6deg);
+  box-shadow: 0 4px 0 #a8202c;
+  animation: stamp-in 0.38s 0.22s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+@keyframes arrive {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.86);
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(0) scale(1.05);
+  }
+  22% {
+    transform: scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(2.2) rotate(-16deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-6deg);
+  }
+}
+
+@keyframes arrive-fade {
+  0% {
+    opacity: 0;
+  }
+  10%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.reduce-motion .arrival {
+  animation: arrive-fade 1.45s linear forwards;
+}
+
+.reduce-motion .arrival .arr-stamp {
+  animation: none;
+}
+
 /* ——— Farm travel transition ——— */
 .travel-wipe {
   position: absolute;

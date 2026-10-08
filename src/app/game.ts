@@ -17,7 +17,10 @@ import { openSettings } from '../ui/modals/Settings.ts';
 import { openBonusChoice } from '../ui/modals/BonusChoice.ts';
 import { buildHud } from '../ui/viewModel.ts';
 import { h } from '../ui/dom.ts';
-import { titleForKey, titleOf } from '../ui/farmNames.ts';
+import { biomeTitle, titleForKey, titleOf } from '../ui/farmNames.ts';
+import { ARRIVAL_MS, showArrival } from '../ui/Arrival.ts';
+import { isStarterFarm } from '../game/types.ts';
+import { FARMS_PER_TOUR, STARTER_COUNT, parseWorldKey } from '../game/world/plan.ts';
 import { ICONS, icon } from '../ui/icons.ts';
 import type { AdManager } from '../platform/ads/AdManager.ts';
 import type { Placement } from '../platform/ads/AdService.ts';
@@ -254,9 +257,23 @@ export class GameController {
     });
   }
 
-  /** Cloud wipe that hides the farm swap, then a welcome banner. */
+  /** True from a travel's start until its curtain has lifted (no ad break may land in between). */
+  traveling = false;
+  /** The farm's entrance began (sound and haptics hook in here). */
+  onArrive: (newBiome: boolean) => void = () => {};
+  /** What waits for the farm's entrance to finish (the new-farm gift), and whether one is under way. */
+  private afterArrival: (() => void)[] = [];
+  private arriving = false;
+
+  /** Cloud wipe that hides the farm swap, then the farm's entrance card. */
   travelTo(id: FarmId, run: () => void): void {
-    const wipe = h('div', { class: 'travel-wipe', 'data-ui': true }, h('div', { class: 'card outline' }, icon('map', 'ico wipe-ico'), titleForKey(id, this.d.sim.state.journey.seed)));
+    const sim = this.d.sim;
+    const biome = isStarterFarm(id) ? id : parseWorldKey(id)?.biome;
+    const newBiome = !!biome && !sim.state.journey.biomes.includes(biome);
+    const fromTour = sim.farm.tour;
+    this.traveling = true;
+    this.arriving = true;
+    const wipe = h('div', { class: 'travel-wipe', 'data-ui': true }, h('div', { class: 'card outline' }, icon('map', 'ico wipe-ico'), titleForKey(id, sim.state.journey.seed)));
     this.ui.append(wipe);
     const reveal = async () => {
       run();
@@ -264,8 +281,31 @@ export class GameController {
       await Promise.race([this.d.renderer.warmupAsync().catch(() => undefined), new Promise((r) => setTimeout(r, 1500))]);
       setTimeout(() => {
         wipe.classList.add('out');
-        setTimeout(() => wipe.remove(), 600);
-        this.toasts.banner(t('banner.newFarm', { farm: titleOf(this.d.sim.farm) }), t('hud.cleared', { n: Math.floor(this.d.sim.cleared * 100) }));
+        setTimeout(() => {
+          wipe.remove();
+          this.traveling = false;
+        }, 600);
+        const f = sim.farm;
+        showArrival(this.ui, {
+          name: titleOf(f),
+          biome: f.biome,
+          biomeTitle: biomeTitle(f.biome),
+          ordinal: f.ordinal,
+          tour: f.tour,
+          slot: f.slot,
+          farms: f.tour === 0 ? STARTER_COUNT : FARMS_PER_TOUR,
+          size: f.tour > 0 ? f.size : null,
+          modifier: f.modifier,
+          showcase: f.showcase,
+          newBiome,
+          newTour: f.tour > 0 && f.tour !== fromTour,
+        });
+        this.onArrive(newBiome);
+        // Then the new farm's gift (never on top of the entrance card).
+        setTimeout(() => {
+          this.arriving = false;
+          for (const fn of this.afterArrival.splice(0)) fn();
+        }, ARRIVAL_MS - 150);
       }, 380);
     };
     if (this.d.settings.reduceMotion) void reveal();
@@ -372,9 +412,11 @@ export class GameController {
       const from = e.reason === 'progress' ? this.hud.center(this.hud.progressEl) : { x: innerWidth / 2, y: innerHeight * 0.45 };
       iconFly(this.fxLayer, from, this.hud.center(target), ICONS[kind === 'incomeX2' ? 'x2' : kind === 'autopilot' ? 'autopilot' : 'tornado'], () => this.hud.popBonus(kind), rm);
     };
-    // On a new farm the gift waits for the travel curtain to lift.
-    if (e.reason === 'newFarm') setTimeout(show, 2200);
-    else show();
+    // On a new farm the gift follows the farm's entrance (curtain, then arrival card).
+    if (e.reason === 'newFarm') {
+      if (this.arriving) this.afterArrival.push(show);
+      else setTimeout(show, 600);
+    } else show();
   }
 
   /** Per rendered frame. */

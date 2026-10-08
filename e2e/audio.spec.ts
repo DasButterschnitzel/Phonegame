@@ -30,6 +30,9 @@ test('mix levels and spectra: a quiet, clean motor under every gameplay sound; v
   expect.soft(r.collapse.ms, 'collapse rings longer than a bite').toBeGreaterThan(r.chomp.ms * 1.2);
   // Payoff moments carry the mix.
   expect(r.unloadDone.rms).toBeGreaterThan(r.chomp.rms - 3);
+  // Arriving at a farm is a welcome, not a fanfare: clearly heard over the motor, under the zone-open crash.
+  expect.soft(r.arrive.rms, 'arrival chime over the motor').toBeGreaterThan(r.motorFull.rms + 6);
+  expect.soft(r.arrive.rms, 'arrival chime under the zone fanfare').toBeLessThan(r.zoneOpen.rms);
   // Music flavours: every family's tune plays as loud as the meadow tune and leans no more on bass.
   const { music, ambience } = r as unknown as { music: Record<string, Measure>; ambience: Record<string, Measure> };
   expect(Object.keys(music).length).toBeGreaterThanOrEqual(18);
