@@ -1,20 +1,20 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
 import type { PathTable } from '../../game/types.ts';
-import { biomeLook } from '../palette.ts';
-import { decorGeometry, flowerClusterGeometry, pathRibbon, rockGeometry, snowmanGeometry, tuftGeometry, windmillSailsGeometry, windmillTowerGeometry } from '../geo/world.ts';
+import { DEFAULT_FLOWERS, DEFAULT_TUFT, biomeLook } from '../palette.ts';
+import { flowerClusterGeometry, pathRibbon } from '../geo/world.ts';
+import { landmarkGeometry, propGeometry, rockGeometry, treeGeometry, tuftGeometry } from '../geo/scenery.ts';
 import { cloudShadowTexture, shared, toon } from '../materials.ts';
 import type { QualitySettings } from '../quality.ts';
 import { E, M4, Q, S, V } from '../scratch.ts';
 import { hashFloat } from '../../shared/hash.ts';
 import { easeOutCubic } from '../../shared/math.ts';
 
-const FLOWER_COLORS = [0xff6fb5, 0xffffff, 0xffd23f, 0x9b5de5, 0xff5d5d];
 const RIBBON_W = 1.3;
 /** Seconds for a new stretch of route to draw itself. */
 const REVEAL_S = 0.85;
 
-/** Static farm scenery + ambient motion: sky, grass, decor ring, windmills, clouds, and the route ribbon. */
+/** Static farm scenery + ambient motion: sky, grass, the biome's decor ring and landmarks, clouds, the route ribbon. */
 export class WorldView {
   readonly group = new THREE.Group();
   private dynamic = new THREE.Group();
@@ -32,9 +32,11 @@ export class WorldView {
   private reveal = { value: 1e6 };
   private revealT0 = -1;
   private revealMax = 0;
-  /** Windmill sails (one instanced mesh) spun about each tower's hub. */
+  /** Landmark rotors (windmill sails, wind-pump fans: one instanced mesh) spun about each landmark's hub. */
   private sails: THREE.InstancedMesh | null = null;
   private towerM: THREE.Matrix4[] = [];
+  private hub: [number, number, number] = [0, 0, 0];
+  private spin = 1;
   private sailAngle = 0;
   private clouds: THREE.Mesh | null = null;
   private cloudTex: THREE.CanvasTexture | null = null;
@@ -94,7 +96,7 @@ export class WorldView {
     outside.position.y = -0.02;
     this.group.add(outside);
 
-    // Decor ring around the farm: trees, rocks, grass tufts, flowers.
+    // Decor ring around the farm: the biome's trees, rocks, grass tufts, flowers and props.
     const ring = (n: number, salt: number, dMin: number, dMax: number): [number, number, number][] => {
       const out: [number, number, number][] = [];
       for (let i = 0; i < n; i++) {
@@ -111,28 +113,46 @@ export class WorldView {
       return out.filter(([x, z]) => (x - farm.barn.bx) ** 2 + (z - farm.barn.bz) ** 2 > 20);
     };
     const jitter = (i: number) => 0.8 + 0.5 * hashFloat(i, 9, farm.seed);
-    this.addInstanced(decorGeometry(biome.decor), this.foliageMat, ring(this.lowQuality ? 120 : 210, 10, 4, 18), (i) => 1.1 * jitter(i));
-    this.addInstanced(rockGeometry(), this.mat, ring(40, 20, 2.5, 16), jitter);
-    this.addInstanced(tuftGeometry(), this.foliageMat, ring(this.lowQuality ? 120 : 320, 30, 1.4, 14), (i) => 0.9 + jitter(i) * 0.6);
-    if (!this.lowQuality && biome.decor !== 'cactus') {
-      this.addInstanced(flowerClusterGeometry(FLOWER_COLORS), this.foliageMat, ring(90, 40, 1.6, 12), jitter);
+    const trees = this.lowQuality ? 120 : 210;
+    if (biome.decor2) {
+      // Two kinds of tree, the second one rarer.
+      this.addInstanced(treeGeometry(biome.decor), this.foliageMat, ring(Math.round(trees * 0.62), 10, 4, 18), (i) => 1.1 * jitter(i));
+      this.addInstanced(treeGeometry(biome.decor2), this.foliageMat, ring(Math.round(trees * 0.38), 15, 4.5, 18), (i) => 1.05 * jitter(i + 500));
+    } else this.addInstanced(treeGeometry(biome.decor), this.foliageMat, ring(trees, 10, 4, 18), (i) => 1.1 * jitter(i));
+    this.addInstanced(rockGeometry(biome.rock), this.mat, ring(40, 20, 2.5, 16), jitter);
+    this.addInstanced(tuftGeometry(biome.tuft ?? DEFAULT_TUFT), this.foliageMat, ring(this.lowQuality ? 120 : 320, 30, 1.4, 14), (i) => 0.9 + jitter(i) * 0.6);
+    if (!this.lowQuality && biome.flowers !== null) {
+      this.addInstanced(flowerClusterGeometry(biome.flowers ?? DEFAULT_FLOWERS), this.foliageMat, ring(90, 40, 1.6, 12), jitter);
     }
+    (biome.props ?? []).forEach((pr, k) => {
+      const n = this.lowQuality ? Math.ceil(pr.n / 2) : pr.n;
+      this.addInstanced(propGeometry(pr.kind), pr.kind === 'tallgrass' ? this.foliageMat : this.mat, ring(n, 60 + k * 10, pr.dMin, pr.dMax), (i) => 0.85 + 0.3 * hashFloat(i, 70 + k, farm.seed));
+    });
 
-    // Windmills beyond the field corners (sails spin), snowmen on the snowy farm.
+    // Landmarks beyond the field corners (windmills, wind pumps, granaries, a farmhouse); rotors spin.
+    const lm = landmarkGeometry(biome.landmark ?? 'windmill');
     const corners: [number, number][] = [
       [x0 - 4.5, z1 + 3.5],
       [x1 + 4.5, z1 + 3.5],
       [x1 + 4.5, z0 - 4.5],
+      [x0 - 4.5, z0 - 4.5],
     ];
-    // Towers and sails are one instanced mesh each (2 draw calls for all windmills).
-    const towers: [number, number, number][] = corners.map(([x, z], i) => [x, z, Math.atan2((x0 + x1) / 2 - x, (z0 + z1) / 2 - z) + (i - 1) * 0.3]);
-    this.addInstanced(windmillTowerGeometry(), this.mat, towers, () => 1);
+    const order = lm.count === 3 ? [0, 1, 2] : lm.count === 2 ? [1, 3] : [2];
+    // Bodies and rotors are one instanced mesh each (≤ 2 draw calls for all landmarks).
+    const towers: [number, number, number][] = order.map((k, i) => {
+      const [x, z] = corners[k];
+      return [x, z, Math.atan2((x0 + x1) / 2 - x, (z0 + z1) / 2 - z) + (i - 1) * 0.3];
+    });
+    this.addInstanced(lm.base, this.mat, towers, () => 1);
     this.towerM = towers.map(([x, z, a]) => new THREE.Matrix4().compose(V.set(x, 0, z), Q.setFromEuler(E.set(0, a, 0)), S.setScalar(1)));
-    this.sails = new THREE.InstancedMesh(windmillSailsGeometry(), this.mat, towers.length);
-    this.sails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.group.add(this.sails);
-    this.spinSails(0);
-    if (farm.biome === 'snowyberry') this.addInstanced(snowmanGeometry(), this.mat, ring(10, 60, 3, 9), () => 1);
+    this.hub = lm.hub;
+    this.spin = lm.spin;
+    if (lm.rotor) {
+      this.sails = new THREE.InstancedMesh(lm.rotor, this.mat, towers.length);
+      this.sails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.group.add(this.sails);
+      this.spinSails(0);
+    }
 
     // Drifting cloud shadows (one transparent full-screen layer: high tier only).
     this.clouds = null;
@@ -229,8 +249,8 @@ export class WorldView {
   private spinSails(a: number): void {
     if (!this.sails) return;
     for (let i = 0; i < this.towerM.length; i++) {
-      // Hub offset on the tower, then spin about the local z axis (each mill at its own pace).
-      M4.makeRotationZ(a * (0.9 + i * 0.15)).setPosition(0, 3.55, 0.85);
+      // Hub offset on the tower, then spin about the local z axis (each at its own pace).
+      M4.makeRotationZ(a * this.spin * (0.9 + i * 0.15)).setPosition(this.hub[0], this.hub[1], this.hub[2]);
       this.sails.setMatrixAt(i, M4.premultiply(this.towerM[i]));
     }
     this.sails.instanceMatrix.needsUpdate = true;

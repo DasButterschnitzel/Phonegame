@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
 import { ROCK, VOID } from '../../game/farms/layout.ts';
 import { TERRITORY } from '../../game/config.ts';
-import { biomeLook } from '../palette.ts';
-import { decorGeometry, fenceSegmentGeometry, flowerClusterGeometry, plotFrameGeometry, rockGeometry, tuftGeometry } from '../geo/world.ts';
+import { DEFAULT_TUFT, biomeLook } from '../palette.ts';
+import { fenceSegmentGeometry, flowerClusterGeometry, plotFrameGeometry } from '../geo/world.ts';
+import { rockGeometry, treeGeometry, tuftGeometry } from '../geo/scenery.ts';
 import { toon } from '../materials.ts';
 import { C, E, M4, Q, S, V, ZERO_SCALE } from '../scratch.ts';
 import { hashFloat } from '../../shared/hash.ts';
@@ -99,6 +100,7 @@ export class TerritoryView {
     const rockGround = new THREE.Color(biome.outside).multiplyScalar(0.92);
     const rocks: [number, number, number, number][] = [];
     const trees: [number, number, number, number][] = [];
+    const trees2: [number, number, number, number][] = [];
     for (let p = 0; p < n; p++) {
       const c = p % l.cols;
       const r = (p - c) / l.cols;
@@ -107,7 +109,8 @@ export class TerritoryView {
       const z = l.zone[p];
       if (z === VOID) {
         // A tree or two in the gaps of the farm outline.
-        if (hashFloat(p, 3, farm.seed) < 0.7) trees.push([x0 + P * (0.3 + 0.4 * hashFloat(p, 4, farm.seed)), z0 + P * (0.3 + 0.4 * hashFloat(p, 5, farm.seed)), hashFloat(p, 6, farm.seed) * 6.28, 1 + 0.3 * hashFloat(p, 7, farm.seed)]);
+        if (hashFloat(p, 3, farm.seed) < 0.7)
+          (biome.decor2 && hashFloat(p, 8, farm.seed) < 0.35 ? trees2 : trees).push([x0 + P * (0.3 + 0.4 * hashFloat(p, 4, farm.seed)), z0 + P * (0.3 + 0.4 * hashFloat(p, 5, farm.seed)), hashFloat(p, 6, farm.seed) * 6.28, 1 + 0.3 * hashFloat(p, 7, farm.seed)]);
         continue;
       }
       if (z === ROCK) {
@@ -126,8 +129,9 @@ export class TerritoryView {
     bg.setAttribute('color', new THREE.Float32BufferAttribute(baseCol, 3));
     bg.computeVertexNormals();
     this.group.add(new THREE.Mesh(bg, this.mat));
-    this.addStatic(rockGeometry(), this.mat, rocks);
-    if (biome.decor !== 'cactus' || trees.length) this.addStatic(decorGeometry(biome.decor), this.foliage, trees);
+    this.addStatic(rockGeometry(biome.rock), this.mat, rocks);
+    this.addStatic(treeGeometry(biome.decor), this.foliage, trees);
+    if (biome.decor2) this.addStatic(treeGeometry(biome.decor2), this.foliage, trees2);
 
     // Beds: one quad per plot (6 vertices), recoloured / resized as plots change state.
     this.bedPos = new Float32Array(n * 18);
@@ -144,7 +148,7 @@ export class TerritoryView {
 
     // Dressing for cleared plots.
     // Two meshes: grass tufts, and bloom patches (clover + a flower cluster) — few draw calls.
-    const dressGeos = [tuftGeometry(), flowerClusterGeometry(undefined, true)];
+    const dressGeos = [tuftGeometry(biome.tuft ?? DEFAULT_TUFT), flowerClusterGeometry(biome.flowers ?? undefined, true)];
     const perPlot = this.lowQuality ? [2, 1] : [4, 2];
     const counts = dressGeos.map(() => 0);
     this.dressByPlot = [];

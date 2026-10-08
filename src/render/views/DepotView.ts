@@ -4,6 +4,7 @@ import { capacityOf } from '../../game/config.ts';
 import { sampleAt } from '../../game/path.ts';
 import { arrowGeometry, barnDoorGeometry, barnGeometry, chevronGeometry, conveyorGeometry, depotPadGeometry, depotSignGeometry, hopperGeometry } from '../geo/world.ts';
 import { hullGeometry, outlineMaterial, toon } from '../materials.ts';
+import { RED_BARN, biomeLook } from '../palette.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { C, E, M4, Q, S, V } from '../scratch.ts';
 import { clamp, easeOutBack, wrap } from '../../shared/math.ts';
@@ -69,11 +70,12 @@ export class DepotView {
 
     // Barn (door panels hinge open to both sides).
     this.barn = new THREE.Group();
-    const barnMesh = new THREE.Mesh(barnGeometry(), this.mat);
+    const skin = biomeLook(farm.biome).depot ?? RED_BARN;
+    const barnMesh = new THREE.Mesh(barnGeometry(skin), this.mat);
     barnMesh.add(new THREE.Mesh(hullGeometry(barnMesh.geometry), outline));
     this.barn.add(barnMesh);
     // Both door panels in one draw call (hinged at the doorway edges, swung by the update).
-    this.doors = new THREE.InstancedMesh(barnDoorGeometry(), this.mat, 2);
+    this.doors = new THREE.InstancedMesh(barnDoorGeometry(skin), this.mat, 2);
     this.doors.frustumCulled = false;
     this.doors.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.barn.add(this.doors);

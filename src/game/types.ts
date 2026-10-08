@@ -83,7 +83,11 @@ export const FARM_ORDER = STARTER_FARMS;
 
 export type CropId =
   | 'lettuce' | 'wheat' | 'carrot' | 'corn' | 'cabbage' | 'pumpkin' | 'squash' | 'watermelon'
-  | 'tomato' | 'sunflower' | 'strawberry' | 'blueberry' | 'turnip' | 'pepper' | 'cactusfruit' | 'dragonfruit';
+  | 'tomato' | 'sunflower' | 'strawberry' | 'blueberry' | 'turnip' | 'pepper' | 'cactusfruit' | 'dragonfruit'
+  // World Tour crops (by biome family): orchard, rice terraces, vineyard.
+  | 'groundnut' | 'sorghum' | 'papaya' | 'mango'
+  | 'riceshoot' | 'taro' | 'rice' | 'lychee'
+  | 'basil' | 'artichoke' | 'grapes' | 'olive';
 
 export type UpgradeId = 'add' | 'merge' | 'speed' | 'capacity' | 'expand' | 'finish';
 export type BoostId = 'incomeX2' | 'autopilot';

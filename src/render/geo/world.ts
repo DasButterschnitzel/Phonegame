@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { PathTable } from '../../game/types.ts';
-import { build, ball, box, cone, cyl, dodeca, octa, type Part } from './lowpoly.ts';
+import { build, ball, box, cone, cyl, octa, type Part } from './lowpoly.ts';
+import { RED_BARN, type DepotSkin } from '../palette.ts';
 
 /** Checkerboard ground (vertex colours), tiles of `tile` units inside bounds. */
 export function fieldGround(x0: number, z0: number, x1: number, z1: number, a: number, b: number, tile = 2): THREE.BufferGeometry {
@@ -88,64 +89,24 @@ export function pathRibbon(p: PathTable, width: number, center: number, edge: nu
   return g;
 }
 
-export function barnGeometry(): THREE.BufferGeometry {
-  const red = 0xd64545;
-  const white = 0xffffff;
-  const roof = 0x5b3a29;
+/** The barn, dressed in its biome's depot skin (corrugated iron, thatch, terracotta, red paint …). */
+export function barnGeometry(skin: DepotSkin = RED_BARN): THREE.BufferGeometry {
   const roofGeo = new THREE.CylinderGeometry(1.45, 1.45, 3.0, 3, 1);
   const parts: Part[] = [
-    { geo: box(2.6, 1.8, 2.6), color: red, pos: [0, 0.9, 0], jitter: 0.06 },
-    { geo: roofGeo, color: roof, pos: [0, 2.1, 0], rot: [0, 0, Math.PI / 2], scale: [1, 1, 0.75], jitter: 0.08 },
+    { geo: box(2.6, 1.8, 2.6), color: skin.wall, pos: [0, 0.9, 0], jitter: 0.06 },
+    { geo: roofGeo, color: skin.roof, pos: [0, 2.1, 0], rot: [0, 0, Math.PI / 2], scale: [1, 1, 0.75], jitter: 0.08 },
     // Dark doorway facing +Z (rotated by the view to face the path); the door panels are animated separately.
     { geo: box(1.1, 1.3, 0.06), color: 0x2a1a14, pos: [0, 0.65, 1.3] },
-    { geo: box(1.3, 0.1, 0.12), color: white, pos: [0, 1.35, 1.33] },
-    { geo: box(0.1, 1.35, 0.12), color: white, pos: [0.62, 0.67, 1.33] },
-    { geo: box(0.1, 1.35, 0.12), color: white, pos: [-0.62, 0.67, 1.33] },
+    { geo: box(1.3, 0.1, 0.12), color: skin.trim, pos: [0, 1.35, 1.33] },
+    { geo: box(0.1, 1.35, 0.12), color: skin.trim, pos: [0.62, 0.67, 1.33] },
+    { geo: box(0.1, 1.35, 0.12), color: skin.trim, pos: [-0.62, 0.67, 1.33] },
     // Hay loft window.
-    { geo: box(0.5, 0.45, 0.08), color: 0xffd23f, pos: [0, 2.0, 1.12] },
+    { geo: box(0.5, 0.45, 0.08), color: skin.loft, pos: [0, 2.0, 1.12] },
     // Silo.
-    { geo: cyl(0.55, 0.55, 2.8, 8), color: 0xdfe6ee, pos: [1.75, 1.4, -0.6], jitter: 0.05 },
-    { geo: cone(0.62, 0.6, 8), color: 0x8a99a8, pos: [1.75, 3.1, -0.6] },
+    { geo: cyl(0.55, 0.55, 2.8, 8), color: skin.silo, pos: [1.75, 1.4, -0.6], jitter: 0.05 },
+    { geo: cone(0.62, 0.6, 8), color: skin.siloTop, pos: [1.75, 3.1, -0.6] },
   ];
   return build(parts, 0.2, 1.5);
-}
-
-export function decorGeometry(kind: 'tree' | 'pine' | 'cactus' | 'birch'): THREE.BufferGeometry {
-  switch (kind) {
-    case 'tree':
-      return build([
-        { geo: cyl(0.15, 0.22, 1.0, 5), color: 0x7a4a26, pos: [0, 0.5, 0] },
-        { geo: dodeca(0.85), color: 0x3fae49, pos: [0, 1.5, 0], jitter: 0.2 },
-        { geo: dodeca(0.6), color: 0x52c45a, pos: [0.35, 1.95, 0.15], jitter: 0.2 },
-      ], 0.3, 1.5);
-    case 'birch':
-      return build([
-        { geo: cyl(0.12, 0.16, 1.2, 5), color: 0xf2f2f2, pos: [0, 0.6, 0] },
-        { geo: dodeca(0.75), color: 0xf2a541, pos: [0, 1.6, 0], jitter: 0.25 },
-        { geo: dodeca(0.5), color: 0xe76f51, pos: [-0.3, 2.0, 0.2], jitter: 0.25 },
-      ], 0.3, 1.5);
-    case 'pine':
-      return build([
-        { geo: cyl(0.12, 0.16, 0.6, 5), color: 0x6b4226, pos: [0, 0.3, 0] },
-        { geo: cone(0.9, 1.2, 6), color: 0x2d6a4f, pos: [0, 1.1, 0], jitter: 0.15 },
-        { geo: cone(0.7, 1.0, 6), color: 0x40916c, pos: [0, 1.75, 0], jitter: 0.15 },
-        { geo: cone(0.45, 0.6, 6), color: 0xffffff, pos: [0, 2.3, 0] },
-      ], 0.3, 1.5);
-    case 'cactus':
-      return build([
-        { geo: cyl(0.25, 0.3, 1.8, 7), color: 0x3fae49, pos: [0, 0.9, 0], jitter: 0.12 },
-        { geo: cyl(0.14, 0.16, 0.7, 6), color: 0x3fae49, pos: [0.38, 1.0, 0], rot: [0, 0, -1.2] },
-        { geo: cyl(0.14, 0.16, 0.6, 6), color: 0x3fae49, pos: [0.6, 1.35, 0] },
-        { geo: ball(0.12, 0), color: 0xff6fb5, pos: [0, 1.85, 0] },
-      ], 0.3, 1.5);
-  }
-}
-
-export function rockGeometry(): THREE.BufferGeometry {
-  return build([
-    { geo: dodeca(0.45), color: 0x9aa0a6, pos: [0, 0.2, 0], scale: [1.2, 0.7, 1], jitter: 0.2 },
-    { geo: dodeca(0.25), color: 0xb0b6bc, pos: [0.4, 0.12, 0.2], jitter: 0.2 },
-  ]);
 }
 
 export function fencePostGeometry(): THREE.BufferGeometry {
@@ -189,61 +150,12 @@ export const sproutGeometry = (): THREE.BufferGeometry =>
     { geo: cyl(0.16, 0.2, 0.05, 5), color: 0x8b5a2b, pos: [0, 0.02, 0] },
   ]);
 
-export function windmillTowerGeometry(): THREE.BufferGeometry {
-  return build(
-    [
-      { geo: cyl(0.55, 1.0, 3.6, 6), color: 0xf4efe6, pos: [0, 1.8, 0], jitter: 0.06 },
-      { geo: cyl(0.62, 0.62, 0.18, 6), color: 0xb5651d, pos: [0, 0.09, 0] },
-      { geo: cone(0.8, 1.0, 6), color: 0xd64545, pos: [0, 4.05, 0], jitter: 0.08 },
-      { geo: box(0.5, 0.75, 0.08), color: 0x7a2323, pos: [0, 0.5, 0.9], rot: [-0.25, 0, 0] },
-      { geo: cyl(0.12, 0.12, 0.5, 6), color: 0x5c6670, pos: [0, 3.55, 0.6], rot: [Math.PI / 2, 0, 0] },
-    ],
-    0.25,
-    2,
-  );
-}
-
-/** Four sails around the local Z axis (spun by the view). */
-export function windmillSailsGeometry(): THREE.BufferGeometry {
-  const parts: Part[] = [{ geo: cyl(0.18, 0.18, 0.2, 6), color: 0x5c6670, rot: [Math.PI / 2, 0, 0] }];
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2;
-    parts.push({ geo: box(0.12, 1.9, 0.05), color: 0x8b5a2b, pos: [Math.sin(a) * 0.95, Math.cos(a) * 0.95, 0], rot: [0, 0, -a] });
-    parts.push({ geo: box(0.42, 1.5, 0.03), color: 0xfffaf0, pos: [Math.sin(a) * 1.05 + Math.cos(a) * 0.24, Math.cos(a) * 1.05 - Math.sin(a) * 0.24, 0.03], rot: [0, 0, -a], jitter: 0.04 });
-  }
-  return build(parts);
-}
-
-export function tuftGeometry(): THREE.BufferGeometry {
+/** One barn door panel (hinge at x = 0, opening towards +x) with the cross brace in the trim colour. */
+export function barnDoorGeometry(skin: DepotSkin = RED_BARN): THREE.BufferGeometry {
   return build([
-    { geo: cone(0.07, 0.42, 3), color: 0x4f9e3a, pos: [0, 0.21, 0], rot: [0, 0, 0.25] },
-    { geo: cone(0.07, 0.36, 3), color: 0x5fb346, pos: [0.08, 0.18, 0.04], rot: [0.2, 0, -0.3] },
-    { geo: cone(0.06, 0.3, 3), color: 0x6cc24a, pos: [-0.07, 0.15, -0.03], rot: [-0.25, 0, 0.1] },
-  ]);
-}
-
-export function snowmanGeometry(): THREE.BufferGeometry {
-  return build(
-    [
-      { geo: ball(0.6, 1), color: 0xffffff, pos: [0, 0.55, 0] },
-      { geo: ball(0.42, 1), color: 0xffffff, pos: [0, 1.35, 0] },
-      { geo: ball(0.3, 1), color: 0xffffff, pos: [0, 1.95, 0] },
-      { geo: cone(0.07, 0.35, 4), color: 0xff8c2b, pos: [0, 1.95, 0.42], rot: [Math.PI / 2, 0, 0] },
-      { geo: cyl(0.32, 0.32, 0.06, 8), color: 0x2b2d42, pos: [0, 2.2, 0] },
-      { geo: cyl(0.2, 0.22, 0.35, 8), color: 0x2b2d42, pos: [0, 2.4, 0] },
-      { geo: box(0.9, 0.12, 0.12), color: 0xd64545, pos: [0, 1.68, 0], rot: [0, 0.3, 0] },
-    ],
-    0.15,
-    2,
-  );
-}
-
-/** One barn door panel (hinge at x = 0, opening towards +x), red with the white cross brace. */
-export function barnDoorGeometry(): THREE.BufferGeometry {
-  return build([
-    { geo: box(0.55, 1.28, 0.07), color: 0xa83232, pos: [0.275, 0.64, 0] },
-    { geo: box(0.07, 1.28, 0.09), color: 0xffffff, pos: [0.52, 0.64, 0] },
-    { geo: box(0.08, 1.35, 0.09), color: 0xffffff, pos: [0.275, 0.64, 0.01], rot: [0, 0, 0.42] },
+    { geo: box(0.55, 1.28, 0.07), color: skin.door, pos: [0.275, 0.64, 0] },
+    { geo: box(0.07, 1.28, 0.09), color: skin.trim, pos: [0.52, 0.64, 0] },
+    { geo: box(0.08, 1.35, 0.09), color: skin.trim, pos: [0.275, 0.64, 0.01], rot: [0, 0, 0.42] },
   ]);
 }
 

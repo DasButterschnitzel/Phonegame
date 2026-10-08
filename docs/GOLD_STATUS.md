@@ -6,7 +6,8 @@
 | Loop | Commit | What changed | Status after |
 |---|---|---|---|
 | W0 | 0174072 | Audit of finite assumptions, architecture (`docs/WORLD_TOUR.md`), this document | RED |
-| W1 | (this) | Endless core: farm keys ≠ biomes, blueprints, journey, World Tour scheduler + first generator, forward travel with Tour recalibration, save v3 + migration, debug hooks | BRONZE |
+| W1 | dbf4e6c | Endless core: farm keys ≠ biomes, blueprints, journey, World Tour scheduler + first generator, forward travel with Tour recalibration, save v3 + migration, debug hooks | BRONZE |
+| W2 | 83cab8a · 769099a · (this) | Organic generated outlines; 1,000-seed stress test with real-sim play-outs; 500-farm journey bench; crop size classes (trees 2×2, giants 1×1, same economy per plot); data-driven biome looks (trees, props, landmarks, rocks, barn skins, weather); 3 new families (Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard); starter families gain a signature each; duplication detector; screenshot matrix | BRONZE |
 
 ## Gates (✅ met with evidence · ⬜ open · ❌ failing)
 ### Core
@@ -20,14 +21,14 @@
 - ✅ there is no designed final farm — `world.test.ts`: Cactus Ranch → farm #6 → … → #14 (Tour 2), `next` never null; 100-farm journey test
 - ✅ World Tour unlocks after the Starter Tour — `e2e/world.spec.ts` (real UI: five FINISH dialogs, "Starter Tour complete! Core Rank 1 · World Tour unlocked", map → #6, reload lands on #6)
 - ✅ farm generation is deterministic — 1,000 plans per seed identical on repeat, unique keys that parse back; 100 blueprints regenerate identically
-- ⬜ 100+ farms can be simulated
-- ⬜ no route softlock · ⬜ no economy softlock · ⬜ no number overflow (Tour-normalised economy in place: each Tour climbs ×14 per farm, then a new Tour starts small — to be measured over 100 farms)
-- ⬜ farm duration controlled · ✅ save size bounded — after 100 farms the save is < 40 KB (only the live farm + ≤ 6 stamps); 500 to measure
+- ✅ 100+ farms can be simulated — `npm run journey`: 500 farms finished, a next destination always reachable, 500 distinct keys, every scheduled family visited (0 errors)
+- ✅ no route softlock — `npm run worldgen`: 8 families × 1,000 farms, 1,600 played out with the real sim (small and large crops), 0 failures, 0 fallbacks · ⬜ no economy softlock · ⬜ no number overflow (Tour-normalised economy in place — to be measured over 100 farms with the bot)
+- ⬜ farm duration controlled (size classes exist; bot measurement pending) · ✅ save size bounded — 10 / 50 / 100 / 250 / 500 farms: 2.5 / 2.7 / 2.4 / 2.6 / 2.5 KB, serialize ≤ 0.25 ms, parse ≤ 1.9 ms (`npm run journey`)
 
 ### Content
-- ⬜ ≥ 12 genuinely distinct biome families (now: 5 hand-made farms)
-- ⬜ different layout archetypes · ⬜ repeat protection · ⬜ anticipation · ⬜ rare/showcase farms
-- ⬜ good generated names · ⬜ no cultural caricatures
+- ⬜ ≥ 12 genuinely distinct biome families (now 8: 5 starter + Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard; duplication detector green — every pair ≥ 3 major differences, closest meadow~sunflower at 3)
+- ✅ different layout archetypes — 16 archetypes, all in use (stress test counts) · ✅ repeat protection — no family twice within 4 farms over 400 farms × 3 seeds (`world.test.ts`) · ⬜ anticipation · ⬜ rare/showcase farms
+- ⬜ good generated names (12 curated per family, EN + DE, never repeated — test; review pending) · ⬜ no cultural caricatures (landscape-based names and props; review pending)
 
 ### Map
 - ❌ map no longer a finite checklist (it is a list of five cards)
@@ -46,7 +47,7 @@
 
 ### Visual · Performance · Monetization · QA
 - ⬜ each biome readable without UI · ⬜ no recolours · ⬜ crops readable · ⬜ depot obvious · ⬜ rare farms wow
-- ⬜ draw calls · ⬜ triangles · ⬜ memory · ⬜ bounded map · ⬜ fast save · ⬜ low quality everywhere
+- ✅ draw calls — `e2e/biomes.spec.ts` budget test, high tier, grand farm, every zone open: 49–57 per family (the starter Meadow scene measures 50 at f9425ec and 51–52 now) · ✅ triangles — 124–170k per family, ≤ 180k asserted; content budgets unit-tested (any crop ≤ 850 per plot, trees ≤ 200, rocks ≤ 120, props ≤ 350, landmarks ≤ 700) · ⬜ memory · ⬜ bounded map · ✅ fast save (serialize ≤ 0.25 ms, parse ≤ 1.9 ms at 500 farms) · ⬜ low quality everywhere (low tier thins weather/props; screenshot matrix runs on the low SwiftShader tier — review pending)
 - ⬜ ads optional · ⬜ forced-ad rate not increased · ⬜ big moments protected · ⬜ long sessions not ad spam
 - ⬜ typecheck · ⬜ unit · ⬜ e2e · ⬜ balance · ⬜ Android workflow · ⬜ screenshot matrix · ⬜ 100-farm sim
 - ✅ migration tests — v2 fresh Meadow, v2 mid-Pumpkin (field identical), v2 all five done (World Tour opens), v3 damaged blueprint (rebuilt from key), unknown key (→ frontier), broken journey (→ defaults)
@@ -57,8 +58,8 @@
 |---|---|---|
 | Core game feel | 8 | accepted on a real phone (goal 04) |
 | World Tour clarity | 4 | exists; map is still a list with a World Tour section |
-| Biome variety | 3 | five hand-made farms, palette + one decor kind each |
-| Farm generation | 4 | 16 archetypes, static validation + rerolls; layouts still plain |
+| Biome variety | 5 | 8 families, each with its own crops/trees/props/landmark/rocks/barn/weather (screenshot matrix `e2e-screens/biome-*`); 12+ needed |
+| Farm generation | 7 | 16 archetypes, organic outlines, static + play-out validation over 8,000 farms with 0 failures; outlines at 12×12 plots still simple |
 | Long-term progression | 4 | endless journey, Core Rank; economy not tuned |
 | Map UX | 4 | five cards |
 | Economy | 4 | Tour-normalised design in place, untuned |
@@ -75,6 +76,6 @@
 
 ## Open P0/P1
 - ~~P0: the game ends after five farms.~~ fixed in W1.
-- P1: World Tour farms reuse the five starter biomes (no new places yet).
+- P1: only 3 new biome families so far (12+ needed for Gold).
 - P1: OVERDRIVE state/heat not readable (real device).
 - P1: World Tour economy not yet tuned or measured over 100 farms (save is bounded now).

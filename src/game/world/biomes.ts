@@ -91,6 +91,33 @@ export const BIOMES: Partial<Record<BiomeId, BiomeDef>> = {
     layouts: { ...COMMON_LAYOUTS, canyon: 1.4, centralrock: 1, ridge: 1 },
     minTour: 1,
   },
+  // ——— World Tour families ———
+  // Each is a different kind of place: its own crops (and crop sizes), layouts it favours, and — in the renderer — its
+  // own trees, props, landmark, rocks, depot skin and weather. Inspired by real farming landscapes, never caricatures.
+  // River-valley orchard of southern Africa: groundnuts and sorghum, pawpaw and mango trees, granite kopjes.
+  orchard: {
+    id: 'orchard',
+    rarity: 'uncommon',
+    crops: [['groundnut'], ['sorghum', 'corn'], ['papaya'], ['mango']],
+    layouts: { riverbend: 1.6, brokenriver: 1, coast: 1, centralrock: 1.2, bowl: 0.8, twinponds: 0.6, valley: 0.6, horseshoe: 0.5 },
+    minTour: 1,
+  },
+  // Flooded terraces climbing a misty hillside: seedlings, taro, golden rice, lychee trees at the top.
+  rice: {
+    id: 'rice',
+    rarity: 'uncommon',
+    crops: [['riceshoot'], ['taro'], ['rice'], ['lychee']],
+    layouts: { terraces: 2.2, longvalley: 1.2, twinponds: 1, valley: 1, spiral: 0.6, riverbend: 0.6 },
+    minTour: 1,
+  },
+  // Rolling hills of vines, cypress lanes and silver olive groves.
+  vineyard: {
+    id: 'vineyard',
+    rarity: 'common',
+    crops: [['basil'], ['artichoke', 'tomato'], ['grapes'], ['olive']],
+    layouts: { ridge: 1.4, twinfields: 1.2, valley: 1, horseshoe: 0.8, bowl: 0.8, terraces: 0.6, longvalley: 0.6 },
+    minTour: 1,
+  },
 };
 
 /** Biome families with complete content (crops, look, names): only these are scheduled. */

@@ -47,6 +47,18 @@ const ALL: Record<CropId, CropSize> = {
   pepper: 'small',
   cactusfruit: 'small',
   dragonfruit: 'small',
+  groundnut: 'small',
+  sorghum: 'small',
+  papaya: 'large',
+  mango: 'large',
+  riceshoot: 'small',
+  taro: 'small',
+  rice: 'small',
+  lychee: 'large',
+  basil: 'small',
+  artichoke: 'small',
+  grapes: 'small',
+  olive: 'large',
 };
 
 export const CROP_IDS = Object.keys(ALL) as CropId[];

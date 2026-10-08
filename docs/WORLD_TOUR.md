@@ -54,6 +54,33 @@ diagonal-only pinches, no one-plot necks, depot on the near edge, enough crops) 
 attempt is tried; a play-out validation (the real sim clearing the farm) runs in the stress test over thousands of
 seeds. Everything is seeded (`hash32`, `mulberry32`), never `Math.random` or the clock.
 
+Measured (`npm run worldgen`, 1,000 farms per family through the real scheduler, 200 of each played out with the real
+simulation): 8,000 farms, 0 validation failures, 0 bowl fallbacks, p95 of 2 attempts, all 16 archetypes in use,
+1,600 play-outs (small and large crops) clearing ≥ 90 % with no stuck route. `npm run journey` walks 500 farms: no
+duplicate key, a next destination always reachable, every scheduled family visited, save ~2.5 KB flat.
+
+## Biome families (content system)
+A family is data in two places, both checked by tests:
+- **game** (`world/biomes.ts`): crop pools per tier (crops have a size class — small 3×3, large 2×2 trees and vines,
+  huge single crops — and a plot always holds the same HP and value whatever its crops), favoured layout archetypes,
+  rarity, earliest Tour;
+- **render** (`render/palette.ts`): palette and light, two tree kinds, ring props, a landmark (some with a rotor),
+  rock style, grass and flower colours, the barn's skin (the depot language — pad, hopper, chevrons, sign — never
+  changes), and weather (dust, mist, leaves, snow, pollen: one instanced draw call that follows the camera).
+
+Names and titles live in i18n (`biome.<id>`, twelve curated `names.<id>` per family, `crop.<id>`); a test fails if a
+family or crop lacks them in either language or if a name repeats anywhere. The **duplication detector**
+(`render/biomes.test.ts`) requires every pair of families to differ in at least three major ways — crops, trees,
+props, landmark, rocks, weather, barn, layouts — so a palette swap can never pass as a new place. The five starter
+families gained a signature each (sheep; scarecrows and autumn leaves; beehives and pollen; snowfall; sandstone mesas
+and dust) on top of their accepted look.
+
+| Family | Crops (size) | Scenery | Landmark · weather |
+|---|---|---|---|
+| Zambezi Orchard | groundnut, sorghum/corn, pawpaw (L), mango (L) | acacias, baobabs, termite mounds, tall grass, granite kopjes, red laterite | wind pump + tank · warm dust |
+| Jade Rice Terraces | rice seedlings, taro, golden rice, lychee (L) | broadleaf trees, bamboo, dry-stone walls, stilt huts, mossy rocks, jade paddies once cleared | stilted granary · mist |
+| Tuscan Vineyard | basil, artichoke/tomato, grapevines, olive (L) | cypress lanes, umbrella pines, hay bales, terracotta urns, limestone | stone farmhouse · falling leaves |
+
 ## Save v3
 `v2 → v3`: `farmId` stays the key (starter ids are valid keys); a `journey` is created from the starter progress
 (completed count, discovered biomes, World Tour unlocked when all five are done); everything else carries over.

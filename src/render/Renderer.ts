@@ -9,6 +9,7 @@ import { Particles } from './fx/Particles.ts';
 import { TornadoView } from './views/TornadoView.ts';
 import { TerritoryView } from './views/TerritoryView.ts';
 import { DepotView } from './views/DepotView.ts';
+import { WeatherView } from './views/WeatherView.ts';
 import type { DebugView } from './views/DebugView.ts';
 import { Shockwaves } from './fx/Shockwave.ts';
 import { materialFlags, shared } from './materials.ts';
@@ -38,6 +39,7 @@ export class GameRenderer {
   world: WorldView;
   territory: TerritoryView;
   depot: DepotView;
+  weather: WeatherView;
   field: FieldView;
   debug: DebugView | null = null;
   cat: CaterpillarView;
@@ -89,6 +91,7 @@ export class GameRenderer {
     this.world = new WorldView(sim, this.scene, this.quality);
     this.territory = new TerritoryView(sim, this.quality.tier === 'low');
     this.depot = new DepotView(sim);
+    this.weather = new WeatherView(sim, this.quality.tier === 'low' ? 0.45 : this.quality.tier === 'med' ? 0.75 : 1);
     this.field = new FieldView(sim);
     this.cat = new CaterpillarView(sim);
     this.bodies.poses = this.cat.poses;
@@ -96,7 +99,7 @@ export class GameRenderer {
     this.fx = new Particles();
     this.fx.budget = this.quality.particleScale;
     this.fx.extra = this.quality.extraFx;
-    this.scene.add(this.world.group, this.territory.group, this.depot.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group, this.waves.group);
+    this.scene.add(this.world.group, this.territory.group, this.depot.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group, this.waves.group, this.weather.group);
     // Cargo landing in the hopper: coin spray, ring, barn squash.
     this.stacks.target.copy(this.depot.hopperTop);
     this.stacks.onLand = (n) => {
@@ -124,6 +127,7 @@ export class GameRenderer {
     this.world.rebuild();
     this.territory.rebuild();
     this.depot.rebuild();
+    this.weather.rebuild();
     this.field.rebuild();
     this.stacks.onFarmChanged();
     this.stacks.target.copy(this.depot.hopperTop);
@@ -231,6 +235,7 @@ export class GameRenderer {
       tz = this.focus.z;
     }
     this.rig.update(tx, tz, n * 1.1, st.v / vMax(st.progress.speedLevel), dt, now);
+    this.weather.update(now, dt, tx, tz);
     // Fog follows the camera distance so zooming out never drowns the farm.
     const fog = this.scene.fog as THREE.Fog | null;
     if (fog) {
