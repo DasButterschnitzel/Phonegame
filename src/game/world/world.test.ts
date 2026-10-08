@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Sim } from '../sim.ts';
-import { WORLD } from '../config.ts';
+import { WORLD, coreBonus, worldEco } from '../config.ts';
+import { MODIFIER_FX } from '../farms/index.ts';
 import type { FarmKey, SimEvent } from '../types.ts';
 import { STARTER_FARMS } from '../types.ts';
 import { FARMS_PER_TOUR, STARTER_COUNT, firstOrdinalOfTour, parseWorldKey, planFarm, tourOf } from './plan.ts';
@@ -107,13 +108,19 @@ describe('journey', () => {
     for (let o = 6; o <= 13; o++) {
       const fin = finishHere(sim).find((e) => e.t === 'farmFinished');
       expect(fin && fin.t === 'farmFinished' && fin.tourDone).toBe(o === 13 ? 1 : null);
+      // Leave the finale with a full basket: its cargo is sold before the new Tour recalibrates the bank.
+      if (o === 13) sim.execute({ c: 'fillBasket', frac: 1 });
       const t2 = goNext(sim).find((e) => e.t === 'traveled');
       expect(t2 && t2.t === 'traveled' && t2.newTour).toBe(o === 13);
+      // Every finished farm of the Tour keeps paying passive income while the Tour lasts.
+      if (o < 13) expect(Object.keys(sim.state.economy.passive).length).toBe(o - 5);
     }
     expect(sim.farm.ordinal).toBe(14);
     expect(sim.farm.tour).toBe(2);
     expect(sim.state.journey.tours).toBe(2);
     expect(sim.state.coins).toBe(WORLD.START_COINS);
+    // The new Tour starts its passive income from scratch.
+    expect(Object.keys(sim.state.economy.passive)).toEqual([]);
     expect(sim.state.journey.completed).toBe(13);
   });
   it('a World Tour farm survives save and reload exactly; 100 farms keep the save small', () => {
@@ -143,3 +150,37 @@ describe('journey', () => {
     expect(json.length).toBeLessThan(40_000);
   });
 });
+
+describe('World Tour economy', () => {
+  it('values and costs climb together through a Tour (no drift: farm 8 paces like farm 1)', () => {
+    for (let slot = 0; slot < FARMS_PER_TOUR; slot++) {
+      const e = worldEco(slot, 3);
+      expect(e.costMult).toBeCloseTo(WORLD.VALUE_GROWTH ** slot, 6);
+      expect(e.valueMult / e.costMult).toBeCloseTo(1 + coreBonus(3), 9);
+    }
+  });
+  it('bigger size classes are deeper (tougher crops), never pricier', () => {
+    const q = worldEco(2, 1, 'quick');
+    const s = worldEco(2, 1, 'standard');
+    const g = worldEco(2, 1, 'grand');
+    expect(q.hpMult).toBe(1);
+    expect(s.hpMult).toBeGreaterThan(q.hpMult);
+    expect(g.hpMult).toBeGreaterThan(s.hpMult);
+    expect(new Set([q.costMult, s.costMult, g.costMult]).size).toBe(1);
+  });
+  it('modifiers are opportunities, never handicaps', () => {
+    for (const [id, fx] of Object.entries(MODIFIER_FX)) {
+      expect(fx.value / fx.hp, id).toBeGreaterThanOrEqual(1);
+      expect(fx.golden, id).toBeGreaterThanOrEqual(1);
+      expect(fx.speed, id).toBeGreaterThanOrEqual(1);
+    }
+  });
+  it('numbers stay readable however far you travel', () => {
+    // The most valuable chunk there can be — golden, tier 3, a giant-crop finale at Core Rank 1000 — is worth ~206B,
+    // under a trillion (the bot's biggest bank over 100 farms: ~13T); a new Tour always starts again at small numbers.
+    const e = worldEco(FARMS_PER_TOUR - 1, 1000, 'grand', MODIFIER_FX.giant.value, MODIFIER_FX.giant.hp);
+    expect(e.valueMult * 4 ** 3 * 10).toBeLessThan(1e12);
+    expect(coreBonus(1000)).toBeLessThan(1);
+  });
+});
+

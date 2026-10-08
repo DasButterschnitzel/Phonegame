@@ -7,7 +7,8 @@
 |---|---|---|---|
 | W0 | 0174072 | Audit of finite assumptions, architecture (`docs/WORLD_TOUR.md`), this document | RED |
 | W1 | dbf4e6c | Endless core: farm keys ≠ biomes, blueprints, journey, World Tour scheduler + first generator, forward travel with Tour recalibration, save v3 + migration, debug hooks | BRONZE |
-| W2 | 83cab8a · 769099a · (this) | Organic generated outlines; 1,000-seed stress test with real-sim play-outs; 500-farm journey bench; crop size classes (trees 2×2, giants 1×1, same economy per plot); data-driven biome looks (trees, props, landmarks, rocks, barn skins, weather); 3 new families (Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard); starter families gain a signature each; duplication detector; screenshot matrix | BRONZE |
+| W2 | 83cab8a · 769099a · 5eab0df | Organic generated outlines; 1,000-seed stress test with real-sim play-outs; 500-farm journey bench; crop size classes (trees 2×2, giants 1×1, same economy per plot); data-driven biome looks (trees, props, landmarks, rocks, barn skins, weather); 3 new families (Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard); starter families gain a signature each; duplication detector; screenshot matrix | BRONZE |
+| W3 | (this) | Endless economy: 100-farm bot report (`npm run endless`, 6 profiles); fixed Tour-start bank flood, lost passive income, cost drift, river-bend lobe; size classes get depth (tougher crops); quick farms avoid cross-cutting layouts | BRONZE |
 
 ## Gates (✅ met with evidence · ⬜ open · ❌ failing)
 ### Core
@@ -22,8 +23,8 @@
 - ✅ World Tour unlocks after the Starter Tour — `e2e/world.spec.ts` (real UI: five FINISH dialogs, "Starter Tour complete! Core Rank 1 · World Tour unlocked", map → #6, reload lands on #6)
 - ✅ farm generation is deterministic — 1,000 plans per seed identical on repeat, unique keys that parse back; 100 blueprints regenerate identically
 - ✅ 100+ farms can be simulated — `npm run journey`: 500 farms finished, a next destination always reachable, 500 distinct keys, every scheduled family visited (0 errors)
-- ✅ no route softlock — `npm run worldgen`: 8 families × 1,000 farms, 1,600 played out with the real sim (small and large crops), 0 failures, 0 fallbacks · ⬜ no economy softlock · ⬜ no number overflow (Tour-normalised economy in place — to be measured over 100 farms with the bot)
-- ⬜ farm duration controlled (size classes exist; bot measurement pending) · ✅ save size bounded — 10 / 50 / 100 / 250 / 500 farms: 2.5 / 2.7 / 2.4 / 2.6 / 2.5 KB, serialize ≤ 0.25 ms, parse ≤ 1.9 ms (`npm run journey`)
+- ✅ no route softlock — `npm run worldgen`: 8 families × 1,000 farms, 1,600 played out with the real sim (small and large crops), 0 failures, 0 fallbacks · ✅ no economy softlock — `npm run endless`: 6 profiles × 100 farms, every farm finished · ✅ no number overflow — biggest bank ~13T over 100 farms; most valuable possible chunk ~206B (unit test)
+- ✅ farm duration controlled — no-ad medians quick 8.7 / standard 17.4 / grand 22.1 min (targets 8–12 / 14–20 / 20–26), farms 20+ p50 16.1 min (`docs/WORLD_TOUR.md`) · ✅ save size bounded — 10 / 50 / 100 / 250 / 500 farms: 2.5 / 2.7 / 2.4 / 2.6 / 2.5 KB, serialize ≤ 0.25 ms, parse ≤ 1.9 ms (`npm run journey`)
 
 ### Content
 - ⬜ ≥ 12 genuinely distinct biome families (now 8: 5 starter + Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard; duplication detector green — every pair ≥ 3 major differences, closest meadow~sunflower at 3)
@@ -38,8 +39,9 @@
 - ⬜ Tour structure · ⬜ long-term progression · ⬜ simple · ⬜ no currency explosion · ⬜ progress matters after farm 50
 
 ### Balance
-- ⬜ farms 20–100 in the target duration band · ⬜ no grind curve · ⬜ no long drought · ⬜ SPEED stays useful
-- ⬜ no-ad player viable
+- ✅ farms 20–100 in the target duration band — no-ad p50 16.1 min (p10 8.1, p90 25.1); ACTIVE 12.8 · ✅ no grind curve — flat slot curve (values and costs ×14 per slot; slot medians 11.6–26.6 follow the size rhythm, not the position), Tours get ~20 % faster by Tour 12 · ✅ no long drought — worst wallet drought 72 s (no ads), p50 ~24 s · ⬜ SPEED stays useful (to re-measure with the ROI fork on World farms)
+- ✅ no-ad player viable — 100 farms in 28 h of play, all size classes on target
+- ⬜ cliffs: ~2 % of farms take > 1.6× their class median (worst 2.06×); no layout trap left (river bend fixed), the rest is spread across archetypes
 
 ### OVERDRIVE
 - ❌ second-finger activation obvious (real-device feedback: indicator too weak)
@@ -60,9 +62,9 @@
 | World Tour clarity | 4 | exists; map is still a list with a World Tour section |
 | Biome variety | 5 | 8 families, each with its own crops/trees/props/landmark/rocks/barn/weather (screenshot matrix `e2e-screens/biome-*`); 12+ needed |
 | Farm generation | 7 | 16 archetypes, organic outlines, static + play-out validation over 8,000 farms with 0 failures; outlines at 12×12 plots still simple |
-| Long-term progression | 4 | endless journey, Core Rank; economy not tuned |
+| Long-term progression | 5 | endless journey, Core Rank bonus measurable (Tours ~20 % faster by rank 12); no Core Rank UI / collection extension yet |
 | Map UX | 4 | five cards |
-| Economy | 4 | Tour-normalised design in place, untuned |
+| Economy | 8 | 100-farm bot over 6 profiles: targets met, no softlock/overflow, 3 bugs found and fixed; ~2 % mild cliffs remain |
 | Pacing | 7 | five farms measured (goal 04) |
 | Visual polish | 7 | |
 | Animation | 8 | goal 04 pop pass |
@@ -78,4 +80,4 @@
 - ~~P0: the game ends after five farms.~~ fixed in W1.
 - P1: only 3 new biome families so far (12+ needed for Gold).
 - P1: OVERDRIVE state/heat not readable (real device).
-- P1: World Tour economy not yet tuned or measured over 100 farms (save is bounded now).
+- ~~P1: World Tour economy not yet tuned or measured over 100 farms~~ — W3: measured and tuned (see Balance).

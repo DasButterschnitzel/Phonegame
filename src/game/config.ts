@@ -183,20 +183,29 @@ export const farmEco = (index: number): FarmEco => ({
  */
 export const WORLD = {
   VALUE_GROWTH: 14,
-  COST_STEP: 1.12,
+  COST_STEP: 1,
   /** Coins a new Tour starts with (its first farm's prices are Meadow's). */
   START_COINS: 120,
   /** Core Rank (Tours completed): +CORE_BONUS harvest value per doubling of the rank (diminishing, never zero). */
   CORE_BONUS: 0.08,
+  /**
+   * Depth of the size classes. A farm's length is mostly the climb of the caterpillar, not its area (measured:
+   * ~7 min + 0.03 min per plot), so bigger farms are also deeper: upgrades cost more (cost) and crops are tougher (hp).
+   */
+  SIZE: {
+    quick: { cost: 1, hp: 1 },
+    standard: { cost: 1, hp: 1.45 },
+    grand: { cost: 1, hp: 1.7 },
+  },
 } as const;
 
 /** Permanent harvest-value bonus of Core Rank r (0, +8 %, +13 %, +16 %, … +24 % at rank 7). */
 export const coreBonus = (rank: number): number => (rank > 0 ? WORLD.CORE_BONUS * Math.log2(1 + rank) : 0);
 
-export const worldEco = (slot: number, coreRank: number, valueFx = 1, hpFx = 1): FarmEco => ({
-  hpMult: hpFx,
+export const worldEco = (slot: number, coreRank: number, size: 'quick' | 'standard' | 'grand' = 'standard', valueFx = 1, hpFx = 1): FarmEco => ({
+  hpMult: hpFx * WORLD.SIZE[size].hp,
   valueMult: WORLD.VALUE_GROWTH ** slot * valueFx * (1 + coreBonus(coreRank)),
-  costMult: WORLD.VALUE_GROWTH ** slot * WORLD.COST_STEP ** slot,
+  costMult: WORLD.VALUE_GROWTH ** slot * WORLD.COST_STEP ** slot * WORLD.SIZE[size].cost,
 });
 
 /**

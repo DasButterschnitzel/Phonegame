@@ -204,7 +204,7 @@ export function farmFromBlueprint(bp: FarmBlueprint, coreRank: number): FarmDef 
     showcase: bp.showcase,
     name: bp.name,
     variant: bp.variant,
-    eco: worldEco(bp.slot, coreRank, fx?.value ?? 1, fx?.hp ?? 1),
+    eco: worldEco(bp.slot, coreRank, bp.size, fx?.value ?? 1, fx?.hp ?? 1),
     goldenP: MISC.GOLDEN_P * (fx?.golden ?? 1),
     speedMult: fx?.speed ?? 1,
     bp,

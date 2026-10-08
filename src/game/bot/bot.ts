@@ -100,6 +100,8 @@ export interface FarmStats {
   savingShare: number;
   purchases: Record<string, number>;
   end: { speedLevel: number; capacityLevel: number; segments: number; maxLevel: number; vMax: number; income: number };
+  /** Most coins held at once on this farm (readable-number checks). */
+  peakCoins: number;
 }
 
 export interface RunReport {
@@ -126,6 +128,8 @@ export interface RunOptions {
   /** Every simulation event and player action, with the sim time (ad-pressure simulation). */
   onEvent?: (e: SimEvent, t: number) => void;
   onAction?: (a: Action, t: number) => void;
+  /** Called when a farm closes (finished, or the run ended on it), with the live simulation still on that farm. */
+  onFarm?: (sim: Sim, f: FarmStats) => void;
 }
 
 const CORE: UpgradeId[] = ['add', 'merge', 'speed', 'capacity'];
@@ -385,6 +389,7 @@ export function runBot(profile: Profile, opt: RunOptions): RunReport {
   let farmTicks = 0;
   let upgradesThisFarm = 0;
   let allGaps: number[] = [];
+  let peakCoins = 0;
 
   const event = () => {
     const gap = st.simTime - lastEvent;
@@ -407,6 +412,7 @@ export function runBot(profile: Profile, opt: RunOptions): RunReport {
     farmTicks = 0;
     upgradesThisFarm = 0;
     allGaps = [];
+    peakCoins = st.coins;
   };
   const closeBand = () => {
     bands.push(band.close(BAND_NAMES[bandIdx], st.simTime, sim.cleared, st.economy.ema, vMax(st.progress.speedLevel)));
@@ -433,7 +439,9 @@ export function runBot(profile: Profile, opt: RunOptions): RunReport {
         vMax: vMax(p.speedLevel),
         income: st.economy.ema,
       },
+      peakCoins,
     });
+    opt.onFarm?.(sim, farms[farms.length - 1]);
   };
   newFarm();
 
@@ -462,6 +470,7 @@ export function runBot(profile: Profile, opt: RunOptions): RunReport {
   let checkAcc = 0;
   while (st.simTime < total) {
     const events = player.step(sim, dt);
+    if (st.coins > peakCoins) peakCoins = st.coins;
     farmTicks++;
     band.ticks++;
     if (st.basket.mass >= capacityOf(st) - 0.5) band.full++;

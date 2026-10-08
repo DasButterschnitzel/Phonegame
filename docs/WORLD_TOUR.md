@@ -40,12 +40,34 @@ World Tour: a finished farm can be played on until you set off, then it becomes 
 dropped). Live farms (current + unfinished) keep full snapshots; there are never more than a handful.
 
 ## Economy (readable numbers forever)
-Each World Tour is one economic arc: farm slot j of a Tour has values ×Gʲ and costs ×Gʲ·Cʲ, so numbers climb from
-"15 coins" to billions within a Tour, then the next Tour starts a new region at small numbers again. Coins are
-recalibrated at the Tour start (the Tour's finale pays out into Core Rank, not into a pile of useless billions);
-charges, tornadoes, collection, records and Core Rank persist. Core Rank gives a small permanent bonus with
-diminishing returns. Passive income only counts the current Tour's farms (≤ 8 entries). The Starter Tour keeps its
-exact economy (×25ⁱ).
+Each World Tour is one economic arc: farm slot j of a Tour has values and costs ×14ʲ, so numbers climb from "15
+coins" to billions within a Tour, then the next Tour starts a new region at small numbers again. Coins are
+recalibrated at the Tour start (120); charges, tornadoes, collection, records and Core Rank persist. Core Rank (Tours
+completed) adds +8 % harvest value per doubling (diminishing: +30 % at rank 12). Passive income counts the current
+Tour's finished farms (≤ 8 entries). Size classes are deeper, not only wider: a farm's length is mostly the climb of
+the caterpillar (measured ≈ 7 min + 0.03 min per plot), so standard and grand farms have tougher crops (×1.45, ×1.7).
+The Starter Tour keeps its exact economy (×25ⁱ).
+
+### Measured (`npm run endless`, bot over 100 farms, seed 1; seed 7 agrees)
+| Profile | quick p50 | standard p50 | grand p50 | farms 20+ p10 / p50 / p90 | cliffs (> 1.6× class median) |
+|---|---|---|---|---|---|
+| ACTIVE_NO_ADS | 8.7 | 17.4 | 22.1 | 8.1 / 16.1 / 25.1 | 2 |
+| ACTIVE (an ad every 10 min) | 7.0 | 13.3 | 17.0 | 6.7 / 12.8 / 19.0 | 2 |
+| ACTIVE_TWO_FINGER | 7.0 | 13.3 | 16.8 | 6.6 / 12.2 / 19.2 | 1 |
+| CASUAL | 14.6 | 30.2 | 32.0 | 13.6 / 29.0 / 44.0 | 5 |
+| ACTIVE_UPGRADES_ONLY | 17.8 | 28.7 | 37.0 | 17.0 / 28.4 / 37.0 | 0 |
+| IDLE (never holds) | 60 | 85 | 105 | 55 / 85 / 110 | 0 |
+
+Targets (no-ad baseline): quick 8–12, standard 14–20, grand 20–26 min — met. No softlock in 600 simulated farms, no
+overflow (biggest bank ~13T; the most valuable chunk possible is ~206B — unit-tested). A Tour of eight farms takes
+the no-ad player ~2.4 h at first and ~1.9 h by Tour 12 (Core Rank and carried charges: progress still matters).
+Wallet droughts: worst 72 s (no ads), p50 ~24 s. Idle play runs ~5× slower than active (Starter Tour: ~4.4×).
+
+Bugs the 100-farm bot found and fixed: a new Tour sold the previous finale's basket *after* recalibrating the bank
+(new Tours started with ~1e11 coins, five farms in a row free of drought); leaving a World farm dropped its passive
+income; costs outgrew values by ×1.12 per slot (slot 6 took 1.9× slot 0 per plot); river bends that turned towards
+the far edge cut off a lobe the route could only reach around the water (1.26× median, worst 2.6×) — the river now
+ends in a pool, and cross-cutting layouts (river bend, ridge, long valley) are not used for quick farms.
 
 ## Generation
 Authored procedural: layout archetypes (river bend, double pond, canyon, terraces, horseshoe, …) with parameters,

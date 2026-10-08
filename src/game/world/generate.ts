@@ -148,10 +148,11 @@ const ARCHETYPES: Record<ArchetypeId, Drawer> = {
   riverbend: (x) => {
     const s = side(x);
     const r0 = ri(x.rnd, Math.floor(x.g.rows * 0.3), Math.floor(x.g.rows * 0.5));
-    const run = Math.floor(x.g.cols * (0.35 + 0.15 * x.rnd()));
-    band(x, edgeCol(x, s), r0, -s, 0, run, 2, WATER, 0.2);
-    // …then it bends towards the far side and peters out.
-    band(x, edgeCol(x, s) - s * run, r0, 0, -1, Math.floor(r0 * 0.6), 2, WATER, 0.25);
+    const run = Math.floor(x.g.cols * (0.3 + 0.12 * x.rnd()));
+    band(x, edgeCol(x, s), r0, -s, 0, run, 2, WATER, 0.25);
+    // …and widens into a pool where it ends. (A river that turns towards the far edge cuts off a lobe the route can
+    // only reach round the water: measured 1.26× the duration of other farms of its size, worst 2.6×.)
+    blob(x, edgeCol(x, s) - s * run, r0 + 0.5, 1.25, WATER);
   },
   twinponds: (x) => {
     blob(x, ri(x.rnd, 1, Math.floor(x.g.cols / 2) - 1), 0, 1.6, WATER);
@@ -464,10 +465,20 @@ export interface Generated {
 }
 
 /** Validated map for a plan: archetypes by the biome's taste, rerolled until one passes; a plain bowl as the floor. */
+/**
+ * Archetypes whose feature cuts across the field (a river, a ridge, a long valley) are too much for a quick farm's
+ * small grid: measured up to 2.2× a quick farm's usual length. Quick farms use the biome's other layouts.
+ */
+const NOT_QUICK: readonly ArchetypeId[] = ['riverbend', 'ridge', 'longvalley'];
+
 export function generateMap(biome: FarmPlan['biome'], size: SizeClass, seed: number): Generated {
   const def = biomeDef(biome);
   const rnd = rngOf(hash32(seed ^ 0x3c6ef372));
-  const entries = Object.entries(def.layouts) as [ArchetypeId, number][];
+  let entries = Object.entries(def.layouts) as [ArchetypeId, number][];
+  if (size === 'quick') {
+    const fit = entries.filter(([a]) => !NOT_QUICK.includes(a));
+    entries = fit.length ? fit : [['bowl', 1]];
+  }
   for (let attempt = 1; attempt <= 24; attempt++) {
     let total = 0;
     for (const [, w] of entries) total += w;

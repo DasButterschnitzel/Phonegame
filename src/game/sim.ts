@@ -791,12 +791,17 @@ export class Sim {
     const leaving = this.farm;
     this.depotFlush();
     this.syncField();
+    // Sell whatever is still in the basket instead of silently discarding it (at the farm it was harvested on — before
+    // a new Tour recalibrates the bank, so a finale's cargo can't flood the next Tour's small numbers).
+    const carried = st.basket.value * this.incomeMult;
+    st.basket = { mass: 0, value: 0, massByTier: [0, 0, 0, 0, 0] };
+    st.depot = newDepotPass();
+    this.grant(carried, 'travel');
     const toWorld = !isStarterFarm(id);
     const newTour = toWorld && tourOf(ordinalOf(id)).tour !== leaving.tour;
-    if (toWorld && (leaving.tour > 0 || newTour)) {
-      // Forward only: the farm we leave is done (its stamp was written at FINISH) — drop its field.
-      delete st.economy.passive[leaving.id];
-    } else st.farmsProgress[leaving.id] = st.progress;
+    // Forward only on the World Tour: the farm we leave is done (its stamp was written at FINISH), so its field is
+    // dropped; its passive income keeps paying until the Tour ends (≤ 8 farms).
+    if (!toWorld || (leaving.tour === 0 && !newTour)) st.farmsProgress[leaving.id] = st.progress;
     if (newTour) {
       // A new region: the bank is recalibrated to the new Tour's small numbers; Core Rank, charges, tornadoes,
       // collection and records carry on. The Tour before (the Starter Tour too) is archived as stamps.
@@ -817,11 +822,6 @@ export class Sim {
     }
     delete st.farmsProgress[id];
     st.farmId = id;
-    // Sell whatever is still in the basket instead of silently discarding it.
-    const carried = st.basket.value * this.incomeMult;
-    st.basket = { mass: 0, value: 0, massByTier: [0, 0, 0, 0, 0] };
-    st.depot = newDepotPass();
-    this.grant(carried, 'travel');
     // The rolling income estimate belongs to the farm we left; restart it from the passive baseline.
     st.economy.ema = passiveRate(st);
     st.economy.winTime = 0;
