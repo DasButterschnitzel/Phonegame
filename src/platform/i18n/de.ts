@@ -212,6 +212,7 @@ export const de: Record<I18nKey, string> = {
   'tut.overdrive': 'Zweiten Finger auflegen: OVERDRIVE!',
   'tut.overdriveKey': 'SHIFT beim Krabbeln halten: OVERDRIVE!',
   'od.label': 'OVERDRIVE!',
+  'od.hot': 'HEISS!',
   'toast.saved': 'Fortschritt gespeichert',
   'toast.readOnly': 'Dieser Spielstand ist von einer neueren Version – Fortschritt wird nicht gespeichert.',
   'toast.tornadoDrop': 'Goldenes Glück! +1 Tornado',

@@ -33,6 +33,9 @@ test('mix levels and spectra: a quiet, clean motor under every gameplay sound; v
   // Arriving at a farm is a welcome, not a fanfare: clearly heard over the motor, under the zone-open crash.
   expect.soft(r.arrive.rms, 'arrival chime over the motor').toBeGreaterThan(r.motorFull.rms + 6);
   expect.soft(r.arrive.rms, 'arrival chime under the zone fanfare').toBeLessThan(r.zoneOpen.rms);
+  // The HOT! warning is a nudge in the motor's family, never an alarm over the harvest.
+  expect.soft(r.heatWarn.rms, 'heat warning under a bite').toBeLessThan(r.chomp.rms);
+  expect.soft(r.heatWarn.rms, 'heat warning over the motor').toBeGreaterThan(r.motorFull.rms);
   // Music flavours: every family's tune plays as loud as the meadow tune and leans no more on bass.
   const { music, ambience } = r as unknown as { music: Record<string, Measure>; ambience: Record<string, Measure> };
   expect(Object.keys(music).length).toBeGreaterThanOrEqual(18);

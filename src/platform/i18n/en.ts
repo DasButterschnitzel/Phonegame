@@ -210,6 +210,7 @@ export const en = {
   'tut.overdrive': 'Put a second finger down: OVERDRIVE!',
   'tut.overdriveKey': 'Hold SHIFT while crawling: OVERDRIVE!',
   'od.label': 'OVERDRIVE!',
+  'od.hot': 'HOT!',
   'toast.saved': 'Progress saved',
   'toast.readOnly': 'This save is from a newer version — progress will not be saved.',
   'toast.tornadoDrop': 'Golden luck! +1 tornado',

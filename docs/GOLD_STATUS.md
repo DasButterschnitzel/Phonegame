@@ -14,7 +14,8 @@
 | W5c | e5d0f40 · 5f10d92 · 8786eb6 | Music flavour per family through the shared engine (tempo, key, scale, contour, timbre; no imitation of traditional music) + a quiet ambience per family; audio QA measures every tune and ambience; fixed noise bursts cut off by the 0.5 s noise buffer (farm-complete cymbal, zone crash, overheat, route swoosh); big-farm budget e2e waits for a settled frame (+ per-view draw breakdown hook) | BRONZE |
 | W4a | 1040384 · f2cbdca | Journey map as a bounded trail (3 behind, here, 5 ahead, finale milestone; COMPLETED/CURRENT/NEXT/FUTURE/TOUR FINALE/NEW BIOME/mystery; Tour pips, Core Rank chip, journey stats + 18 biome stamps; no grey locked rows); farm names never repeat within a family over two Tours | BRONZE |
 | W4b | 867a2b9 | Arrival beat: 1.45 s entrance card (Tour · farm n/8, name, family, size, modifier with its effect, finale, NEW BIOME stamp, new Tour), never blocking; arrival chime in the farm's key; the new-farm gift follows the card | BRONZE |
-| W4c | (this) | Completion context: Tour pips, next destination card, one-tap "Next farm" (map secondary), Core Rank before → after on a Tour's end; Starter Tour transition (fanfare, World Tour explainer, "Start the World Tour"); no interstitial during travel/entrance (e2e fails without the guard) | BRONZE |
+| W4c | 2971182 | Completion context: Tour pips, next destination card, one-tap "Next farm" (map secondary), Core Rank before → after on a Tour's end; Starter Tour transition (fanfare, World Tour explainer, "Start the World Tour"); no interstitial during travel/entrance (e2e fails without the guard) | BRONZE |
+| W6 | (this) | OVERDRIVE readable: a heat arc above the head (cyan → yellow → orange 60–80 % → red 80–100 % with HOT!), a bolt that dims as the boost fades, shown only while engaged or warm; pops in inside the input event; cyan ring + sparks on activation, cyan sparks while pushing; red shake when the motor is too hot; soft HOT! beeps | BRONZE |
 
 ## Gates (✅ met with evidence · ⬜ open · ❌ failing)
 ### Core
@@ -51,8 +52,8 @@
 - ⬜ cliffs: ~2 % of farms take > 1.6× their class median (worst 2.06×); no layout trap left (river bend fixed), the rest is spread across archetypes
 
 ### OVERDRIVE
-- ❌ second-finger activation obvious (real-device feedback: indicator too weak)
-- ❌ heat indicator clear · ⬜ boost fade understandable · ⬜ no permanent HUD clutter
+- ✅ second-finger activation obvious — the heat arc pops in inside the pointer event itself (`e2e/overdrive.spec.ts`: visible and popping before the handler returns, < 150 ms asserted), a cyan ring rolls out and sparks fly off the head on the next frame, the head digs in, the servo winds up, a haptic tick; a hot motor answers a second finger with a red shake instead of silence · ⬜ confirmed on a phone (the original complaint came from one)
+- ✅ heat indicator clear — arc fill = heat, colour bands cool (cyan) / warm (yellow) / hot (orange, 60–80 %) / max (red, 80–100 %, HOT! badge) asserted at 0.37 / 0.63 / 0.9 heat, screenshots `e2e-screens/od-*.png`; a light rim keeps it readable on dark ground; soft beeps when it turns red · ✅ boost fade understandable — the bolt in the arc is bright while the boost is full and dims with it (bright at 37 % and 63 %, dim at 90 %) · ✅ no permanent HUD clutter — nothing over the head while the motor is cold (asserted before and after)
 
 ### Visual · Performance · Monetization · QA
 - ⬜ each biome readable without UI · ⬜ no recolours · ⬜ crops readable · ⬜ depot obvious · ⬜ rare farms wow
@@ -76,7 +77,7 @@
 | Visual polish | 7 | |
 | Animation | 8 | goal 04 pop pass |
 | Audio | 8 | accepted on a real phone (goal 04); W5c flavours/ambience are measured offline only (levels, spectra, clips) — no device listening yet |
-| OVERDRIVE readability | 4 | real-device feedback: too weak |
+| OVERDRIVE readability | 7 | heat arc + bolt + HOT!, activation in the input event, ring/sparks — e2e + screenshots; the complaint came from a phone and this redesign has not been on one yet |
 | Performance | 8 | goal 04 measurements |
 | Save robustness | 8 | v3 bounded, migration + recovery tests |
 | Android stability | 8 | CI + device |
@@ -86,5 +87,5 @@
 ## Open P0/P1
 - ~~P0: the game ends after five farms.~~ fixed in W1.
 - ~~P1: only 3 new biome families so far~~ — 18 families incl. rare/legendary showcases, each with a music flavour and ambience (W5c).
-- P1: OVERDRIVE state/heat not readable (real device).
+- P1: OVERDRIVE state/heat not readable (real device) — addressed in the build (W6: heat arc, bolt, HOT!, activation in the input event); stays open until it is checked on a phone.
 - ~~P1: World Tour economy not yet tuned or measured over 100 farms~~ — W3: measured and tuned (see Balance).

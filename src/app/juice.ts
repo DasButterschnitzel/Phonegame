@@ -278,6 +278,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
 /** Approach cue levels already played on this lap (0 = none, 1 = 50 %, 2 = 25 %, 3 = almost there). */
 let approachLevel = 0;
 let wasHot = false;
+let lastHeat = 0;
 
 export function juiceFrame(sim: Sim, audio: AudioEngine, held: boolean, r: GameRenderer, paused = false): void {
   bitesThisFrame = 0;
@@ -288,6 +289,9 @@ export function juiceFrame(sim: Sim, audio: AudioEngine, held: boolean, r: GameR
   const hot = st.heat > 0.97;
   if (hot && !wasHot && !paused) audio.overheat();
   wasHot = hot;
+  // Crossing into the red (HOT!) while pushing: a soft two-beep warning.
+  if (lastHeat < 0.8 && st.heat >= 0.8 && !paused) audio.heatWarn();
+  lastHeat = st.heat;
   if (!paused) audio.motion(st.odometer, held);
   // Depot approach feedback with a meaningful load: soft blips at half a lap, a quarter lap and just before the chute.
   const L = sim.path.length;

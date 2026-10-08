@@ -535,6 +535,13 @@ export class AudioEngine {
     }
   }
 
+  /** The motor crossed into the red (HOT!): two soft falling beeps, in the motor's family. */
+  heatWarn(): void {
+    if (!this.ctx || !this.can('heatWarn', 1500)) return;
+    this.tone(1320, 0.07, 'square', 0.018);
+    this.tone(990, 0.09, 'square', 0.018, 0.11);
+  }
+
   /** The motor got hot: a short hiss of steam. */
   overheat(): void {
     if (!this.ctx || !this.can('overheat', 2000)) return;

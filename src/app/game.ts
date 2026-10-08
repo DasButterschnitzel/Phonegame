@@ -19,6 +19,7 @@ import { buildHud } from '../ui/viewModel.ts';
 import { h } from '../ui/dom.ts';
 import { biomeTitle, titleForKey, titleOf } from '../ui/farmNames.ts';
 import { ARRIVAL_MS, showArrival } from '../ui/Arrival.ts';
+import { HeatArc } from '../ui/HeatArc.ts';
 import { isStarterFarm } from '../game/types.ts';
 import { FARMS_PER_TOUR, STARTER_COUNT, parseWorldKey } from '../game/world/plan.ts';
 import { ICONS, icon } from '../ui/icons.ts';
@@ -50,6 +51,8 @@ export class GameController {
   readonly d: GameDeps;
   readonly hud: Hud;
   readonly floaters: Floaters;
+  /** OVERDRIVE: heat arc above the head. */
+  readonly heatArc: HeatArc;
   readonly toasts: Toasts;
   readonly modals: ModalStack;
   private unloadCounter: UnloadCounter;
@@ -93,6 +96,7 @@ export class GameController {
     this.ui = ui;
     this.fxLayer = h('div', { style: 'position:absolute;inset:0;pointer-events:none' });
     this.floaters = new Floaters(ui);
+    this.heatArc = new HeatArc(ui);
     this.hud = new Hud(ui, {
       buy: (id, free) => void this.buy(id, free),
       tornado: () => void this.tornado(),
@@ -425,6 +429,14 @@ export class GameController {
   frame(dt: number): void {
     const { sim, renderer, input } = this.d;
     const now = performance.now();
+    // OVERDRIVE: the heat arc rides above the head while it is engaged or the motor is still warm.
+    const engaged = input.effectiveOverdrive;
+    const heat = sim.state.heat;
+    if (engaged || heat > 0.02 || this.heatArc.visible) {
+      const hp = renderer.cat.poses[0];
+      const on = !this.modals.open && renderer.project(hp.x, 2.7, hp.z, tmpP);
+      this.heatArc.update(on ? tmpP.x : null, tmpP.y, heat, engaged, sim.overdrive);
+    }
     // Flush aggregated chunk floaters above the segment that chomped them.
     for (const [body, a] of this.agg) {
       if (now - a.t < 140) continue;

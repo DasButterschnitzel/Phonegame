@@ -249,6 +249,13 @@ export class GameRenderer {
     if (r !== null) this.renderer.setPixelRatio(r);
   }
 
+  /** OVERDRIVE switched on: a cyan ring rolls out from the head and sparks fly off the blades. */
+  overdriveBurst(): void {
+    const h = this.cat.poses[0];
+    this.waves.spawn(h.x, h.z, 0x63f0ff, 2.6, shared.uTime.value, 0.35);
+    this.fx.burst(h.x, 0.7, h.z, 0x8ff8ff, Math.max(4, Math.round(10 * this.fx.budget)), 3.6, 0.13, 0.35, 2.2, 6);
+  }
+
   /** Dust trail at speed and twinkles on golden crops. */
   private ambientFx(dt: number): void {
     const st = this.sim.state;
@@ -269,6 +276,8 @@ export class GameRenderer {
           const sz = h.tx * side;
           this.fx.spray(h.x + sx * 0.7, 0.15, h.z + sz * 0.7, sx * 0.7 - h.tx, sz * 0.7 - h.tz, 0xe2c79a, 1, 3.2, 0.17, 0.42, 1.4, 6, 0.25, 3);
         }
+        // And a cyan spark off the head: the motor is pushing.
+        this.fx.burst(h.x, 0.9, h.z, 0x8ff8ff, 1, 1.4, 0.1, 0.3, 1.5, 3);
       }
     }
     // A hot motor lets off steam from the antennae.

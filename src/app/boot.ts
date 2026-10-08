@@ -185,8 +185,11 @@ export async function boot(): Promise<App | null> {
   // times the word itself pops over the head. A hot motor ignores the finger until it has cooled down.
   input.onOverdrive((on) => {
     lastInputAt = performance.now();
+    // The heat arc answers in this very event (before any frame): a pop — or a red shake when the motor is hot.
+    if (on) game.heatArc.kick(sim.state.heat > 0.9);
     if (on && sim.state.heat > 0.9) return;
     renderer.cat.overdriveKick(on);
+    if (on) renderer.overdriveBurst();
     audio.overdrive(on);
     if (!on) return;
     haptics.fire('light');

@@ -1205,6 +1205,145 @@
   height: 100%;
 }
 
+/* ——— OVERDRIVE: a heat arc above the head (only while it matters — never a permanent HUD bar) ——— */
+.od-arc {
+  position: absolute;
+  left: -44px;
+  top: -48px;
+  width: 88px;
+  height: 48px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  will-change: transform, opacity;
+  --heat: #42e6d0;
+}
+
+.od-arc.on {
+  opacity: 1;
+  transition: opacity 0.05s linear;
+}
+
+.od-arc.warm {
+  --heat: #ffd23f;
+}
+
+.od-arc.hot {
+  --heat: #ff9f1c;
+}
+
+.od-arc.max {
+  --heat: #ff4d4d;
+}
+
+.od-arc .od-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.od-arc .od-body > svg {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 88px;
+  height: 42px;
+  overflow: visible;
+}
+
+.od-arc .rim {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 13;
+  stroke-linecap: round;
+}
+
+.od-arc .track {
+  fill: none;
+  stroke: rgba(20, 24, 40, 0.55);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.od-arc .fill {
+  fill: none;
+  stroke: var(--heat);
+  stroke-width: 6.5;
+  stroke-linecap: round;
+  transition: stroke 0.2s;
+}
+
+.od-arc.cooling .fill {
+  opacity: 0.75;
+}
+
+.od-arc .od-bolt {
+  position: absolute;
+  left: 50%;
+  top: 17px;
+  width: 30px;
+  height: 30px;
+  margin-left: -15px;
+  transition: opacity 0.15s;
+  filter: drop-shadow(0 0 4px rgba(99, 240, 255, 0.95));
+}
+
+.od-arc .od-hot {
+  position: absolute;
+  left: 50%;
+  top: -16px;
+  transform: translateX(-50%);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #ff4d4d;
+  border-radius: 8px;
+  padding: 1px 7px 2px;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.od-arc.max .od-hot {
+  opacity: 1;
+  animation: hot-blink 0.45s ease-in-out infinite alternate;
+}
+
+.od-body.pop {
+  animation: od-pop 0.22s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.od-body.deny {
+  animation: shake 0.3s ease 2;
+}
+
+@keyframes od-pop {
+  0% {
+    transform: scale(0.55);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes hot-blink {
+  from {
+    transform: translateX(-50%) scale(1);
+  }
+  to {
+    transform: translateX(-50%) scale(1.12);
+  }
+}
+
+.reduce-motion .od-body.pop,
+.reduce-motion .od-body.deny,
+.reduce-motion .od-arc.max .od-hot {
+  animation: none;
+}
+
 /* ——— Farm entrance: a short card as the curtain lifts (pointer events pass through: play starts at once) ——— */
 .arrival {
   position: absolute;
