@@ -177,12 +177,13 @@ export class TerritoryView {
           });
           k++;
         };
-        for (let j = 0; j < perPlot[0]; j++) add(0, 0.9 + 0.5 * hashFloat(p, 500 + j, farm.seed));
+        const big = biome.dressScale ?? 1;
+        for (let j = 0; j < perPlot[0]; j++) add(0, big * (0.9 + 0.5 * hashFloat(p, 500 + j, farm.seed)));
         for (let j = 0; j < perPlot[1]; j++) {
           // The family's piece takes the first bloom slot (on the low tier, most plots' only one).
           const piece = !!patch && j === 0 && (!this.lowQuality || hashFloat(p, 700, farm.seed) < 0.7);
           if (piece) add(2, (patch.scale ?? 1) * (0.85 + 0.3 * hashFloat(p, 650, farm.seed)));
-          else if (blooms) add(1, 0.9 + 0.4 * hashFloat(p, 600 + j, farm.seed));
+          else if (blooms) add(1, big * (0.9 + 0.4 * hashFloat(p, 600 + j, farm.seed)));
         }
       }
       this.dressByPlot.push(items);
@@ -196,6 +197,8 @@ export class TerritoryView {
       this.group.add(m);
       return m;
     });
+    // Embers and glowing mushrooms shine beyond what the light gives them (instance colours above 1, like golden crops).
+    if (patch?.glow) for (let k = 0; k < Math.max(1, counts[2]); k++) this.dress[2].setColorAt(k, C.setScalar(patch.glow));
 
     // Glowing outlines on plots that are about to join the territory.
     this.glow = new THREE.InstancedMesh(plotFrameGeometry(P - 0.2, 0.22), this.glowMat, 24);

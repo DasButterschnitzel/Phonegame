@@ -122,7 +122,9 @@ hibiscus, fir saplings, petals, puna grass, lavender sprigs, glowing mushrooms, 
 sprouts (≤ 64 triangles each, one instanced mesh, budget test). Families without flowers (desert, snow, the moon) get
 no flower clusters there, and families whose cleared ground looked alike were pulled apart (Tuscan Vineyard sage,
 Lavender Valley silvery sage, Lunar Farm grey regolith, Nordic Berry a more muted green). The hand-made Starter farms keep
-their accepted look.
+their accepted look. The showcase families lean in harder: Volcanic Chili's ash is crossed by glowing ember
+cracks (drawn brighter than their light, as golden crops glow), the Giant's Garden grows its grass and flowers twice
+as big with daisies as tall as the crawler, and Mushroom Marsh's mushrooms glow.
 Rarity: Tour finales favour the rare and legendary families (a legendary finale about one Tour in five); elsewhere
 they almost never appear, so they stay special.
 

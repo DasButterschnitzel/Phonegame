@@ -1047,13 +1047,19 @@ export function patchGeometry(kind: PatchKind, c: readonly [number, number, numb
       });
       break;
     case 'embers':
-      [[0, 0, 0.09], [0.15, 0.07, 0.07], [-0.12, 0.09, 0.06]].forEach(([x, z, s], i) => parts.push({ geo: octa(s), color: i === 1 ? c[2] : c[0], pos: [x, 0.03, z], scale: [1, 0.5, 1] }));
-      parts.push({ geo: octa(0.04), color: c[1], pos: [0.05, 0.05, -0.08] }, { geo: octa(0.035), color: c[1], pos: [-0.09, 0.04, -0.03] });
+      // A glowing crack in the ash — a zig-zag of embers with a white-hot core — and a few cinders beside it.
+      [[-0.16, -0.05, 0.11, 0.5], [0, 0.02, 0.12, -0.4], [0.16, -0.02, 0.1, 0.6]].forEach(([x, z, s, a]) => parts.push(flat(x, z, s, c[1], a, 0.015)));
+      [[-0.08, -0.01, 0.05, -0.2], [0.08, 0, 0.05, 0.1]].forEach(([x, z, s, a]) => parts.push(flat(x, z, s, 0xffd060, a, 0.03)));
+      [[0.02, 0.16, 0.08], [-0.15, 0.13, 0.06], [0.17, -0.15, 0.07]].forEach(([x, z, s], i) => parts.push({ geo: octa(s), color: i === 1 ? c[2] : c[0], pos: [x, 0.03, z], scale: [1, 0.5, 1] }));
       break;
     case 'daisy':
+      // A daisy on its stem, the head open to the sky: five petals round a yellow heart, and a leaf.
       parts.push(blade(0, 0, 0.035, 0.62, c[2]));
-      parts.push({ geo: octa(0.22), color: c[0], pos: [0, 0.62, 0.02], rot: [-0.5, 0, 0], scale: [1, 0.22, 1] });
-      parts.push({ geo: octa(0.085), color: c[1], pos: [0, 0.64, 0.05], rot: [-0.5, 0, 0], scale: [1, 0.45, 1] });
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        parts.push({ geo: octa(0.13), color: c[0], pos: [Math.cos(a) * 0.12, 0.62, Math.sin(a) * 0.12], rot: [0, -a, 0], scale: [1, 0.18, 0.45] });
+      }
+      parts.push({ geo: octa(0.075), color: c[1], pos: [0, 0.64, 0], scale: [1, 0.5, 1] });
       parts.push(flat(0.1, 0.02, 0.13, c[2], 0.5, 0.15));
       break;
     case 'sprouts':

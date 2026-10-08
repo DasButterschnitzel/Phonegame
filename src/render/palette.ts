@@ -22,6 +22,8 @@ export interface PatchSpec {
   kind: PatchKind;
   colors: readonly [number, number, number];
   scale?: number;
+  /** Brightness above what the light gives (> 1 glows: embers, glowing mushrooms). */
+  glow?: number;
 }
 /** Landmarks beyond the field corners (some have a spinning rotor). */
 export const LANDMARK_KINDS = [
@@ -81,6 +83,8 @@ export interface Biome {
   props?: readonly PropSpec[];
   /** Ground pieces on cleared plots of the family's World Tour farms (the hand-made Starter farms keep theirs). */
   patch?: PatchSpec;
+  /** Size of the grass tufts and flower clusters on cleared plots (the Giant's Garden grows them huge). */
+  dressScale?: number;
   landmark?: LandmarkKind;
   weather?: WeatherKind;
   depot?: DepotSkin;
@@ -186,7 +190,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xc8b8ff, hemiGround: 0x2a4a3a, sun: 0xd8c8ff, decor: 'willow', decor2: 'deadtree', yaw: Math.PI / 4,
     cleared: 0x5f8a6a, water: 0x4a7a6a, rock: 'mossy', tuft: [0x4a7a5a, 0x5a8a64, 0x3a6a4e], flowers: [0x8affc8, 0xc8ff8a, 0xb8a8ff],
     props: [{ kind: 'reeds', n: 40, dMin: 1.4, dMax: 10 }, { kind: 'glowshroom', n: 30, dMin: 1.4, dMax: 9 }],
-    landmark: 'mushhouse', weather: 'fireflies', patch: { kind: 'shrooms', colors: [0x8affc8, 0xe8e0d0, 0xc8a8ff] },
+    landmark: 'mushhouse', weather: 'fireflies', patch: { kind: 'shrooms', colors: [0x8affc8, 0xe8e0d0, 0xc8a8ff], glow: 1.5 },
     depot: { wall: 0x6a5a48, roof: 0xb8483a, trim: 0xe8e0c8, door: 0x4a3a2a, silo: 0x8a7a62, siloTop: 0xb8483a, loft: 0xe8ff9a },
   },
   // Volcanic Chili Farm (rare): black volcanic soil and ash, lava for water, charred trees, vents and obsidian, a volcano
@@ -194,9 +198,9 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
   volcanic: {
     sky: 0x8a6a6a, fog: 0x9a7a72, groundA: 0x3a3030, groundB: 0x332a2a, outside: 0x4a4440, path: 0x8a6a5a, pathEdge: 0x5a4038,
     hemiSky: 0xffd0b0, hemiGround: 0x5a3020, sun: 0xffc890, decor: 'charred', decor2: 'fern', yaw: Math.PI / 4,
-    cleared: 0x6e6a58, water: 0xff6a20, rock: 'basalt', tuft: [0x6a6a4a, 0x7a7a52, 0x5a5a40], flowers: [0xff6a2a, 0xffd040, 0xe8202a],
+    cleared: 0x75767a, water: 0xff6a20, rock: 'basalt', tuft: [0x6a6a4a, 0x7a7a52, 0x5a5a40], flowers: [0xff6a2a, 0xffd040, 0xe8202a],
     props: [{ kind: 'steamvent', n: 12, dMin: 2, dMax: 10 }, { kind: 'obsidian', n: 16, dMin: 1.6, dMax: 12 }, { kind: 'volcano', n: 3, dMin: 8, dMax: 12, scale: 2.2 }],
-    landmark: 'chilirack', weather: 'embers', patch: { kind: 'embers', colors: [0x2a2626, 0xff6a2a, 0x4a4440] },
+    landmark: 'chilirack', weather: 'embers', patch: { kind: 'embers', colors: [0x2a2626, 0xff6a1a, 0x4a4440], scale: 2.2, glow: 1.9 },
     depot: { wall: 0x5a4a44, roof: 0x2a2420, trim: 0xff8a3a, door: 0x3a2a24, silo: 0x6a5a54, siloTop: 0xff6a2a, loft: 0xffa040 },
   },
   // Giant's Garden (legendary): everything oversized — daisies like trees, grass like poles, a watering can like a shed,
@@ -206,7 +210,7 @@ export const BIOMES: Partial<Record<BiomeId, Biome>> = {
     hemiSky: 0xffffff, hemiGround: 0x5a8a3a, sun: 0xfff4d8, decor: 'giantflower', decor2: 'grassblade', yaw: Math.PI / 4,
     cleared: 0x7cd65a, water: 0x5cc8f0, rock: 'pebble', tuft: [0x4fae3a, 0x5fbe46, 0x6cc85a], flowers: [0xffffff, 0xffd23f, 0xff6fb5],
     props: [{ kind: 'wateringcan', n: 3, dMin: 3, dMax: 9, scale: 1.6 }, { kind: 'flowerpot', n: 5, dMin: 3, dMax: 10, scale: 1.4 }],
-    landmark: 'gnome', weather: 'butterflies', patch: { kind: 'daisy', colors: [0xffffff, 0xffd23f, 0x5fbe46], scale: 1.5 },
+    landmark: 'gnome', weather: 'butterflies', patch: { kind: 'daisy', colors: [0xffffff, 0xffd23f, 0x5fbe46], scale: 2.4 }, dressScale: 2,
     depot: { wall: 0xe8a838, roof: 0x4a8ad8, trim: 0xffffff, door: 0xd84a3a, silo: 0xf0f0f0, siloTop: 0x4a8ad8, loft: 0xffffff },
   },
   // Lunar Farm (legendary): grey regolith under a black sky, glass domes and dishes, rovers and solar panels, craters,
