@@ -7,6 +7,7 @@
  * --bands  per farm, time and feel by cleared share (0–25 %, 25–50 %, 50–70 %, 70–80 %, 80–90 %, 90 %+)
  * --roi    measured upgrade payback: every 2 minutes the game is forked, each upgrade bought for free in a fork, and
  *          the forks' harvest compared over the next two minutes
+ * --roi-world  the same, sampled on World Tour farms only (use --farms > 5 so the bot gets there)
  */
 import { BAND_NAMES, PROFILES, lateGameStats, runBot, type BandStats, type FarmStats, type ProfileId, type RunReport } from '../src/game/bot/bot.ts';
 import { measureReward, measureRoi, type RewardKind, type RoiRow } from '../src/game/bot/roi.ts';
@@ -30,7 +31,8 @@ const md = flag('md');
 const doAssert = flag('assert');
 const verbose = flag('verbose');
 const showBands = flag('bands');
-const showRoi = flag('roi');
+const roiWorld = flag('roi-world');
+const showRoi = flag('roi') || roiWorld;
 const showRewards = flag('rewards');
 
 const fmtT = (s: number): string => (Number.isFinite(s) ? formatDuration(s) : '—');
@@ -98,7 +100,7 @@ for (const id of ids) {
       seed,
       onMinute: verbose ? (l) => console.log(`[${id}] ${l}`) : undefined,
       sampleEvery: wantRoi ? 120 : undefined,
-      onSample: wantRoi ? (sim) => roiRows.push(...measureRoi(sim, profile.held, 240, dt)) : undefined,
+      onSample: wantRoi ? (sim) => (!roiWorld || sim.farm.tour > 0) && roiRows.push(...measureRoi(sim, profile.held, 240, dt)) : undefined,
     }),
   );
 }
@@ -134,7 +136,11 @@ if (showRoi && roiRows.length) {
   const med = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : 0);
   for (const id of ['add', 'merge', 'speed', 'capacity']) {
     const rs = roiRows.filter((r) => r.id === id);
-    if (rs.length) out.push(`  ${id.padEnd(8)} median gain measured ${(med(rs.map((r) => r.rel)) * 100).toFixed(1)}%  model ${(med(rs.map((r) => r.predicted)) * 100).toFixed(1)}%  (${rs.length} samples)`);
+    const pb = rs.map((r) => r.payback).filter(Number.isFinite);
+    if (rs.length)
+      out.push(
+        `  ${id.padEnd(8)} median gain measured ${(med(rs.map((r) => r.rel)) * 100).toFixed(1)}%  model ${(med(rs.map((r) => r.predicted)) * 100).toFixed(1)}%  median payback ${pb.length ? `${Math.round(med(pb))}s` : '—'}  never pays back ${rs.length - pb.length}/${rs.length}  (${rs.length} samples)`,
+      );
   }
 }
 if (showRewards) {
