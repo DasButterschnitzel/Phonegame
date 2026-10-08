@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import type { Sim } from '../../game/sim.ts';
-import { FIELD } from '../../game/config.ts';
 import { consumeDirty, markDirty } from '../../game/field.ts';
 import { nearestS, sampleAt, type PathSample } from '../../game/path.ts';
 import { cropMeshes, type CropMeshes } from '../geo/crops.ts';
@@ -233,10 +232,11 @@ export class FieldView {
   private visualStage(i: number): number {
     const f = this.sim.field;
     if (f.dead[i]) return 3;
-    const hpc = f.maxHp[i] / FIELD.CHUNKS;
-    const left = Math.ceil(f.hp[i] / hpc - 1e-6);
-    if (left >= FIELD.CHUNKS) return f.hp[i] < f.maxHp[i] - 1e-6 ? 1 : 0;
-    return Math.min(3, FIELD.CHUNKS - left + 1);
+    const n = f.chunks[i];
+    const left = Math.ceil(f.hp[i] / (f.maxHp[i] / n) - 1e-6);
+    if (left >= n) return f.hp[i] < f.maxHp[i] - 1e-6 ? 1 : 0;
+    // Big crops drop many chunks: the bitten looks follow the share eaten (a third gone → bitten, two thirds → stump).
+    return Math.min(3, 2 + Math.floor(((n - left) / n) * 3 - 1e-9));
   }
 
   /** Bite direction (towards the biter, i.e. against dirX/dirZ) in the crop's own rotated frame. */

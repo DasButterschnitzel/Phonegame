@@ -11,14 +11,13 @@ export function buildRoute(farm: FarmDef, terr: Territory): PathTable {
 }
 
 /**
- * Plants PLOT_CROPS² crops in every plot outside the start territory. Crops are stored plot by plot, so a plot's crops
- * are one contiguous index range. A crop's tier is its plot's zone.
+ * Plants every plot outside the start territory: 3 × 3 small crops, 2 × 2 large or one huge crop, by its tier's crop.
+ * Crops are stored plot by plot, so a plot's crops are one contiguous index range. A crop's tier is its plot's zone.
  */
 export function buildField(farm: FarmDef): CropField {
   const l = farm.layout;
   const eco = farm.eco;
-  const K = FIELD.PLOT_CROPS;
-  const inset = (l.plot - (K - 1) * FIELD.CROP_SPACING) / 2;
+  const G = FIELD.PLOT_CROPS;
   const xs: number[] = [];
   const zs: number[] = [];
   const keys: number[] = [];
@@ -26,6 +25,7 @@ export function buildField(farm: FarmDef): CropField {
   const plots: number[] = [];
   const seeds: number[] = [];
   const golden: number[] = [];
+  const chunks: number[] = [];
   const nPlots = l.cols * l.rows;
   const plotStart = new Uint32Array(nPlots + 1);
   for (let p = 0; p < nPlots; p++) {
@@ -34,19 +34,28 @@ export function buildField(farm: FarmDef): CropField {
     if (zone < 0 || l.start[p]) continue;
     const c = p % l.cols;
     const r = (p - c) / l.cols;
+    const fit = farm.fits[zone];
+    const K = fit.k;
+    // Small crops keep their classic spacing; larger ones spread evenly over the plot.
+    const spacing = K === G ? FIELD.CROP_SPACING : l.plot / K;
+    const inset = (l.plot - (K - 1) * spacing) / 2;
+    // A big crop stands for several small ones: its chance to be golden grows with it (same golden value per plot).
+    const goldenP = K === G ? farm.goldenP : 1 - (1 - farm.goldenP) ** ((G * G) / (K * K));
     for (let j = 0; j < K; j++)
       for (let i = 0; i < K; i++) {
-        const ix = c * K + i;
-        const iz = r * K + j;
+        // Positions on the fine grid of small crops (unique per crop whatever the plot's crop size).
+        const ix = c * G + i;
+        const iz = r * G + j;
         const jx = (hashFloat(ix, iz, farm.seed) - 0.5) * 2 * FIELD.JITTER;
         const jz = (hashFloat(iz, ix, farm.seed + 7) - 0.5) * 2 * FIELD.JITTER;
-        xs.push(l.x0 + c * l.plot + inset + i * FIELD.CROP_SPACING + jx);
-        zs.push(l.z0 + r * l.plot + inset + j * FIELD.CROP_SPACING + jz);
+        xs.push(l.x0 + c * l.plot + inset + i * spacing + jx);
+        zs.push(l.z0 + r * l.plot + inset + j * spacing + jz);
         keys.push(cellKey(ix, iz));
         tiers.push(zone);
         plots.push(p);
         seeds.push(hashFloat(ix * 3 + 1, iz * 5 + 2, farm.seed + 13));
-        golden.push(hashFloat(ix, iz, farm.seed + 29) < farm.goldenP ? 1 : 0);
+        golden.push(hashFloat(ix, iz, farm.seed + 29) < goldenP ? 1 : 0);
+        chunks.push(fit.chunks);
       }
   }
   plotStart[nPlots] = xs.length;
@@ -62,6 +71,8 @@ export function buildField(farm: FarmDef): CropField {
     hp: new Float32Array(n),
     maxHp: new Float32Array(n),
     golden: Uint8Array.from(golden),
+    chunks: Uint8Array.from(chunks),
+    chunkScale: Float64Array.from(farm.fits.map((f) => f.scale)),
     dead: new Uint8Array(n),
     deadCount: 0,
     reach: new Uint8Array(n),
@@ -72,7 +83,8 @@ export function buildField(farm: FarmDef): CropField {
     bins: { binLen: FIELD.BIN_LEN, n: 0, start: new Uint32Array(1), items: new Uint32Array(0) },
   };
   for (let i = 0; i < n; i++) {
-    field.maxHp[i] = FIELD.CHUNKS * cropCfg.hpPerChunk(field.tier[i]) * eco.hpMult;
+    const t = field.tier[i];
+    field.maxHp[i] = field.chunks[i] * cropCfg.hpPerChunk(t) * field.chunkScale[t] * eco.hpMult;
     field.hp[i] = field.maxHp[i];
   }
   return field;

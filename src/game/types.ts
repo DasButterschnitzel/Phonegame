@@ -120,6 +120,10 @@ export interface CropField {
   hp: Float32Array;
   maxHp: Float32Array;
   golden: Uint8Array;
+  /** Chunks the crop drops as it is chomped down (3 small, 7 large, 27 huge). */
+  chunks: Uint8Array;
+  /** Per tier: per-chunk HP and value factor that keeps every plot worth nine small crops (crops.ts). */
+  chunkScale: Float64Array;
   /** 1 = destroyed. Permanent: crops never grow back. */
   dead: Uint8Array;
   deadCount: number;

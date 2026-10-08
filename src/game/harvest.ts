@@ -1,5 +1,5 @@
 import type { GameState, PathTable, CropField, SimEvent } from './types.ts';
-import { BODY, FIELD, MISC, capacityOf, crop as cropCfg } from './config.ts';
+import { BODY, MISC, capacityOf, crop as cropCfg } from './config.ts';
 import { sampleAt, type PathSample } from './path.ts';
 import { markDirty } from './field.ts';
 import { nextRandom } from './rng.ts';
@@ -22,7 +22,8 @@ export interface HarvestCtx {
 }
 
 export function chunkValue(ctx: HarvestCtx, i: number): number {
-  const v = cropCfg.chunkValue(ctx.field.tier[i]) * ctx.valueMult;
+  const t = ctx.field.tier[i];
+  const v = cropCfg.chunkValue(t) * ctx.field.chunkScale[t] * ctx.valueMult;
   return ctx.field.golden[i] ? v * MISC.GOLDEN_MULT : v;
 }
 
@@ -32,7 +33,7 @@ export function chunkValue(ctx: HarvestCtx, i: number): number {
  */
 export function damageCrop(ctx: HarvestCtx, i: number, dmg: number, body: number, limit: number): void {
   const { field, st, events } = ctx;
-  const hpc = field.maxHp[i] / FIELD.CHUNKS;
+  const hpc = field.maxHp[i] / field.chunks[i];
   const before = Math.ceil(field.hp[i] / hpc - 1e-6);
   let hp = field.hp[i] - dmg;
   let after = hp <= 1e-6 ? 0 : Math.ceil(hp / hpc - 1e-6);
@@ -132,7 +133,7 @@ export function tornado(ctx: HarvestCtx, hx: number, hz: number, fromX = hx, fro
     damageCrop(subCtx, i, field.hp[i] + 1, 0, limit);
     if (field.dead[i]) continue;
     // Basket is full: the rest of this crop goes straight to the barn.
-    const left = Math.ceil(field.hp[i] / (field.maxHp[i] / FIELD.CHUNKS) - 1e-6);
+    const left = Math.ceil(field.hp[i] / (field.maxHp[i] / field.chunks[i]) - 1e-6);
     direct += left * chunkValue(ctx, i);
     kill(subCtx, i, 0, false);
   }

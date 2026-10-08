@@ -6,7 +6,7 @@ import type { Sim } from '../sim.ts';
 import type { UpgradeId } from '../types.ts';
 import { Player, fork, type Profile } from './bot.ts';
 import { findMergePair } from '../caterpillar.ts';
-import { FIELD, MISC, crop as cropCfg } from '../config.ts';
+import { MISC, crop as cropCfg } from '../config.ts';
 import { upgradeValues } from '../advisor.ts';
 
 export interface RoiRow {
@@ -40,7 +40,7 @@ function progress(s: Sim): { value: number; dead: number } {
   let value = 0;
   for (let i = 0; i < f.count; i++) {
     const eaten = f.dead[i] ? 1 : 1 - f.hp[i] / f.maxHp[i];
-    if (eaten > 0) value += eaten * FIELD.CHUNKS * cropCfg.chunkValue(f.tier[i]) * (f.golden[i] ? MISC.GOLDEN_MULT : 1);
+    if (eaten > 0) value += eaten * f.chunks[i] * cropCfg.chunkValue(f.tier[i]) * f.chunkScale[f.tier[i]] * (f.golden[i] ? MISC.GOLDEN_MULT : 1);
   }
   return { value: value * s.valueMult, dead: f.deadCount };
 }

@@ -1,9 +1,12 @@
 import type { BiomeId, CropId, FarmBlueprint, FarmKey, ModifierId, SizeClass, StarterFarmId } from '../types.ts';
 import { FIELD, MISC, farmEco, worldEco, type FarmEco } from '../config.ts';
 import { buildLayout, type FarmLayout } from './layout.ts';
+import { cropFit, type CropFit } from '../crops.ts';
+import { hash32 } from '../../shared/hash.ts';
 
 /**
- * A farm is a grid of square plots (FIELD.PLOT world units, 3×3 crops each). Row 0 is the far side (−z).
+ * A farm is a grid of square plots (FIELD.PLOT world units, 3×3 small crops, 2×2 large or one huge crop each). Row 0
+ * is the far side (−z).
  *   '.' nothing (scenery)        '#' rocks, '~' water — never cleared, the route bends around them
  *   'S' start territory (cleared) 'D' start plot whose outward side carries the depot
  *   'o' plot, zone assigned by distance from the start   '0'..'3' plot with an explicit zone
@@ -37,6 +40,8 @@ export interface FarmDef {
   /** The blueprint a World Tour farm was built from (null for starter farms). */
   bp: FarmBlueprint | null;
   crops: [CropId, CropId, CropId, CropId];
+  /** How each tier's crop fills a plot (3 × 3 small, 2 × 2 large, one huge). */
+  fits: readonly [CropFit, CropFit, CropFit, CropFit];
   map: readonly string[];
   /** Share of the non-start plots in each zone (auto-assigned by distance from the start). */
   zoneShare: readonly [number, number, number, number];
@@ -54,6 +59,16 @@ export interface FarmDef {
 const ZONE_SHARE = [0.12, 0.22, 0.3, 0.36] as const;
 const ZONE_COST = [0, 900, 12_000, 110_000] as const;
 const MAX_SEGMENTS = [8, 14, 22, 32] as const;
+
+const fitsOf = (crops: FarmDef['crops']): FarmDef['fits'] => [cropFit(crops[0]), cropFit(crops[1]), cropFit(crops[2]), cropFit(crops[3])];
+
+/** A saved field only applies to the same crop positions: mix the crop sizes into the layout version. */
+function withFits(layout: FarmLayout, fits: FarmDef['fits']): FarmLayout {
+  if (fits.every((f) => f.k === 3)) return layout;
+  let h = layout.version;
+  for (const f of fits) h = hash32(h ^ (f.k * 7919 + f.chunks));
+  return { ...layout, version: h };
+}
 
 function farm(id: StarterFarmId, index: number, seed: number, crops: FarmDef['crops'], map: string[]): FarmDef {
   const layout = buildLayout(map, FIELD.PLOT, ZONE_SHARE, FIELD.PLOT_CROPS);
@@ -75,6 +90,7 @@ function farm(id: StarterFarmId, index: number, seed: number, crops: FarmDef['cr
     speedMult: 1,
     bp: null,
     crops,
+    fits: fitsOf(crops),
     map,
     zoneShare: ZONE_SHARE,
     zoneCost: ZONE_COST,
@@ -172,7 +188,8 @@ export const MODIFIER_FX: Record<ModifierId, { value: number; hp: number; golden
 
 /** A World Tour farm from its blueprint (`coreRank`: tours completed, a small permanent bonus). */
 export function farmFromBlueprint(bp: FarmBlueprint, coreRank: number): FarmDef {
-  const layout = buildLayout(bp.map, FIELD.PLOT, ZONE_SHARE, FIELD.PLOT_CROPS);
+  const fits = fitsOf(bp.crops);
+  const layout = withFits(buildLayout(bp.map, FIELD.PLOT, ZONE_SHARE, FIELD.PLOT_CROPS), fits);
   const fx = bp.modifier ? MODIFIER_FX[bp.modifier] : null;
   return {
     id: bp.key,
@@ -192,6 +209,7 @@ export function farmFromBlueprint(bp: FarmBlueprint, coreRank: number): FarmDef 
     speedMult: fx?.speed ?? 1,
     bp,
     crops: bp.crops,
+    fits,
     map: bp.map,
     zoneShare: ZONE_SHARE,
     zoneCost: ZONE_COST,

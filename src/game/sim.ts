@@ -1,7 +1,7 @@
 import type { BoostId, CoinReason, Command, DepotPass, FarmBlueprint, FarmKey, FarmProgress, FieldSnapshot, GameState, PathTable, CropField, SimEvent, SimInput, UpgradeId } from './types.ts';
 import { STARTER_FARMS, isStarterFarm } from './types.ts';
 import { FARMS, farmFromBlueprint, type FarmDef } from './farms/index.ts';
-import { BONUS, DEPOT, FIELD, FINAL, MISC, MOVE, OVERDRIVE, TERRITORY, WORLD, capacityOf, overdriveShare, unloadAt, vMax } from './config.ts';
+import { BONUS, DEPOT, FINAL, MISC, MOVE, OVERDRIVE, TERRITORY, WORLD, capacityOf, overdriveShare, unloadAt, vMax } from './config.ts';
 import { blueprintForKey, discoverBiome, frontierPlan, makeWorldSeed, newJourney, ordinalOf, stampFarm, worldUnlocked } from './world/journey.ts';
 import { FARMS_PER_TOUR, STARTER_COUNT, planFarm, tourOf } from './world/plan.ts';
 import { buildBins, buildField, buildRoute, computeReach, markDirty } from './field.ts';
@@ -35,7 +35,7 @@ export function newFarmProgress(firstSegId: number): FarmProgress {
 export function clearedOfSnapshot(farm: FarmDef, snap: FieldSnapshot | undefined): number | null {
   if (!snap) return null;
   const l = farm.layout;
-  const total = l.zonePlots.reduce((a, b) => a + b, 0) * FIELD.PLOT_CROPS ** 2;
+  const total = l.zonePlots.reduce((a, n, z) => a + n * farm.fits[z].k ** 2, 0);
   const dead = snap.ver === l.version ? unpackBits(snap.dead, total) : null;
   if (!dead || total === 0) return 0;
   let n = 0;
