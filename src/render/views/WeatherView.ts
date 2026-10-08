@@ -6,6 +6,8 @@ import { C, E, M4, Q, S, V } from '../scratch.ts';
 /** Half-size of the box of air around the camera's focus that the particles live in (they wrap around inside it). */
 const R = 13;
 const LEAF_COLORS = [0xe8a33a, 0xd9682f, 0xc9a43c, 0xb5532f, 0xf2c14e];
+const BUTTERFLY_COLORS = [0xffb03a, 0xffe14d, 0x5aa8ff, 0xffffff, 0xff7ab8];
+const PETAL_COLORS = [0xffc0d8, 0xffd4e4, 0xffb0cc, 0xfff0f6];
 
 interface Kind {
   n: number;
@@ -48,6 +50,22 @@ const KINDS: Record<Exclude<WeatherKind, 'none'>, Kind> = {
     y: [0.4, 2.4],
     size: [0.7, 1.4],
   },
+  // Butterflies wandering over the blossoms.
+  butterflies: {
+    n: 22,
+    geo: () => new THREE.OctahedronGeometry(0.09, 0).scale(1.7, 0.12, 1),
+    mat: () => new THREE.MeshLambertMaterial({ color: 0xffffff }),
+    y: [0.5, 2.2],
+    size: [0.9, 1.3],
+  },
+  // Cherry petals drifting down.
+  petals: {
+    n: 55,
+    geo: () => new THREE.OctahedronGeometry(0.07, 0).scale(1.3, 0.18, 1),
+    mat: () => new THREE.MeshLambertMaterial({ color: 0xffffff }),
+    y: [0, 5],
+    size: [0.8, 1.3],
+  },
   // Golden vine leaves tumbling down.
   leaves: {
     n: 40,
@@ -78,7 +96,8 @@ function softTexture(): THREE.CanvasTexture {
 /**
  * The biome's weather: a few dozen ambient particles (one draw call) in a box of air that follows the camera — warm
  * dust over the orchard, mist on the terraces, leaves over the vineyard, snow on the berry farm, pollen over the
- * sunflowers. Purely decorative; thinned on low quality.
+ * sunflowers, butterflies in the plantation, cherry petals in the tea garden. Purely decorative; thinned on low
+ * quality.
  */
 export class WeatherView {
   readonly group = new THREE.Group();
@@ -132,7 +151,8 @@ export class WeatherView {
       this.y[i] = k.y[0] + Math.random() * (k.y[1] - k.y[0]);
       this.ph[i] = Math.random() * Math.PI * 2;
       this.sz[i] = k.size[0] + Math.random() * (k.size[1] - k.size[0]);
-      if (this.kind === 'leaves') this.mesh.setColorAt(i, C.setHex(LEAF_COLORS[i % LEAF_COLORS.length]));
+      const tint = this.kind === 'leaves' ? LEAF_COLORS : this.kind === 'butterflies' ? BUTTERFLY_COLORS : this.kind === 'petals' ? PETAL_COLORS : null;
+      if (tint) this.mesh.setColorAt(i, C.setHex(tint[i % tint.length]));
     }
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
     this.group.add(this.mesh);
@@ -169,13 +189,21 @@ export class WeatherView {
           this.x[i] = cx + (Math.random() * 2 - 1) * R;
           this.z[i] = cz + (Math.random() * 2 - 1) * R;
         }
+      } else if (this.kind === 'butterflies') {
+        // Wander on a slowly turning heading, bobbing, wings flapping.
+        const hd = p * 6 + now * (0.35 + 0.2 * Math.sin(p * 3));
+        this.x[i] += Math.cos(hd) * 0.7 * dt;
+        this.z[i] += Math.sin(hd) * 0.7 * dt;
+        this.y[i] = k.y[0] + (k.y[1] - k.y[0]) * (0.5 + 0.5 * Math.sin(now * 0.8 + p * 5));
+        ry = -hd;
+        rz = Math.sin(now * 22 + p * 9) * 0.9;
       } else if (this.kind === 'mist') {
         this.x[i] += 0.16 * dt;
         this.z[i] += 0.05 * Math.sin(now * 0.2 + p) * dt;
         ry = p;
       } else {
-        // Leaves: fall, sway, tumble; back to the top when they reach the ground.
-        this.y[i] -= (0.45 + 0.15 * Math.sin(p * 5)) * dt;
+        // Leaves and petals: fall, sway, tumble; back to the top when they reach the ground.
+        this.y[i] -= (this.kind === 'petals' ? 0.3 : 0.45 + 0.15 * Math.sin(p * 5)) * dt;
         this.x[i] += (0.25 + 0.5 * Math.sin(now * 1.7 + p)) * dt;
         this.z[i] += 0.3 * Math.cos(now * 1.3 + p * 2) * dt;
         if (this.y[i] < 0.05) {

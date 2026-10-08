@@ -8,7 +8,9 @@
 | W0 | 0174072 | Audit of finite assumptions, architecture (`docs/WORLD_TOUR.md`), this document | RED |
 | W1 | dbf4e6c | Endless core: farm keys ≠ biomes, blueprints, journey, World Tour scheduler + first generator, forward travel with Tour recalibration, save v3 + migration, debug hooks | BRONZE |
 | W2 | 83cab8a · 769099a · 5eab0df | Organic generated outlines; 1,000-seed stress test with real-sim play-outs; 500-farm journey bench; crop size classes (trees 2×2, giants 1×1, same economy per plot); data-driven biome looks (trees, props, landmarks, rocks, barn skins, weather); 3 new families (Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard); starter families gain a signature each; duplication detector; screenshot matrix | BRONZE |
-| W3 | (this) | Endless economy: 100-farm bot report (`npm run endless`, 6 profiles); fixed Tour-start bank flood, lost passive income, cost drift, river-bend lobe; size classes get depth (tougher crops); quick farms avoid cross-cutting layouts | BRONZE |
+| W3 | 1234168 | Endless economy: 100-farm bot report (`npm run endless`, 6 profiles); fixed Tour-start bank flood, lost passive income, cost drift, river-bend lobe; size classes get depth (tougher crops); quick farms avoid cross-cutting layouts | BRONZE |
+
+| W5a | (this) | Biome library batch A: Tropical Plantation, Christmas Tree Farm, Sakura Tea Garden, Andean Terraces, Nordic Berry (20 crops incl. huge grand firs, 9 trees, 11 props, 5 landmarks, 4 rock styles, butterflies + petals); per-prop scale | BRONZE |
 
 ## Gates (✅ met with evidence · ⬜ open · ❌ failing)
 ### Core
@@ -27,7 +29,7 @@
 - ✅ farm duration controlled — no-ad medians quick 8.7 / standard 17.4 / grand 22.1 min (targets 8–12 / 14–20 / 20–26), farms 20+ p50 16.1 min (`docs/WORLD_TOUR.md`) · ✅ save size bounded — 10 / 50 / 100 / 250 / 500 farms: 2.5 / 2.7 / 2.4 / 2.6 / 2.5 KB, serialize ≤ 0.25 ms, parse ≤ 1.9 ms (`npm run journey`)
 
 ### Content
-- ⬜ ≥ 12 genuinely distinct biome families (now 8: 5 starter + Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard; duplication detector green — every pair ≥ 3 major differences, closest meadow~sunflower at 3)
+- ✅ ≥ 12 genuinely distinct biome families — 13: 5 starter + Zambezi Orchard, Jade Rice Terraces, Tuscan Vineyard, Tropical Plantation, Christmas Tree Farm, Sakura Tea Garden, Andean Terraces, Nordic Berry; duplication detector green (every pair ≥ 3 major differences); screenshot matrix + crop close-ups reviewed per family (`e2e/biomes.spec.ts`); 400 farms × 13 families generated, 1,040 played out, 0 failures
 - ✅ different layout archetypes — 16 archetypes, all in use (stress test counts) · ✅ repeat protection — no family twice within 4 farms over 400 farms × 3 seeds (`world.test.ts`) · ⬜ anticipation · ⬜ rare/showcase farms
 - ⬜ good generated names (12 curated per family, EN + DE, never repeated — test; review pending) · ⬜ no cultural caricatures (landscape-based names and props; review pending)
 
@@ -60,7 +62,7 @@
 |---|---|---|
 | Core game feel | 8 | accepted on a real phone (goal 04) |
 | World Tour clarity | 4 | exists; map is still a list with a World Tour section |
-| Biome variety | 5 | 8 families, each with its own crops/trees/props/landmark/rocks/barn/weather (screenshot matrix `e2e-screens/biome-*`); 12+ needed |
+| Biome variety | 7 | 13 families, each with its own crops/trees/props/landmark/rocks/barn/weather, screenshot-reviewed; no rare/legendary showcase family yet, no per-family music flavour |
 | Farm generation | 7 | 16 archetypes, organic outlines, static + play-out validation over 8,000 farms with 0 failures; outlines at 12×12 plots still simple |
 | Long-term progression | 5 | endless journey, Core Rank bonus measurable (Tours ~20 % faster by rank 12); no Core Rank UI / collection extension yet |
 | Map UX | 4 | five cards |
@@ -78,6 +80,6 @@
 
 ## Open P0/P1
 - ~~P0: the game ends after five farms.~~ fixed in W1.
-- P1: only 3 new biome families so far (12+ needed for Gold).
+- ~~P1: only 3 new biome families so far~~ — 13 families now; still missing: rare/legendary showcase families, music flavour per family.
 - P1: OVERDRIVE state/heat not readable (real device).
 - ~~P1: World Tour economy not yet tuned or measured over 100 farms~~ — W3: measured and tuned (see Balance).

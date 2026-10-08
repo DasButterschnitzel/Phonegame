@@ -102,6 +102,13 @@ and dust) on top of their accepted look.
 | Zambezi Orchard | groundnut, sorghum/corn, pawpaw (L), mango (L) | acacias, baobabs, termite mounds, tall grass, granite kopjes, red laterite | wind pump + tank · warm dust |
 | Jade Rice Terraces | rice seedlings, taro, golden rice, lychee (L) | broadleaf trees, bamboo, dry-stone walls, stilt huts, mossy rocks, jade paddies once cleared | stilted granary · mist |
 | Tuscan Vineyard | basil, artichoke/tomato, grapevines, olive (L) | cypress lanes, umbrella pines, hay bales, terracotta urns, limestone | stone farmhouse · falling leaves |
+| Tropical Plantation | pineapple, sugar cane, banana (L), coconut palm (L) | palms, tree ferns, hibiscus, fruit crates, basalt, turquoise lagoon | stilted lookout · butterflies |
+| Christmas Tree Farm | holly, fir saplings, fir trees (L), grand firs (H) | firs and snowy pines, presents, sleds, warm lamp posts, ice, frozen beds in deep snow | log cabin · snowfall |
+| Sakura Tea Garden | tea, daikon, aubergine, cherry trees (L) | cherry blossom, garden pines, stone lanterns, bamboo fences, river pebbles, raked-gravel paths | tea pavilion · falling petals |
+| Andean Terraces | potato, quinoa, amaranth, purple corn | queñua trees, puya spikes, alpacas, dry-stone walls, slate, golden puna grass, distant snowy peaks | round stone hut · mist |
+| Nordic Berry Farm | lingonberry, cloudberry, rhubarb, apple trees (L) | white birches, spruce, woodpiles, cairns, granite, lakes, low golden sun | falu-red cottage · — |
+
+(L) large crops stand 2 × 2 in a plot, (H) huge ones fill a plot alone — the same HP and value per plot either way.
 
 ## Save v3
 `v2 → v3`: `farmId` stays the key (starter ids are valid keys); a `journey` is created from the starter progress

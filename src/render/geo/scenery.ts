@@ -94,6 +94,90 @@ export function treeGeometry(kind: TreeKind): THREE.BufferGeometry {
         { geo: cyl(1.45, 1.2, 0.4, 9), color: 0x3e6b3a, pos: [0.15, 2.55, 0], jitter: 0.16 },
         { geo: dodeca(0.8), color: 0x4a7a44, pos: [0.1, 2.75, 0.1], scale: [1.4, 0.4, 1.4], jitter: 0.16 },
       ], 0.3, 2.4);
+    case 'palm': {
+      // A leaning trunk under a crown of long fronds, two coconuts.
+      const parts: Part[] = [];
+      for (let k = 0; k < 3; k++) parts.push({ geo: cyl(0.1, 0.14, 0.95, 4), color: k % 2 ? 0x9a7a52 : 0x8a6c48, pos: [0.06 + k * k * 0.06, 0.48 + k * 0.85, 0], rot: [0, 0, -0.06 - k * 0.09] });
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        parts.push({ geo: cone(0.17, 1.35, 4), color: i % 2 ? 0x3faa4a : 0x52bb55, pos: [0.38 + Math.cos(a) * 0.55, 2.62, Math.sin(a) * 0.55], rot: [Math.sin(a) * 1.35, 0, -Math.cos(a) * 1.35], scale: [1.5, 1, 0.35], jitter: 0.15 });
+      }
+      parts.push({ geo: octa(0.13), color: 0x6a4a2a, pos: [0.42, 2.45, 0.1] }, { geo: octa(0.12), color: 0x7a5a32, pos: [0.3, 2.42, -0.1] });
+      return build(parts, 0.25, 2.2);
+    }
+    case 'fern': {
+      // Tree fern: a shaggy trunk under arching fronds.
+      const parts: Part[] = [{ geo: cyl(0.1, 0.14, 1.3, 5), color: 0x5a4a3a, pos: [0, 0.65, 0], jitter: 0.1 }];
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        parts.push({ geo: cone(0.13, 1.05, 3), color: i % 2 ? 0x3e9a48 : 0x4fae52, pos: [Math.cos(a) * 0.45, 1.42, Math.sin(a) * 0.45], rot: [Math.sin(a) * 1.15, 0, -Math.cos(a) * 1.15], scale: [1.6, 1, 0.4], jitter: 0.15 });
+      }
+      parts.push({ geo: octa(0.16), color: 0x6fbf5a, pos: [0, 1.4, 0] });
+      return build(parts, 0.25, 1.5);
+    }
+    case 'fir':
+      // A full, dark fir (no snow on it).
+      return build([
+        { geo: cyl(0.1, 0.14, 0.5, 5), color: 0x5e4630, pos: [0, 0.25, 0] },
+        { geo: cone(0.95, 1.4, 7), color: 0x1f5f3a, pos: [0, 1.05, 0], jitter: 0.12 },
+        { geo: cone(0.75, 1.2, 7), color: 0x2a6e44, pos: [0, 1.75, 0], jitter: 0.12 },
+        { geo: cone(0.48, 0.95, 7), color: 0x347a4c, pos: [0, 2.4, 0], jitter: 0.12 },
+      ], 0.3, 1.8);
+    case 'sakura':
+      // Cherry blossom: a dark trunk and clouds of pink.
+      return build([
+        { geo: cyl(0.12, 0.18, 1.1, 5), color: 0x4a3530, pos: [0, 0.55, 0], rot: [0, 0, 0.1] },
+        { geo: cyl(0.06, 0.09, 0.8, 4), color: 0x4a3530, pos: [0.35, 1.2, 0.05], rot: [0, 0, -0.8] },
+        { geo: dodeca(0.8), color: 0xffb7d0, pos: [0.05, 1.65, 0], scale: [1.3, 0.85, 1.25], jitter: 0.12 },
+        { geo: dodeca(0.55), color: 0xffc8dc, pos: [0.75, 1.55, 0.2], jitter: 0.12 },
+        { geo: dodeca(0.5), color: 0xf7a8c4, pos: [-0.6, 1.7, -0.25], jitter: 0.12 },
+      ], 0.25, 1.6);
+    case 'blackpine':
+      // Garden pine: a twisted trunk with flat cloud-pads of needles.
+      return build([
+        { geo: cyl(0.1, 0.15, 1.0, 4), color: 0x5a4636, pos: [0.1, 0.5, 0], rot: [0, 0, -0.25] },
+        { geo: cyl(0.07, 0.1, 0.9, 4), color: 0x5a4636, pos: [0.15, 1.3, 0.05], rot: [0.2, 0, 0.45] },
+        { geo: cyl(0.8, 0.7, 0.28, 7), color: 0x2f5a3a, pos: [-0.1, 1.85, 0.1], jitter: 0.12 },
+        { geo: cyl(0.6, 0.5, 0.24, 7), color: 0x386a44, pos: [0.55, 1.3, -0.15], jitter: 0.12 },
+        { geo: cyl(0.45, 0.4, 0.22, 7), color: 0x2a5236, pos: [-0.25, 2.3, -0.1], jitter: 0.12 },
+      ], 0.25, 1.8);
+    case 'polylepis':
+      // Queñua: a crooked red-barked trunk, small grey-green crowns.
+      return build([
+        { geo: cyl(0.09, 0.14, 0.9, 4), color: 0xa0523a, pos: [0, 0.45, 0], rot: [0, 0, 0.2] },
+        { geo: cyl(0.07, 0.09, 0.8, 4), color: 0xb0603e, pos: [-0.15, 1.15, 0], rot: [0.1, 0, -0.4] },
+        { geo: dodeca(0.45), color: 0x7a8f62, pos: [-0.3, 1.6, 0], scale: [1.3, 0.8, 1.2], jitter: 0.15 },
+        { geo: octa(0.38), color: 0x8a9e70, pos: [0.25, 1.2, 0.15], scale: [1.3, 0.7, 1.2], jitter: 0.15 },
+        { geo: octa(0.32), color: 0x6f8458, pos: [0.1, 1.85, -0.2], scale: [1.3, 0.7, 1.2], jitter: 0.15 },
+      ], 0.25, 1.3);
+    case 'puya': {
+      // Andean giant bromeliad: a spiky silver rosette with a towering flower spike.
+      const parts: Part[] = [];
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        parts.push({ geo: cone(0.08, 0.8, 3), color: i % 2 ? 0x8a9a6a : 0x9aaa78, pos: [Math.cos(a) * 0.3, 0.32, Math.sin(a) * 0.3], rot: [Math.sin(a) * 1.0, 0, -Math.cos(a) * 1.0] });
+      }
+      parts.push({ geo: cyl(0.12, 0.22, 2.4, 6), color: 0xb8c070, pos: [0, 1.6, 0], jitter: 0.12 }, { geo: cone(0.12, 0.45, 6), color: 0xd0d488, pos: [0, 3.0, 0] });
+      return build(parts, 0.2, 1.5);
+    }
+    case 'whitebirch':
+      // Birch with a white trunk, black marks and a light green crown.
+      return build([
+        { geo: cyl(0.11, 0.15, 1.6, 5), color: 0xf0f0ea, pos: [0, 0.8, 0] },
+        { geo: box(0.1, 0.05, 0.3), color: 0x2a2a2a, pos: [0.06, 0.5, 0] },
+        { geo: box(0.1, 0.05, 0.25), color: 0x2a2a2a, pos: [-0.05, 0.95, 0.04] },
+        { geo: box(0.1, 0.04, 0.22), color: 0x2a2a2a, pos: [0.05, 1.35, -0.03] },
+        { geo: dodeca(0.7), color: 0x7cc25a, pos: [0, 2.0, 0], scale: [1, 1.15, 1], jitter: 0.18 },
+        { geo: dodeca(0.45), color: 0x8fd06a, pos: [0.3, 2.45, 0.1], jitter: 0.18 },
+      ], 0.25, 1.6);
+    case 'spruce':
+      // A tall, narrow, dark spruce.
+      return build([
+        { geo: cyl(0.08, 0.11, 0.5, 4), color: 0x4e3a28, pos: [0, 0.25, 0] },
+        { geo: cone(0.7, 1.4, 6), color: 0x1a4a30, pos: [0, 1.05, 0], jitter: 0.12 },
+        { geo: cone(0.55, 1.3, 6), color: 0x1f5636, pos: [0, 1.85, 0], jitter: 0.12 },
+        { geo: cone(0.36, 1.1, 6), color: 0x26603e, pos: [0, 2.6, 0], jitter: 0.12 },
+      ], 0.3, 2.2);
   }
 }
 
@@ -123,6 +207,34 @@ export function rockGeometry(kind: RockKind = 'stone'): THREE.BufferGeometry {
         { geo: box(0.85, 0.3, 0.7), color: 0xc8703f, pos: [0, 0.15, 0], rot: [0, 0.2, 0], jitter: 0.08 },
         { geo: box(0.65, 0.26, 0.55), color: 0xd98a50, pos: [0.05, 0.43, 0.02], rot: [0, 0.35, 0], jitter: 0.08 },
         { geo: box(0.42, 0.22, 0.38), color: 0xb95f35, pos: [0.08, 0.67, 0], rot: [0, 0.1, 0], jitter: 0.08 },
+      ]);
+    case 'basalt':
+      // Black hexagonal columns.
+      return build([
+        { geo: cyl(0.26, 0.28, 0.8, 6), color: 0x3a3a40, pos: [0, 0.4, 0], jitter: 0.1 },
+        { geo: cyl(0.22, 0.24, 0.55, 6), color: 0x2e2e34, pos: [0.42, 0.28, 0.12], jitter: 0.1 },
+        { geo: cyl(0.2, 0.22, 0.35, 6), color: 0x45454c, pos: [-0.3, 0.18, 0.3], jitter: 0.1 },
+      ]);
+    case 'ice':
+      // Frosted blue blocks.
+      return build([
+        { geo: box(0.6, 0.45, 0.5), color: 0xc8e8ff, pos: [0, 0.22, 0], rot: [0.05, 0.4, 0.08], jitter: 0.08 },
+        { geo: box(0.4, 0.35, 0.36), color: 0xb0d8f8, pos: [0.45, 0.17, 0.2], rot: [0, -0.3, 0], jitter: 0.08 },
+        { geo: octa(0.22), color: 0xe4f4ff, pos: [-0.1, 0.55, 0.05] },
+      ]);
+    case 'pebble':
+      // Smooth river stones.
+      return build([
+        { geo: ball(0.32, 0), color: 0x9aa0a0, pos: [0, 0.14, 0], scale: [1.4, 0.55, 1.1], jitter: 0.08 },
+        { geo: ball(0.22, 0), color: 0xb4b8b4, pos: [0.42, 0.1, 0.18], scale: [1.3, 0.6, 1.1], jitter: 0.08 },
+        { geo: ball(0.18, 0), color: 0x868c8c, pos: [-0.3, 0.08, 0.3], scale: [1.3, 0.6, 1], jitter: 0.08 },
+      ]);
+    case 'slate':
+      // Dark slabs stacked flat.
+      return build([
+        { geo: box(0.8, 0.18, 0.6), color: 0x5a6068, pos: [0, 0.09, 0], rot: [0, 0.3, 0], jitter: 0.08 },
+        { geo: box(0.6, 0.16, 0.5), color: 0x4e545c, pos: [0.05, 0.26, 0.02], rot: [0, -0.2, 0.04], jitter: 0.08 },
+        { geo: box(0.4, 0.14, 0.35), color: 0x666c74, pos: [-0.02, 0.41, 0], rot: [0, 0.6, 0], jitter: 0.08 },
       ]);
     case 'limestone':
       // Pale angular blocks.
@@ -224,6 +336,95 @@ export function propGeometry(kind: PropKind): THREE.BufferGeometry {
         { geo: box(0.55, 0.28, 0.48), color: 0xffd76a, pos: [0, 0.72, 0], jitter: 0.06 },
         { geo: box(0.64, 0.08, 0.56), color: 0xffffff, pos: [0, 0.9, 0] },
         { geo: box(0.16, 0.05, 0.02), color: 0x3a2a1a, pos: [0, 0.34, 0.25] },
+      ]);
+    case 'hibiscus':
+      return build([
+        { geo: dodeca(0.36), color: 0x2f8a3a, pos: [0, 0.34, 0], scale: [1.2, 0.9, 1.2], jitter: 0.15 },
+        ...[0, 1, 2, 3].map((i): Part => ({ geo: octa(0.11), color: i % 2 ? 0xff3b5c : 0xff6b3a, pos: [Math.cos(i * 1.6) * 0.32, 0.45 + (i % 2) * 0.12, Math.sin(i * 1.6) * 0.32], scale: [1.3, 0.5, 1.3] })),
+      ]);
+    case 'fruitcrate':
+      return build([
+        { geo: box(0.62, 0.34, 0.46), color: 0xb5895a, pos: [0, 0.17, 0], jitter: 0.08 },
+        { geo: box(0.62, 0.34, 0.46), color: 0xa57a4a, pos: [0.05, 0.51, 0.02], rot: [0, 0.15, 0], jitter: 0.08 },
+        { geo: octa(0.11), color: 0xffd23f, pos: [-0.1, 0.72, 0] },
+        { geo: octa(0.11), color: 0xff9a2e, pos: [0.12, 0.72, 0.08] },
+        { geo: octa(0.1), color: 0x7ccf3a, pos: [0.05, 0.74, -0.1] },
+      ]);
+    case 'giftbox':
+      // Presents waiting under the trees.
+      return build([
+        { geo: box(0.55, 0.42, 0.5), color: 0xd62e3a, pos: [0, 0.21, 0], jitter: 0.05 },
+        { geo: box(0.08, 0.44, 0.52), color: 0xffd23f, pos: [0, 0.21, 0] },
+        { geo: box(0.57, 0.44, 0.08), color: 0xffd23f, pos: [0, 0.21, 0] },
+        { geo: box(0.32, 0.3, 0.3), color: 0x2e8a4a, pos: [0.42, 0.15, 0.25], rot: [0, 0.5, 0], jitter: 0.05 },
+        { geo: box(0.34, 0.32, 0.06), color: 0xffffff, pos: [0.42, 0.15, 0.25], rot: [0, 0.5, 0] },
+        { geo: octa(0.1), color: 0xffd23f, pos: [0, 0.47, 0], scale: [1.4, 0.6, 1.4] },
+      ]);
+    case 'sled':
+      return build([
+        { geo: box(1.1, 0.05, 0.06), color: 0x8a5a3a, pos: [0, 0.04, 0.22] },
+        { geo: box(1.1, 0.05, 0.06), color: 0x8a5a3a, pos: [0, 0.04, -0.22] },
+        { geo: box(0.9, 0.08, 0.5), color: 0xc8323a, pos: [-0.05, 0.22, 0], jitter: 0.05 },
+        { geo: cyl(0.03, 0.03, 0.32, 4), color: 0x8a5a3a, pos: [0.55, 0.15, 0.22], rot: [0, 0, 0.7] },
+        { geo: cyl(0.03, 0.03, 0.32, 4), color: 0x8a5a3a, pos: [0.55, 0.15, -0.22], rot: [0, 0, 0.7] },
+      ]);
+    case 'lamppost':
+      // A warm lantern on a post.
+      return build([
+        { geo: cyl(0.04, 0.06, 1.5, 4), color: 0x2b2d42, pos: [0, 0.75, 0] },
+        { geo: box(0.22, 0.26, 0.22), color: 0x2b2d42, pos: [0, 1.6, 0] },
+        { geo: octa(0.12), color: 0xffd27a, pos: [0, 1.6, 0], scale: [1, 1.2, 1] },
+        { geo: cone(0.2, 0.16, 4), color: 0x2b2d42, pos: [0, 1.8, 0], rot: [0, Math.PI / 4, 0] },
+      ]);
+    case 'stonelantern':
+      return build([
+        { geo: box(0.42, 0.12, 0.42), color: 0x9a9a92, pos: [0, 0.06, 0] },
+        { geo: cyl(0.09, 0.11, 0.55, 6), color: 0xa8a8a0, pos: [0, 0.39, 0] },
+        { geo: box(0.32, 0.26, 0.32), color: 0xa8a8a0, pos: [0, 0.79, 0] },
+        { geo: box(0.2, 0.14, 0.34), color: 0xffe9a8, pos: [0, 0.8, 0] },
+        { geo: cone(0.36, 0.24, 4), color: 0x8a8a84, pos: [0, 1.04, 0], rot: [0, Math.PI / 4, 0] },
+        { geo: octa(0.06), color: 0x8a8a84, pos: [0, 1.2, 0] },
+      ]);
+    case 'bamboofence': {
+      const parts: Part[] = [];
+      for (let i = 0; i < 5; i++) parts.push({ geo: cyl(0.04, 0.04, 0.9 + (i % 2) * 0.08, 4), color: i % 2 ? 0xb8a060 : 0xc8b070, pos: [-0.8 + i * 0.4, 0.45, 0] });
+      parts.push({ geo: cyl(0.03, 0.03, 1.8, 4), color: 0xa89050, pos: [0, 0.7, 0.05], rot: [0, 0, Math.PI / 2] }, { geo: cyl(0.03, 0.03, 1.8, 4), color: 0xa89050, pos: [0, 0.35, 0.05], rot: [0, 0, Math.PI / 2] });
+      return build(parts);
+    }
+    case 'alpaca':
+      // A woolly alpaca, long neck up.
+      return build([
+        { geo: dodeca(0.32), color: 0xf2e6d0, pos: [0, 0.62, 0], scale: [1.4, 0.95, 1], jitter: 0.08 },
+        { geo: cyl(0.1, 0.13, 0.55, 4), color: 0xf2e6d0, pos: [0.38, 0.95, 0], rot: [0, 0, -0.2] },
+        { geo: octa(0.13), color: 0xf6ecdc, pos: [0.45, 1.25, 0], scale: [1.3, 1, 1] },
+        { geo: cone(0.04, 0.14, 3), color: 0xe0d0b8, pos: [0.42, 1.38, 0.06] },
+        { geo: cone(0.04, 0.14, 3), color: 0xe0d0b8, pos: [0.42, 1.38, -0.06] },
+        ...[
+          [-0.28, -0.13],
+          [-0.28, 0.13],
+          [0.26, -0.13],
+          [0.26, 0.13],
+        ].map(([x, z]): Part => ({ geo: box(0.08, 0.42, 0.08), color: 0xe8dcc4, pos: [x, 0.21, z] })),
+      ]);
+    case 'peak':
+      // A distant snow-capped mountain (placed far beyond the farm).
+      return build([
+        { geo: cone(2.6, 4.6, 6), color: 0x8a96a8, pos: [0, 2.3, 0], jitter: 0.08 },
+        { geo: cone(1.15, 2.0, 6), color: 0xf4f8fc, pos: [0, 3.65, 0] },
+      ]);
+    case 'woodpile': {
+      const parts: Part[] = [];
+      for (let row = 0; row < 3; row++)
+        for (let k = 0; k < 3 - row; k++) parts.push({ geo: cyl(0.12, 0.12, 0.85, 5), color: (row + k) % 2 ? 0xa0703e : 0x8a5e34, pos: [(k - (2 - row) / 2) * 0.25, 0.12 + row * 0.21, 0], rot: [Math.PI / 2, 0, 0], jitter: 0.08 });
+      return build(parts);
+    }
+    case 'cairn':
+      // Stacked stones on the moor.
+      return build([
+        { geo: dodeca(0.32), color: 0x8a8a84, pos: [0, 0.16, 0], scale: [1.3, 0.55, 1.2] },
+        { geo: dodeca(0.25), color: 0x9a9a92, pos: [0.03, 0.42, 0], scale: [1.3, 0.55, 1.2] },
+        { geo: octa(0.2), color: 0x7a7a74, pos: [-0.02, 0.62, 0.02], scale: [1.3, 0.6, 1.2] },
+        { geo: octa(0.13), color: 0xa4a49c, pos: [0, 0.78, 0], scale: [1.2, 0.7, 1.2] },
       ]);
     case 'stilthut':
       // A small raised hut on stilts, thatched.
@@ -357,6 +558,120 @@ function farmhouse(): Landmark {
   };
 }
 
+/** A thatched lookout on stilts. */
+function lookout(): Landmark {
+  const wood = 0x8a6a48;
+  const parts: Part[] = [];
+  for (const [x, z] of [
+    [-0.6, -0.6],
+    [0.6, -0.6],
+    [-0.6, 0.6],
+    [0.6, 0.6],
+  ])
+    parts.push({ geo: box(0.12, 2.4, 0.12), color: 0x6a4a30, pos: [x, 1.2, z] });
+  parts.push({ geo: box(1.6, 0.12, 1.6), color: wood, pos: [0, 2.4, 0] });
+  for (const [x, z, w, d] of [
+    [0, 0.78, 1.6, 0.06],
+    [0, -0.78, 1.6, 0.06],
+    [0.78, 0, 0.06, 1.6],
+    [-0.78, 0, 0.06, 1.6],
+  ])
+    parts.push({ geo: box(w, 0.35, d), color: wood, pos: [x, 2.62, z] });
+  parts.push({ geo: cone(1.35, 1.1, 4), color: 0xc9a45a, pos: [0, 3.55, 0], rot: [0, Math.PI / 4, 0], jitter: 0.12 });
+  parts.push({ geo: box(0.08, 2.4, 0.5), color: 0x7a5a3a, pos: [0.85, 1.2, 0.3], rot: [0, 0, -0.25] });
+  return { base: build(parts, 0.2, 2.4), rotor: null, hub: [0, 0, 0], spin: 0, count: 2 };
+}
+
+/** A log cabin under snow, warm light in the windows. */
+function cabin(): Landmark {
+  return {
+    base: build(
+      [
+        { geo: box(2.2, 1.3, 1.6), color: 0x8b5a3c, pos: [0, 0.65, 0], jitter: 0.08 },
+        { geo: box(2.24, 0.08, 1.64), color: 0x6e4630, pos: [0, 0.45, 0] },
+        { geo: box(2.24, 0.08, 1.64), color: 0x6e4630, pos: [0, 0.9, 0] },
+        { geo: cyl(1.25, 1.25, 2.4, 3), color: 0x5a3a28, pos: [0, 1.55, 0], rot: [0, 0, Math.PI / 2], scale: [0.62, 1, 1] },
+        { geo: cyl(1.28, 1.28, 2.44, 3), color: 0xf4f8fc, pos: [0, 1.62, 0], rot: [0, 0, Math.PI / 2], scale: [0.5, 1, 1.04] },
+        { geo: box(0.3, 0.9, 0.3), color: 0x7a6a5a, pos: [0.6, 2.1, -0.3] },
+        { geo: box(0.4, 0.35, 0.05), color: 0xffd27a, pos: [-0.55, 0.75, 0.82] },
+        { geo: box(0.4, 0.35, 0.05), color: 0xffd27a, pos: [0.55, 0.75, 0.82] },
+        { geo: box(0.45, 0.8, 0.05), color: 0x4a2e1e, pos: [0, 0.4, 0.82] },
+      ],
+      0.2,
+      2,
+    ),
+    rotor: null,
+    hub: [0, 0, 0],
+    spin: 0,
+    count: 1,
+  };
+}
+
+/** A tea pavilion: raised floor, paper screens, a dark tiled roof. */
+function teahouse(): Landmark {
+  const parts: Part[] = [{ geo: box(2.2, 0.3, 1.8), color: 0x8a6a4a, pos: [0, 0.15, 0] }];
+  for (const [x, z] of [
+    [-0.95, -0.75],
+    [0.95, -0.75],
+    [-0.95, 0.75],
+    [0.95, 0.75],
+  ])
+    parts.push({ geo: cyl(0.07, 0.07, 1.3, 4), color: 0x5a3a28, pos: [x, 0.95, z] });
+  parts.push({ geo: box(1.8, 1.0, 1.4), color: 0x7a5236, pos: [0, 0.85, 0] });
+  parts.push({ geo: box(1.2, 0.8, 0.05), color: 0xf4ecd8, pos: [0, 0.85, 0.72] });
+  parts.push({ geo: box(0.05, 0.8, 0.9), color: 0xf4ecd8, pos: [0.92, 0.85, 0] });
+  parts.push({ geo: cone(1.95, 0.55, 4), color: 0x4a5260, pos: [0, 1.75, 0], rot: [0, Math.PI / 4, 0], scale: [1.15, 1, 0.95] });
+  parts.push({ geo: cone(1.1, 0.5, 4), color: 0x3e4652, pos: [0, 2.2, 0], rot: [0, Math.PI / 4, 0], scale: [1.15, 1, 0.95] });
+  return { base: build(parts, 0.2, 2), rotor: null, hub: [0, 0, 0], spin: 0, count: 1 };
+}
+
+/** A round stone hut with a thatched cone roof. */
+function stonehut(): Landmark {
+  return {
+    base: build(
+      [
+        { geo: cyl(1.1, 1.2, 1.15, 8), color: 0x9a8a78, pos: [0, 0.58, 0], jitter: 0.14 },
+        { geo: cone(1.55, 1.5, 8), color: 0xd8b860, pos: [0, 1.88, 0], jitter: 0.12 },
+        { geo: box(0.5, 0.8, 0.08), color: 0x2a6a8a, pos: [0, 0.4, 1.12] },
+      ],
+      0.2,
+      1.5,
+    ),
+    rotor: null,
+    hub: [0, 0, 0],
+    spin: 0,
+    count: 2,
+  };
+}
+
+/** A falu-red cottage with white corners and windows. */
+function redhouse(): Landmark {
+  const white = 0xffffff;
+  return {
+    base: build(
+      [
+        { geo: box(2.4, 1.4, 1.6), color: 0xa83a2a, pos: [0, 0.7, 0], jitter: 0.06 },
+        { geo: cyl(1.3, 1.3, 2.6, 3), color: 0x3a3a3a, pos: [0, 1.62, 0], rot: [0, 0, Math.PI / 2], scale: [0.6, 1, 1.02] },
+        ...[
+          [-1.2, -0.8],
+          [1.2, -0.8],
+          [-1.2, 0.8],
+          [1.2, 0.8],
+        ].map(([x, z]): Part => ({ geo: box(0.1, 1.42, 0.1), color: white, pos: [x, 0.71, z] })),
+        ...[-0.75, 0.75].map((x): Part => ({ geo: box(0.42, 0.42, 0.05), color: white, pos: [x, 0.85, 0.82] })),
+        { geo: box(0.45, 0.85, 0.05), color: 0x7a2a20, pos: [0, 0.43, 0.82] },
+        { geo: box(0.28, 0.6, 0.28), color: 0x8a8a84, pos: [0.7, 2.0, -0.2] },
+      ],
+      0.2,
+      2,
+    ),
+    rotor: null,
+    hub: [0, 0, 0],
+    spin: 0,
+    count: 1,
+  };
+}
+
 export function landmarkGeometry(kind: LandmarkKind): Landmark {
   switch (kind) {
     case 'windmill':
@@ -367,6 +682,16 @@ export function landmarkGeometry(kind: LandmarkKind): Landmark {
       return granary();
     case 'farmhouse':
       return farmhouse();
+    case 'lookout':
+      return lookout();
+    case 'cabin':
+      return cabin();
+    case 'teahouse':
+      return teahouse();
+    case 'stonehut':
+      return stonehut();
+    case 'redhouse':
+      return redhouse();
   }
 }
 

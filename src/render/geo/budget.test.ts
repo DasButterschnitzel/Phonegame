@@ -3,7 +3,7 @@ import type * as THREE from 'three';
 import { cropMeshes } from './crops.ts';
 import { landmarkGeometry, propGeometry, rockGeometry, treeGeometry } from './scenery.ts';
 import { CROP_IDS, cropFit } from '../../game/crops.ts';
-import type { LandmarkKind, PropKind, RockKind, TreeKind } from '../palette.ts';
+import { LANDMARK_KINDS, PROP_KINDS, ROCK_KINDS, TREE_KINDS } from '../palette.ts';
 
 /**
  * Triangle budgets for content (each crop tier and each scenery kind is one instanced mesh, so every instance counts):
@@ -12,10 +12,10 @@ import type { LandmarkKind, PropKind, RockKind, TreeKind } from '../palette.ts';
  */
 const tris = (g: THREE.BufferGeometry) => g.getAttribute('position').count / 3;
 const PLOT_BUDGET = 850;
-const TREES: TreeKind[] = ['tree', 'pine', 'cactus', 'birch', 'baobab', 'acacia', 'bamboo', 'broadleaf', 'cypress', 'stonepine'];
-const ROCKS: RockKind[] = ['stone', 'granite', 'mossy', 'limestone', 'sandstone'];
-const PROPS: PropKind[] = ['snowman', 'termite', 'tallgrass', 'stonewall', 'haybale', 'urn', 'stilthut', 'sheep', 'scarecrow', 'beehive'];
-const LANDMARKS: LandmarkKind[] = ['windmill', 'windpump', 'granary', 'farmhouse'];
+const TREES = TREE_KINDS;
+const ROCKS = ROCK_KINDS;
+const PROPS = PROP_KINDS;
+const LANDMARKS = LANDMARK_KINDS;
 
 describe('content triangle budgets', () => {
   it(`a plot of any crop stays under ${PLOT_BUDGET} triangles`, () => {

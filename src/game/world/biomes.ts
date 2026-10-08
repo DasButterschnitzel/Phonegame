@@ -118,6 +118,46 @@ export const BIOMES: Partial<Record<BiomeId, BiomeDef>> = {
     layouts: { ridge: 1.4, twinfields: 1.2, valley: 1, horseshoe: 0.8, bowl: 0.8, terraces: 0.6, longvalley: 0.6 },
     minTour: 1,
   },
+  // A coastal plantation: pineapples and cane, banana and coconut palms by a turquoise lagoon.
+  tropical: {
+    id: 'tropical',
+    rarity: 'common',
+    crops: [['pineapple'], ['sugarcane'], ['banana'], ['coconut']],
+    layouts: { coast: 2, archipelago: 1.2, twinponds: 1, bowl: 0.8, horseshoe: 0.8, crossing: 0.6 },
+    minTour: 1,
+  },
+  // Rows of firs growing up under the snow, holly at their feet; grand firs fill a plot on their own.
+  evergreen: {
+    id: 'evergreen',
+    rarity: 'uncommon',
+    crops: [['holly'], ['sapling'], ['firtree'], ['bigfir']],
+    layouts: { bowl: 1.2, valley: 1, horseshoe: 1, twinponds: 0.8, ridge: 0.6, spiral: 0.6 },
+    minTour: 1,
+  },
+  // A hillside tea garden among cherry blossoms: tea, daikon, aubergines, cherry trees.
+  blossom: {
+    id: 'blossom',
+    rarity: 'uncommon',
+    crops: [['teabush'], ['daikon'], ['eggplant'], ['cherry']],
+    layouts: { terraces: 1.4, twinponds: 1.2, valley: 1, horseshoe: 0.8, spiral: 0.8, bowl: 0.6 },
+    minTour: 1,
+  },
+  // High stone terraces under snowy peaks: potatoes, quinoa, amaranth, purple corn.
+  highland: {
+    id: 'highland',
+    rarity: 'uncommon',
+    crops: [['potato'], ['quinoa'], ['amaranth'], ['purplecorn']],
+    layouts: { terraces: 2, ridge: 1.2, longvalley: 1, valley: 0.8, canyon: 0.6 },
+    minTour: 1,
+  },
+  // Lakes, birches and a red cottage under the midnight sun: lingon- and cloudberries, rhubarb, apple trees.
+  nordic: {
+    id: 'nordic',
+    rarity: 'common',
+    crops: [['lingonberry'], ['cloudberry'], ['rhubarb'], ['apple']],
+    layouts: { twinponds: 1.6, archipelago: 1.2, coast: 1, bowl: 0.8, brokenriver: 0.6 },
+    minTour: 1,
+  },
 };
 
 /** Biome families with complete content (crops, look, names): only these are scheduled. */

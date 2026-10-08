@@ -185,6 +185,141 @@ const WORLD_BUILDERS = {
     ...crown(1.08, 0.58, [0x8fa878, 0x9cb586], 0xe2ecd0, 0.6),
     ...hanging(6, 0.52, 0.88, 0.06, [0x3a3a2e, 0x5a6a2e], 1.3),
   ],
+  // ——— Tropical plantation ———
+  pineapple: (): Part[] => [
+    { geo: ball(0.18, 0), color: 0xf2b33a, pos: [0, 0.24, 0], scale: [1, 1.35, 1], jitter: 0.2, flesh: 0xfff0a0 },
+    ...[0, 1, 2, 3].map((i): Part => ({ geo: cone(0.05, 0.32, 3), color: 0x4f9a3a, pos: [Math.cos(i * 1.57) * 0.05, 0.6, Math.sin(i * 1.57) * 0.05], rot: [Math.sin(i * 1.57) * 0.35, 0, -Math.cos(i * 1.57) * 0.35], leaf: true })),
+    ...[0, 1, 2].map((i): Part => ({ geo: cone(0.06, 0.42, 3), color: 0x5aa846, pos: [Math.cos(i * 2.1 + 0.4) * 0.22, 0.14, Math.sin(i * 2.1 + 0.4) * 0.22], rot: [Math.sin(i * 2.1 + 0.4) * 1.1, 0, -Math.cos(i * 2.1 + 0.4) * 1.1], leaf: true })),
+  ],
+  sugarcane: (): Part[] => [
+    ...[
+      [-0.12, 0, 1.1],
+      [0.1, 0.08, 1.0],
+      [0.02, -0.12, 0.92],
+    ].map(([x, z, h], i): Part => ({ geo: cyl(0.04, 0.05, h, 3), color: i % 2 ? 0x8fbf4a : 0x7aa83a, pos: [x, h / 2, z], flesh: 0xeef8c8 })),
+    ...[0, 1, 2].map((i): Part => ({ geo: cone(0.07, 0.7, 3), color: 0x6fbf4a, pos: [Math.cos(i * 2.1) * 0.18, 0.95, Math.sin(i * 2.1) * 0.18], rot: [Math.sin(i * 2.1) * 1.1, 0, -Math.cos(i * 2.1) * 1.1], leaf: true })),
+  ],
+  // Banana: a short thick pseudo-stem, broad drooping paddle leaves, a big yellow bunch.
+  banana: (): Part[] => [
+    { geo: cyl(0.13, 0.17, 0.8, 5), color: 0x7a9a4a, pos: [0, 0.4, 0], jitter: 0.1, flesh: 0xe6f0c0 },
+    ...Array.from({ length: 5 }, (_, i): Part => {
+      const a = (i / 5) * Math.PI * 2;
+      return { geo: cone(0.22, 1.05, 4), color: i % 2 ? 0x7ccf5a : 0x8ad866, pos: [Math.cos(a) * 0.48, 0.92, Math.sin(a) * 0.48], rot: [Math.sin(a) * 1.75, 0, -Math.cos(a) * 1.75], scale: [2.4, 1, 0.25], jitter: 0.15, leaf: true };
+    }),
+    { geo: cone(0.24, 0.5, 5), color: 0xf2dc3a, pos: [0.22, 0.62, 0.06], rot: [Math.PI, 0, 0], jitter: 0.15, leaf: true },
+    { geo: octa(0.13), color: 0xffe14d, pos: [0.22, 0.8, 0.06], leaf: true },
+    { geo: octa(0.09), color: 0x8a2a5a, pos: [0.24, 0.3, 0.06], scale: [1, 1.6, 1], leaf: true },
+  ],
+  // Coconut palm: a tall leaning trunk, a crown of narrow fronds, a cluster of brown coconuts.
+  coconut: (): Part[] => [
+    { geo: cyl(0.08, 0.12, 0.95, 4), color: 0x9a7a52, pos: [0.04, 0.48, 0], rot: [0, 0, -0.08], flesh: 0xe8dcc0 },
+    { geo: cyl(0.07, 0.09, 0.9, 4), color: 0x8a6c48, pos: [0.14, 1.36, 0], rot: [0, 0, -0.16], flesh: 0xe8dcc0 },
+    ...Array.from({ length: 6 }, (_, i): Part => {
+      const a = (i / 6) * Math.PI * 2;
+      return { geo: cone(0.13, 1.15, 4), color: i % 2 ? 0x2f8a3a : 0x3f9a46, pos: [0.22 + Math.cos(a) * 0.48, 1.9, Math.sin(a) * 0.48], rot: [Math.sin(a) * 1.3, 0, -Math.cos(a) * 1.3], scale: [1.2, 1, 0.3], jitter: 0.15, leaf: true };
+    }),
+    ...hanging(4, 0.15, 1.72, 0.14, [0x6a4a2a, 0x7a5a32], 1.05),
+  ],
+  // ——— Christmas tree farm ———
+  holly: (): Part[] => [
+    { geo: dodeca(0.3), color: 0x23652e, pos: [0, 0.3, 0], scale: [1.2, 1, 1.2], jitter: 0.18, flesh: 0xbfe3a8 },
+    ...fruitsAround(4, 0.22, 0.42, 0.075, 0xd62e3a),
+  ],
+  sapling: (): Part[] => [
+    { geo: cyl(0.03, 0.04, 0.2, 3), color: 0x5e4630, pos: [0, 0.1, 0], flesh: 0xd8c09a },
+    { geo: cone(0.32, 0.45, 6), color: 0x2a6e44, pos: [0, 0.38, 0], jitter: 0.12, flesh: 0xc8e8b0 },
+    { geo: cone(0.24, 0.38, 6), color: 0x347a4c, pos: [0, 0.62, 0], jitter: 0.12, flesh: 0xc8e8b0 },
+    { geo: cone(0.14, 0.26, 6), color: 0x3e8654, pos: [0, 0.82, 0], jitter: 0.12, flesh: 0xc8e8b0 },
+  ],
+  firtree: (): Part[] => [
+    { geo: cyl(0.07, 0.1, 0.3, 5), color: 0x5e4630, pos: [0, 0.15, 0], flesh: 0xd8c09a },
+    { geo: cone(0.62, 0.8, 7), color: 0x1f5f3a, pos: [0, 0.6, 0], jitter: 0.12, flesh: 0xc0e0a8 },
+    { geo: cone(0.48, 0.7, 7), color: 0x2a6e44, pos: [0, 1.0, 0], jitter: 0.12, flesh: 0xc0e0a8 },
+    { geo: cone(0.32, 0.55, 7), color: 0x347a4c, pos: [0, 1.36, 0], jitter: 0.12, flesh: 0xc0e0a8 },
+    { geo: octa(0.06), color: 0x8a5a32, pos: [0.3, 0.7, 0.2], scale: [1, 1.5, 1], leaf: true },
+    { geo: octa(0.06), color: 0x8a5a32, pos: [-0.25, 1.0, -0.15], scale: [1, 1.5, 1], leaf: true },
+  ],
+  // A grand fir that fills its plot alone.
+  bigfir: (): Part[] => [
+    { geo: cyl(0.12, 0.18, 0.4, 5), color: 0x5e4630, pos: [0, 0.2, 0], flesh: 0xd8c09a },
+    { geo: cone(1.15, 1.0, 8), color: 0x1a5434, pos: [0, 0.8, 0], jitter: 0.12, flesh: 0xb8dca0 },
+    { geo: cone(0.92, 0.9, 8), color: 0x1f5f3a, pos: [0, 1.35, 0], jitter: 0.12, flesh: 0xb8dca0 },
+    { geo: cone(0.68, 0.8, 8), color: 0x2a6e44, pos: [0, 1.85, 0], jitter: 0.12, flesh: 0xb8dca0 },
+    { geo: cone(0.42, 0.65, 8), color: 0x347a4c, pos: [0, 2.3, 0], jitter: 0.12, flesh: 0xb8dca0 },
+  ],
+  // ——— Tea garden ———
+  teabush: (): Part[] => [
+    { geo: dodeca(0.32), color: 0x3f8a46, pos: [0, 0.3, 0], scale: [1.25, 0.85, 1.25], jitter: 0.15, flesh: 0xc8eab0 },
+    { geo: octa(0.18), color: 0x7ec85a, pos: [0, 0.52, 0], scale: [1.4, 0.5, 1.4], jitter: 0.15, leaf: true },
+    ...fruitsAround(4, 0.3, 0.42, 0.08, 0x8ad466, () => octa(0.08)),
+  ],
+  daikon: (): Part[] => [
+    { geo: cone(0.13, 0.5, 6), color: 0xf4f4ee, pos: [0, 0.18, 0], rot: [Math.PI, 0, 0], jitter: 0.08, flesh: 0xffffff },
+    { geo: ball(0.13, 0), color: 0xe8f0e0, pos: [0, 0.42, 0], scale: [1, 0.6, 1], flesh: 0xffffff },
+    ...leafFan(5, 0.06, 0.5, 0x5cbf3a, 0.42),
+  ],
+  eggplant: (): Part[] => [
+    { geo: dodeca(0.24), color: 0x3e8a46, pos: [0, 0.34, 0], scale: [1.2, 1, 1.2], jitter: 0.18, flesh: 0xc8eab0 },
+    ...hanging(3, 0.24, 0.2, 0.1, [0x5a2a7a, 0x6a3a8a], 1.8),
+    { geo: octa(0.06), color: 0xb08ad8, pos: [0.05, 0.6, 0.12], leaf: true },
+  ],
+  // A cherry tree in blossom with ripe cherries.
+  cherry: (): Part[] => [
+    { geo: cyl(0.1, 0.15, 0.7, 5), color: 0x4a3530, pos: [0, 0.35, 0], jitter: 0.1, flesh: 0xd8c0a8 },
+    ...crown(1.15, 0.58, [0xffc8dc, 0xf7a8c4], 0xfff0f6, 0.5),
+    ...hanging(6, 0.5, 0.8, 0.075, [0xd8203a, 0xb8182e]),
+  ],
+  // ——— Andean terraces ———
+  potato: (): Part[] => [
+    { geo: ball(0.24, 0), color: 0x4f9e48, pos: [0, 0.24, 0], scale: [1.3, 0.8, 1.3], jitter: 0.18, flesh: 0xe8d8a8 },
+    ...fruitsAround(4, 0.25, 0.26, 0.1, 0x5fae52, () => octa(0.1)),
+    ...fruitsAround(3, 0.12, 0.44, 0.06, 0xc8a8f0),
+  ],
+  quinoa: (): Part[] =>
+    [
+      [-0.12, 0, 0.75, 0xd8402a],
+      [0.12, 0.06, 0.68, 0xf08a2a],
+      [0, -0.13, 0.62, 0xe8c83a],
+    ].flatMap(([x, z, h, c]): Part[] => [
+      { geo: cyl(0.025, 0.035, h, 3), color: 0x7a9a4a, pos: [x, h / 2, z], flesh: 0xe0eec0 },
+      { geo: cone(0.09, 0.3, 5), color: c, pos: [x, h + 0.1, z], rot: [Math.PI, 0, 0], jitter: 0.2, leaf: true },
+    ]),
+  amaranth: (): Part[] => [
+    { geo: cyl(0.04, 0.05, 0.8, 3), color: 0x8a4a5a, pos: [0, 0.4, 0], flesh: 0xf0d8e0 },
+    { geo: octa(0.1), color: 0xc8327a, pos: [0.06, 0.85, 0], scale: [1, 2.2, 1], rot: [0, 0, -0.4], leaf: true },
+    { geo: octa(0.08), color: 0xd84a8a, pos: [0.16, 0.7, 0.05], scale: [1, 2, 1], rot: [0, 0, -0.9], leaf: true },
+    { geo: octa(0.07), color: 0xb82a6a, pos: [-0.08, 0.72, 0], scale: [1, 2, 1], rot: [0, 0, 0.6], leaf: true },
+    ...leafFan(3, 0.06, 0.4, 0x6a9a4a, 0.2),
+  ],
+  // Purple corn: a tall maize plant with broad leaves and a fat, near-black purple cob.
+  purplecorn: (): Part[] => [
+    { geo: cyl(0.05, 0.07, 1.25, 4), color: 0x6b8e23, pos: [0, 0.62, 0], flesh: 0xd8f0a0 },
+    { geo: cyl(0.12, 0.09, 0.44, 5), color: 0x3a1050, pos: [0.13, 0.68, 0], rot: [0, 0, -0.35], jitter: 0.12, leaf: true },
+    { geo: cone(0.12, 0.3, 3), color: 0xc8d080, pos: [0.17, 0.94, 0], rot: [0, 0, -0.35], leaf: true },
+    { geo: cone(0.09, 0.85, 3), color: 0x4f9e3a, pos: [-0.2, 0.55, 0.05], rot: [0, 0, 1.0], scale: [1.6, 1, 0.4], leaf: true },
+    { geo: cone(0.09, 0.8, 3), color: 0x5fae46, pos: [0.08, 0.85, -0.2], rot: [-1.0, 0, 0], scale: [1.6, 1, 0.4], leaf: true },
+    { geo: cone(0.06, 0.3, 3), color: 0xe8c86a, pos: [0, 1.38, 0], leaf: true },
+  ],
+  // ——— Nordic berry farm ———
+  lingonberry: (): Part[] => [
+    { geo: ball(0.24, 0), color: 0x2f6a3a, pos: [0, 0.14, 0], scale: [1.4, 0.55, 1.4], jitter: 0.18, flesh: 0xbfe0a8 },
+    ...fruitsAround(5, 0.22, 0.2, 0.065, 0xb01c30),
+    ...fruitsAround(2, 0.32, 0.12, 0.09, 0x3f7a46, () => octa(0.09)),
+  ],
+  cloudberry: (): Part[] => [
+    ...fruitsAround(3, 0.18, 0.12, 0.17, 0x4f9a46, () => octa(0.17)).map((p): Part => ({ ...p, scale: [1.3, 0.3, 1.3] })),
+    { geo: ball(0.1, 0), color: 0xffa84a, pos: [0.05, 0.3, 0.04], jitter: 0.12, leaf: true },
+    { geo: ball(0.09, 0), color: 0xff9a3a, pos: [-0.16, 0.24, -0.08], jitter: 0.12, leaf: true },
+  ],
+  rhubarb: (): Part[] => [
+    ...[0, 1, 2, 3].map((i): Part => ({ geo: cyl(0.035, 0.05, 0.55, 3), color: i % 2 ? 0xd84a5a : 0xc8384a, pos: [Math.cos(i * 1.57) * 0.08, 0.26, Math.sin(i * 1.57) * 0.08], rot: [Math.sin(i * 1.57) * 0.3, 0, -Math.cos(i * 1.57) * 0.3], flesh: 0xffd8dc })),
+    ...[0, 1, 2].map((i): Part => ({ geo: octa(0.26), color: i % 2 ? 0x4f9a46 : 0x5aa850, pos: [Math.cos(i * 2.1 + 0.3) * 0.22, 0.56, Math.sin(i * 2.1 + 0.3) * 0.22], scale: [1.2, 0.2, 1.1], jitter: 0.12, leaf: true })),
+  ],
+  apple: (): Part[] => [
+    { geo: cyl(0.1, 0.15, 0.7, 5), color: 0x6e4a2a, pos: [0, 0.35, 0], jitter: 0.1, flesh: 0xd9b98a },
+    ...crown(1.12, 0.6, [0x3f8a3a, 0x4f9a46], 0xc8e8a8, 0.5),
+    ...hanging(7, 0.55, 0.82, 0.085, [0x7ccf3a, 0xe8322a, 0x9ad84a], 1.0),
+  ],
 } satisfies Partial<Record<CropId, () => Part[]>>;
 
 const BUILDERS: Record<CropId, () => Part[]> = {

@@ -126,7 +126,7 @@ export class WorldView {
     }
     (biome.props ?? []).forEach((pr, k) => {
       const n = this.lowQuality ? Math.ceil(pr.n / 2) : pr.n;
-      this.addInstanced(propGeometry(pr.kind), pr.kind === 'tallgrass' ? this.foliageMat : this.mat, ring(n, 60 + k * 10, pr.dMin, pr.dMax), (i) => 0.85 + 0.3 * hashFloat(i, 70 + k, farm.seed));
+      this.addInstanced(propGeometry(pr.kind), pr.kind === 'tallgrass' ? this.foliageMat : this.mat, ring(n, 60 + k * 10, pr.dMin, pr.dMax), (i) => (pr.scale ?? 1) * (0.85 + 0.3 * hashFloat(i, 70 + k, farm.seed)));
     });
 
     // Landmarks beyond the field corners (windmills, wind pumps, granaries, a farmhouse); rotors spin.

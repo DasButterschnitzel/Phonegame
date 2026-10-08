@@ -87,7 +87,13 @@ export type CropId =
   // World Tour crops (by biome family): orchard, rice terraces, vineyard.
   | 'groundnut' | 'sorghum' | 'papaya' | 'mango'
   | 'riceshoot' | 'taro' | 'rice' | 'lychee'
-  | 'basil' | 'artichoke' | 'grapes' | 'olive';
+  | 'basil' | 'artichoke' | 'grapes' | 'olive'
+  // tropical plantation, Christmas tree farm, tea garden, Andean terraces, Nordic berry farm.
+  | 'pineapple' | 'sugarcane' | 'banana' | 'coconut'
+  | 'holly' | 'sapling' | 'firtree' | 'bigfir'
+  | 'teabush' | 'daikon' | 'eggplant' | 'cherry'
+  | 'potato' | 'quinoa' | 'amaranth' | 'purplecorn'
+  | 'lingonberry' | 'cloudberry' | 'rhubarb' | 'apple';
 
 export type UpgradeId = 'add' | 'merge' | 'speed' | 'capacity' | 'expand' | 'finish';
 export type BoostId = 'incomeX2' | 'autopilot';
