@@ -23,6 +23,19 @@ test('upgrade buttons add and merge segments @smoke', async ({ page }, info) => 
   await shot(page, 'hud', info.project.name);
 });
 
+test('the shop quietly points at one upgrade: only the best affordable deal shimmers', async ({ page }) => {
+  await ready(page);
+  await g(page, "Object.assign(g.meta().tutorial, { add: true, merge: true, full: true, capacity: true, expand: true, tornado: true, grow: true })");
+  await g(page, 'g.grant(500)');
+  // ADD, SPEED and CAPACITY are affordable (no pair to MERGE yet): one of them shimmers, and it is ADD.
+  await expect(page.locator('.upgrades .up.ok')).toHaveCount(3);
+  await expect(page.locator('.upgrades .up.shine')).toHaveCount(1);
+  await expect(page.locator('.up-add')).toHaveClass(/shine/);
+  // Nothing affordable: nothing shimmers.
+  await g(page, 'g.state().coins = 0');
+  await expect(page.locator('.upgrades .up.shine')).toHaveCount(0);
+});
+
 test('German UI', async ({ page }, info) => {
   await ready(page, '&lang=de');
   await expect(page.locator('.up-add .title')).toHaveText('NEU');

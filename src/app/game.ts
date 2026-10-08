@@ -1,7 +1,8 @@
 import type { Sim } from '../game/sim.ts';
 import type { BoostId, FarmId, SimEvent, UpgradeId } from '../game/types.ts';
-import { MISC } from '../game/config.ts';
+import { MISC, capacityOf } from '../game/config.ts';
 import { payoutTier } from '../game/economy.ts';
+import { recommend, upgradeValues, type CoreUpgrade } from '../game/advisor.ts';
 import type { GameRenderer } from '../render/Renderer.ts';
 import type { PauseController } from './pause.ts';
 import type { ThrottleInput } from './input.ts';
@@ -70,6 +71,12 @@ export class GameController {
     return (performance.now() - this.lastBigMomentAt) / 1000;
   }
   private lastToastAt = 0;
+  /** Recent share of time the basket was full (same smoothing as the balance bots): the advisor values CAPACITY by it. */
+  private fullRecent = 0;
+  /** The upgrade the shop quietly points at (one shimmer), and since when (ms). */
+  private rec: CoreUpgrade | null = null;
+  private recSince = 0;
+  private recTick = 0;
   /** The farm-finished celebration plays until then (performance.now ms): the throttle rests, the map waits. */
   celebrateUntil = -Infinity;
   get celebrating(): boolean {
@@ -385,15 +392,30 @@ export class GameController {
     const hop = renderer.depot.hopperTop;
     this.unloadCounter.frame(now / 1000, dt, renderer.project(hop.x, hop.y + 2.3, hop.z, tmpP) ? tmpP : null);
     this.hud.tickCoins(sim.state.coins, dt);
+    if (!this.modals.open) {
+      const full = sim.state.basket.mass >= capacityOf(sim.state) - 0.5;
+      this.fullRecent += ((full ? 1 : 0) - this.fullRecent) * (1 - Math.exp(-dt / 13));
+    }
     this.hudAcc += dt;
     if (this.hudAcc >= 0.1) {
       this.hudAcc = 0;
+      // Twice a second: which affordable upgrade is the best deal right now. Never while a hint is coaching, and a
+      // pick stays at least 2.5 s unless it stops being affordable (no flicker between near-equal deals).
+      if (this.recTick++ % 5 === 0) {
+        const values = upgradeValues(sim, this.fullRecent);
+        const next = this.toasts.hinting ? null : recommend(values, this.rec);
+        const curOk = values.some((v) => v.id === this.rec && v.ok);
+        if (next !== this.rec && (!curOk || now - this.recSince > 2500 || this.toasts.hinting)) {
+          this.rec = next;
+          this.recSince = now;
+        }
+      }
       const vm = buildHud(sim);
       const ads = this.d.ads;
       const free = this.offers.update(vm, now / 1000, ads.canOffer('free_upgrade'));
       this.hud.adsAvailable = ads.rewardedAvailable;
       this.hud.tornadoAd = ads.canOffer('free_tornado');
-      this.hud.update(vm, free, this.d.isDailyAvailable());
+      this.hud.update(vm, free, this.d.isDailyAvailable(), this.rec);
       this.hud.holdHint.classList.toggle('hide', input.totalHeld > 2.5 || sim.state.boosts.autopilot > 0 || this.toasts.hinting);
       // A hint pointing into the upgrade bar sits where the goal button is: the goal steps aside meanwhile.
       this.hud.el.classList.toggle('coaching-bar', !!this.toasts.hintTarget?.closest('.upgrades'));

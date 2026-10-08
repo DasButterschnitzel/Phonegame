@@ -152,6 +152,12 @@ Each step up is bigger, longer and louder than the one below it; routine things 
 Evidence: `CAPTURE=1 npx playwright test capture --project=pixel7 -g pop:` writes frame-stepped clips and contact sheets
 (`capture/pop-*.mp4`, `-sheet.png`); DOM animations are frame-stepped too (WAAPI runs on the compositor clock).
 
+### Shop hint (src/game/advisor.ts `recommend`)
+Of the upgrades you can afford, only the best deal shimmers — the same value model the balance bots buy by (SPEED is
+worth its speed gain, ADD/MERGE only while crops need more than one pass, CAPACITY only while the basket fills up). It
+is sticky (another must be 25 % better, and a pick stays at least 2.5 s), silent while a tutorial hint is coaching, never
+labelled, and never buys anything: the others still read as affordable, they just don't all sparkle at once.
+
 ## Bonus economy: generous without ads (src/game/config.ts `BONUS`)
 Freebies come from moments the player understands — no ad, no coins, no dice:
 | Moment | Gift |

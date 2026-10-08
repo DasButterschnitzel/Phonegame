@@ -48,6 +48,19 @@ export function passesNeeded(sim: Sim): number {
 export const powerElasticity = (passes: number): number => (passes <= 0.5 ? 0 : passes / (passes + 0.5));
 
 /**
+ * The shop's quiet hint: the affordable upgrade with the best payback (the same model the balance bots buy by).
+ * Sticky: the current pick stays while it is within `hold` of the best, so the hint doesn't hop between near-equal
+ * deals. Null when nothing affordable is worth anything.
+ */
+export function recommend(values: readonly UpgradeValue[], current: CoreUpgrade | null, hold = 1.25): CoreUpgrade | null {
+  let best: UpgradeValue | null = null;
+  for (const v of values) if (v.ok && Number.isFinite(v.payback) && (!best || v.payback < best.payback)) best = v;
+  if (!best) return null;
+  const cur = values.find((v) => v.id === current);
+  return cur && cur.ok && cur.payback <= best.payback * hold ? cur.id : best.id;
+}
+
+/**
  * `fullShare`: the recent share of time the basket was full (0..1). `income`: coins per second to express
  * paybacks in (the rolling income by default).
  */

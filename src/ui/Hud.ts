@@ -88,6 +88,7 @@ export class Hud {
   private coinAcc = 0;
   private freeOffer: UpgradeId | null = null;
   private lastVm: HudVM | null = null;
+  private rec: UpgradeId | null = null;
   /** Was this farm finished at the last update (null before the first): the COMPLETE pop plays on the change only. */
   private wasFinished: boolean | null = null;
   adsAvailable = true;
@@ -372,9 +373,14 @@ export class Hud {
     }
   }
 
-  update(vm: HudVM, freeOffer: UpgradeId | null, dailyAvailable: boolean): void {
+  /**
+   * `rec`: the one upgrade the shop quietly points at (the best deal among the affordable ones): it alone gets the
+   * shimmer. Affordable ones still read as affordable (colour, cost), they just don't all sparkle at once.
+   */
+  update(vm: HudVM, freeOffer: UpgradeId | null, dailyAvailable: boolean, rec: UpgradeId | null = null): void {
     this.lastVm = vm;
     this.freeOffer = freeOffer;
+    this.rec = rec;
     setText(this.rateText, vm.rate > 0 ? t('hud.perSec', { n: fmt(vm.rate) }) : '');
     setText(this.farmName, t(`farm.${vm.farmId}` as I18nKey));
     this.dots.forEach((d, i) => toggleClass(d, 'on', i <= vm.zone));
@@ -466,7 +472,7 @@ export class Hud {
     toggleClass(e.btn, 'maxed', u.maxed);
     toggleClass(e.btn, 'locked', noPair);
     toggleClass(e.btn, 'poor', !u.ok && !u.maxed && !free);
-    toggleClass(e.btn, 'shine', u.ok);
+    toggleClass(e.btn, 'shine', u.ok && u.id === this.rec);
     toggleClass(e.btn, 'ok', u.ok);
     // Savings progress towards the price, drawn inside the cost pill.
     const afford = u.maxed || u.ok ? 1 : Math.min(1, coins / Math.max(1, u.cost));

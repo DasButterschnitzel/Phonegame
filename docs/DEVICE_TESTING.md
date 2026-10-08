@@ -28,6 +28,11 @@ they do this.
 
 **Tap the overlay** to copy all of it to the clipboard — paste that into the chat with a note of what was happening.
 
+**Release builds keep this gesture** (decision: hidden developer tools are worth it for remote QA, and a player is
+unlikely to stumble on seven quick taps on the version line). It shows only local performance numbers — frame times,
+resolution, quality tier, draw calls, triangles, JS heap, and the GPU name WebGL reports. No ad or device IDs, no
+consent state, no save contents, nothing personal; nothing is sent anywhere (copying is a manual tap).
+
 What "good" looks like: `frame` median ≈ 16.7 with p95 under ~20 and no `max` above ~50 during normal play;
 `hitches>50ms` staying at 0 for long stretches. A falling `@` value means the dynamic resolution is stepping down
 (GPU-bound); `tier low` on a recent phone means GPU detection guessed wrong (Settings → Graphics lets you force it).
