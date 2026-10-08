@@ -33,6 +33,13 @@ export class Particles {
   private recycle = 0;
   private uploaded = 0;
   budget = 1;
+  /** Decorative extras' share (quality `extraFx`): 0 skips them, above 1 adds more. */
+  extra = 1;
+
+  /** Particle count for a decorative extra (0 = skip it): essential feedback uses `n` as is. */
+  more(n: number): number {
+    return Math.round(n * this.extra);
+  }
 
   constructor() {
     const geo = build([{ geo: box(1, 0.35, 1), color: 0xffffff }]);

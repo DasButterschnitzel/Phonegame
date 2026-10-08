@@ -86,7 +86,31 @@ travelling to another farm (the farm swap happens behind the cloud curtain; the 
 USB debugging on → plug in → desktop Chrome → `chrome://inspect` → "Crop Crawler" WebView → **inspect**. The
 Performance panel can record a trace of a hitch; the Console shows any errors.
 
-## 5. What has and hasn't been verified
+## 5. Rendering budget (what the overlay's `tris` should read)
+
+Measured in the pacing scenarios (`PACING=1 npx playwright test pacing --project=pixel7`, medium tier):
+| Scene | Triangles before → after the instance packing |
+| --- | --- |
+| idle crawl / full-speed harvesting | 157k / 163k → 111k / 116k |
+| route growth, merge, field opening, tornado | 159–167k → 112–121k |
+| long caterpillar on a big farm | 173k → 122k |
+| large unload (the old peak) | 202k → 158k |
+| zoomed far out | 202k → 151k |
+
+Where the triangles were: dead and bitten crops were still drawn (zero-scaled) by the untouched-crop meshes, and the
+dressing of every plot not yet claimed was too — about 30 % of the peak, all invisible. Crops never regrow and claimed
+plots stay claimed, so those slots are now released and the buffers repacked (`src/render/views/FieldView.ts`,
+`TerritoryView.ts`; tests check that exactly the crops and dressing that exist are drawn).
+
+Effects by tier: low-end phones show essential feedback only (bite debris, kills, coins, rings, golden sparkles —
+at half the particle count) and skip decorative extras (farm-finish confetti and twinkles, merge fountains, speed
+streaks, kicked-up dirt); medium is the normal set; high-end phones get 1.6× the extras. Never gameplay.
+
+At top speed (Lv 15 with OVERDRIVE ≈ 10–14 u/s) the camera used to trail the head (its aim 1.4–1.9 units behind);
+the look-ahead now grows with speed along the route, so the view leads the head by the same margin at any speed.
+Damage per pass and the depot wave are tested at those speeds (sim tests).
+
+## 6. What has and hasn't been verified
 
 Verified by automation (software GPU, desktop CPU throttled 4× for pacing): game logic, saves, layouts, loudness and
 spectrum of every sound, main-thread frame cost of the heavy moments. **Not verified on a real phone**: GPU frame

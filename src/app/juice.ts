@@ -83,7 +83,8 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
           r.fx.burst(x0, 0.2, z0 + (z1 - z0) * u, DUST, 1, 1.2, 0.2, 0.8, 2, 5);
           r.fx.burst(x1, 0.2, z0 + (z1 - z0) * u, DUST, 1, 1.2, 0.2, 0.8, 2, 5);
         }
-        r.fx.burst((x0 + x1) / 2, 0.3, (z0 + z1) / 2, 0x9be36b, 8, 2.5, 0.12, 0.8, 3, 6);
+        const bits = r.fx.more(8);
+        if (bits) r.fx.burst((x0 + x1) / 2, 0.3, (z0 + z1) / 2, 0x9be36b, bits, 2.5, 0.12, 0.8, 3, 6);
         r.waves.spawn((x0 + x1) / 2, (z0 + z1) / 2, 0xfff3a0, 3.4, now, 0.6);
       }
       // The land pushes out: living crops along the new border flinch away from it.
@@ -143,7 +144,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       r.fx.burst(h.x, h.y + 0.5, h.z, 0xffd23f, [8, 12, 22][tier], 3 + tier, 0.16, 0.9, 5.5 + tier, 12);
       r.waves.spawn(h.x, h.z, 0xffe680, 2.6 + tier * 1.4, now, 0.5 + tier * 0.15);
       if (tier === 2) {
-        r.fx.ring(h.x, h.y + 0.3, h.z, 0xfff3a0, 18, 1.1);
+        if (r.fx.extra) r.fx.ring(h.x, h.y + 0.3, h.z, 0xfff3a0, r.fx.more(18), 1.1);
         haptics.fire('success');
       }
       break;
@@ -176,9 +177,10 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
         const tail = r.cat.tailPoint(n, 0.8);
         r.cat.overdriveKick(true);
         r.fx.burst(tail.x, 0.15, tail.z, DUST, milestone ? 22 : 14, 3.5, 0.18, 0.7, 2, 5);
-        for (let b = 0; b <= Math.min(n, 8); b += 2) {
+        const streak = r.fx.more(1);
+        for (let b = 0; streak && b <= Math.min(n, 8); b += 2) {
           const p = r.cat.poses[b];
-          for (const side of [1, -1]) r.fx.spray(p.x - p.tz * 0.8 * side, 0.5, p.z + p.tx * 0.8 * side, -p.tx, -p.tz, 0xffffff, 1, 6, 0.07, 0.35, 0.3, 0, 0.05, 2);
+          for (const side of [1, -1]) r.fx.spray(p.x - p.tz * 0.8 * side, 0.5, p.z + p.tx * 0.8 * side, -p.tx, -p.tz, 0xffffff, streak, 6, 0.07, 0.35, 0.3, 0, 0.05, 2);
         }
         r.waves.spawn(hp.x, hp.z, 0x9fe3ff, milestone ? 6 : 3.5, now, milestone ? 0.8 : 0.45);
         r.rig.addKick(milestone ? 0.08 : 0.05);
@@ -201,7 +203,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
         if (p) {
           const t = performance.now() / 1000;
           r.fx.ring(p.x, 0.8, p.z, levelColor(e.level), 22, 0.7);
-          r.fx.burst(p.x, 1, p.z, 0xffffff, 10, 3, 0.1, 0.7, 4);
+          if (r.fx.extra) r.fx.burst(p.x, 1, p.z, 0xffffff, r.fx.more(10), 3, 0.1, 0.7, 4);
           r.waves.spawn(p.x, p.z, levelColor(e.level), 3.2, t, 0.55);
           if (e.firstTime) r.waves.spawn(p.x, p.z, 0xffffff, 5, t, 0.9);
         }
@@ -210,7 +212,7 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
         r.cat.pulseWave(performance.now() / 1000, 0.03);
         if (e.firstTime && p) {
           r.fx.ring(p.x, 1.2, p.z, 0xffd23f, 26, 1.0);
-          r.fx.burst(p.x, 1.4, p.z, 0xffd23f, 16, 3.5, 0.12, 1.0, 6, 8);
+          if (r.fx.extra) r.fx.burst(p.x, 1.4, p.z, 0xffd23f, r.fx.more(16), 3.5, 0.12, 1.0, 6, 8);
         }
         audio.merge(e.level);
         haptics.fire(e.firstTime ? 'heavy' : 'medium');
@@ -246,14 +248,16 @@ export function juice(e: SimEvent, sim: Sim, r: GameRenderer, audio: AudioEngine
       r.onFarmFinished();
       r.waves.spawn(hp.x, hp.z, 0xffd23f, 14, now, 1.4);
       r.fx.ring(hp.x, 0.6, hp.z, 0xffd23f, 24, 1.4);
-      for (let k = 0; k < 4; k++) r.fx.burst(hp.x, 1.2, hp.z, colors[k], 9, 4.5, 0.15, 1.4, 8, 8);
-      r.fx.burst(hop.x, hop.y + 0.5, hop.z, 0xffd23f, 16, 3.5, 0.13, 1.2, 7, 9);
+      const bits = r.fx.more(9);
+      for (let k = 0; bits && k < 4; k++) r.fx.burst(hp.x, 1.2, hp.z, colors[k], bits, 4.5, 0.15, 1.4, 8, 8);
+      if (bits) r.fx.burst(hop.x, hop.y + 0.5, hop.z, 0xffd23f, r.fx.more(16), 3.5, 0.13, 1.2, 7, 9);
       r.cat.pulseWave(now, 0.04);
       setTimeout(() => r.cat.pulseWave(performance.now() / 1000, 0.04), 650);
-      // Twinkles: living crops in view (the camera is pulled wide), at most ~40, in four waves.
+      // Twinkles: living crops in view (the camera is pulled wide), at most ~40 (more on high-end phones, none on
+      // low-end ones), in four waves.
       const pick: number[] = [];
-      for (let i = 0; i < f.count; i++) if (!f.dead[i] && Math.hypot(f.x[i] - hp.x, f.z[i] - hp.z) < 15) pick.push(i);
-      const stride = Math.max(1, Math.ceil(pick.length / 40));
+      if (r.fx.extra) for (let i = 0; i < f.count; i++) if (!f.dead[i] && Math.hypot(f.x[i] - hp.x, f.z[i] - hp.z) < 15) pick.push(i);
+      const stride = Math.max(1, Math.ceil(pick.length / Math.max(1, r.fx.more(40))));
       for (let w = 0; w < 4; w++) {
         setTimeout(() => {
           for (let k = w * stride; k < pick.length; k += stride * 4) {

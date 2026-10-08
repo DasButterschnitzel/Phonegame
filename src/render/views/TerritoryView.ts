@@ -17,6 +17,7 @@ const FENCE_IN = 0.5;
 
 interface DressItem {
   mesh: number;
+  /** Instance slot, given when the plot is claimed (-1 before): only dressed plots are drawn. */
   slot: number;
   x: number;
   z: number;
@@ -50,6 +51,8 @@ export class TerritoryView {
   /** Per plot: time the claim animation started (−1 = not claimed, 0 = claimed before this view existed). */
   private claimT!: Float64Array;
   private animating = new Set<number>();
+  /** Slots handed out per dressing mesh (claimed plots only, in claim order). */
+  private dressN: number[] = [];
   private glow!: THREE.InstancedMesh;
   private glowMat = new THREE.MeshBasicMaterial({ color: 0xfff1a0, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending });
   private fences: THREE.InstancedMesh | null = null;
@@ -153,9 +156,10 @@ export class TerritoryView {
         const pz = l.z0 + Math.floor(p / l.cols) * P + DRESS_MARGIN;
         let k = 0;
         const add = (mesh: number, scale: number) => {
+          counts[mesh]++;
           items.push({
             mesh,
-            slot: counts[mesh]++,
+            slot: -1,
             x: px + span * hashFloat(p, 100 + k, farm.seed),
             z: pz + span * hashFloat(p, 200 + k, farm.seed),
             rot: hashFloat(p, 300 + k, farm.seed) * 6.28,
@@ -169,12 +173,12 @@ export class TerritoryView {
       }
       this.dressByPlot.push(items);
     }
+    this.dressN = dressGeos.map(() => 0);
     this.dress = dressGeos.map((g, i) => {
       const m = new THREE.InstancedMesh(g, this.foliage, Math.max(1, counts[i]));
-      m.count = counts[i];
+      m.count = 0;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       m.frustumCulled = false;
-      for (let k = 0; k < counts[i]; k++) m.setMatrixAt(k, ZERO_SCALE);
       this.group.add(m);
       return m;
     });
@@ -192,6 +196,7 @@ export class TerritoryView {
     for (let p = 0; p < n; p++) {
       if (terr.claimed[p]) {
         this.claimT[p] = 0;
+        this.allocDress(p);
         this.writeDress(p, 1);
       }
       this.writeBed(p, 1);
@@ -250,8 +255,18 @@ export class TerritoryView {
     }
   }
 
+  /** Plot p was claimed: its dressing gets the next slots of each mesh (unclaimed plots draw nothing at all). */
+  private allocDress(p: number): void {
+    for (const d of this.dressByPlot[p]) {
+      if (d.slot >= 0) continue;
+      d.slot = this.dressN[d.mesh]++;
+      this.dress[d.mesh].count = this.dressN[d.mesh];
+    }
+  }
+
   private writeDress(p: number, u: number): void {
     for (const d of this.dressByPlot[p]) {
+      if (d.slot < 0) continue;
       const k = Math.min(1, Math.max(0, (u * CLAIM_ANIM - d.delay) / (CLAIM_ANIM - 0.45)));
       const s = k <= 0 ? 0 : d.scale * easeOutBack(k);
       V.set(d.x, 0, d.z);
@@ -266,6 +281,8 @@ export class TerritoryView {
   onClaimed(plots: number[], now: number): void {
     for (const p of plots) {
       this.claimT[p] = now;
+      this.allocDress(p);
+      this.writeDress(p, 0);
       this.animating.add(p);
     }
   }

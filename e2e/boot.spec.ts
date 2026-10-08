@@ -45,7 +45,8 @@ test('long caterpillar on a big farm renders within budget', async ({ page }, in
   await page.waitForTimeout(1600);
   const perf = await page.evaluate(() => (window as any).__game.perf());
   expect(perf.drawCalls).toBeLessThan(45);
-  expect(perf.triangles).toBeLessThan(220_000);
+  // Was ~200k before dead/bitten crops and unclaimed plots' dressing stopped being drawn as zero-scaled instances.
+  expect(perf.triangles).toBeLessThan(170_000);
   await page.screenshot({ path: `e2e-screens/bigfarm-${info.project.name}.png` });
 });
 

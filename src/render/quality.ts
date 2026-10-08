@@ -5,6 +5,11 @@ export interface QualitySettings {
   dprCap: number;
   antialias: boolean;
   particleScale: number;
+  /**
+   * Decorative extras (twinkles, fountains, streaks, kicked-up dirt): 0 = essential feedback only (low-end phones),
+   * 1 = normal, more on high-end ones. Never gameplay: bites, kills, coins, rings and golden sparkles always show.
+   */
+  extraFx: number;
   /** Full-screen blended cloud-shadow layer (fill-rate heavy). */
   cloudShadows: boolean;
   /** Ink outlines on the loot-stack cubes (up to ~1k extra hulls). */
@@ -59,13 +64,13 @@ export function detectTier(gl?: WebGLRenderingContext | WebGL2RenderingContext |
 export function settingsFor(tier: QualityTier): QualitySettings {
   switch (tier) {
     case 'low':
-      return { tier, dprCap: 1, antialias: false, particleScale: 0.5, cloudShadows: false, stackOutlines: false, wind: false };
+      return { tier, dprCap: 1, antialias: false, particleScale: 0.5, extraFx: 0, cloudShadows: false, stackOutlines: false, wind: false };
     case 'high':
       // 1.75 rather than 2: on a phone the difference is barely visible, the fill cost is ~23 % lower (heat, battery).
-      return { tier, dprCap: 1.75, antialias: true, particleScale: 1, cloudShadows: true, stackOutlines: true, wind: true };
+      return { tier, dprCap: 1.75, antialias: true, particleScale: 1, extraFx: 1.6, cloudShadows: true, stackOutlines: true, wind: true };
     case 'med':
     default:
-      return { tier: 'med', dprCap: 1.5, antialias: true, particleScale: 1, cloudShadows: false, stackOutlines: true, wind: true };
+      return { tier: 'med', dprCap: 1.5, antialias: true, particleScale: 1, extraFx: 1, cloudShadows: false, stackOutlines: true, wind: true };
   }
 }
 

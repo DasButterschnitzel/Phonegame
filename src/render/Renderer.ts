@@ -16,7 +16,7 @@ import { BIOMES } from './palette.ts';
 import { DynamicResolution, detectTier, pixelBudgetRatio, settingsFor, type QualitySettings, type QualityTier } from './quality.ts';
 import { sampleAt, type PathSample } from '../game/path.ts';
 import type { PathTable } from '../game/types.ts';
-import { vMax } from '../game/config.ts';
+import { MOVE, vMax } from '../game/config.ts';
 import { clamp, wrap } from '../shared/math.ts';
 
 /** Detect GPU class on a throwaway context so the real one can be created with the right antialias setting. */
@@ -28,7 +28,7 @@ function probeTier(): QualityTier {
   return tier;
 }
 
-const hs: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
+const la: PathSample = { x: 0, z: 0, tx: 0, tz: 0 };
 const proj = new THREE.Vector3();
 
 export class GameRenderer {
@@ -95,6 +95,7 @@ export class GameRenderer {
     this.stacks = new StackView(sim, this.cat, this.quality.stackOutlines);
     this.fx = new Particles();
     this.fx.budget = this.quality.particleScale;
+    this.fx.extra = this.quality.extraFx;
     this.scene.add(this.world.group, this.territory.group, this.depot.group, this.field.group, this.cat.group, this.stacks.group, this.fx.mesh, this.tornado.group, this.waves.group);
     // Cargo landing in the hopper: coin spray, ring, barn squash.
     this.stacks.target.copy(this.depot.hopperTop);
@@ -106,7 +107,7 @@ export class GameRenderer {
       this.waves.spawn(h.x, h.z, 0xffe680, 1.8, t, 0.4);
     };
     this.applyBiome();
-    const h = sim.headPosition(hs);
+    const h = sim.headPosition(la);
     this.rig.snap(h.x, h.z);
   }
 
@@ -128,7 +129,7 @@ export class GameRenderer {
     this.stacks.target.copy(this.depot.hopperTop);
     this.debug?.reset();
     this.applyBiome();
-    const h = this.sim.headPosition(hs);
+    const h = this.sim.headPosition(la);
     this.rig.snap(h.x, h.z);
   }
 
@@ -202,13 +203,16 @@ export class GameRenderer {
     this.world.update(now, dt);
     this.debug?.update(now, this.cat.poses);
     for (const x of this.extras) x.update(now, dt);
-    sampleAt(this.sim.path, headS, hs);
     const n = st.progress.segments.length;
-    // Look ahead along the path and towards the middle of the chain.
-    const look = 2.2;
+    // Look ahead along the route (sampled on the path, so bends don't swing the view) and towards the middle of the
+    // chain. The follow smoothing trails a moving target by ~0.28 s × speed, so the look-ahead grows with speed above
+    // the base crawl: the view leads the head by the same margin at any speed, and a little more when very fast.
+    const v = st.v;
+    const look = 2.2 + 0.28 * Math.max(0, v - MOVE.V_BASE) + 0.1 * Math.max(0, v - 2 * MOVE.V_BASE);
+    sampleAt(this.sim.path, headS + look, la);
     const mid = this.cat.poses[Math.min(n, Math.ceil(n / 3))];
-    let tx = (hs.x + hs.tx * look) * 0.75 + mid.x * 0.25;
-    let tz = (hs.z + hs.tz * look) * 0.75 + mid.z * 0.25;
+    let tx = la.x * 0.75 + mid.x * 0.25;
+    let tz = la.z * 0.75 + mid.z * 0.25;
     // Approaching the depot with a real load: lean the framing towards the hopper; hold it there while the wave
     // runs, then let go slowly (no snap, nothing on a near-empty lap).
     const ahead = wrap(this.sim.path.barnS - headS, this.sim.path.length);
@@ -252,8 +256,8 @@ export class GameRenderer {
       const n = st.progress.segments.length;
       const p = this.cat.tailPoint(n, 0.6);
       this.fx.burst(p.x, 0.12, p.z, 0xe8cfa0, 1, 0.8 + od * 0.6, 0.22 + od * 0.06, 0.55, 1.2, 2);
-      if (od > 0.2) {
-        // The head's blades kick dirt out to both sides as it digs in.
+      if (od > 0.2 && this.fx.extra > 0) {
+        // The head's blades kick dirt out to both sides as it digs in (a decorative extra).
         const h = this.cat.poses[0];
         for (const side of [1, -1]) {
           const sx = -h.tz * side;

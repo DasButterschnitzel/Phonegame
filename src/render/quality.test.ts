@@ -24,6 +24,11 @@ describe('GPU tier detection', () => {
   it('unknown desktop GPUs are left to the heuristics', () => {
     expect(tierFromGpu('ANGLE (NVIDIA GeForce RTX 3060)')).toBeNull();
   });
+  it('decorative extras: none on low-end phones, normal on medium, more on high-end', () => {
+    expect(settingsFor('low').extraFx).toBe(0);
+    expect(settingsFor('med').extraFx).toBe(1);
+    expect(settingsFor('high').extraFx).toBeGreaterThan(1);
+  });
   it('every tier has settings, unknown input falls back to medium', () => {
     expect(settingsFor('low').wind).toBe(false);
     expect(settingsFor('foo' as 'low').tier).toBe('med');

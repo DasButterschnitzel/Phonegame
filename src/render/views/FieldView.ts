@@ -32,10 +32,21 @@ const ANTICIPATE_S = 0.07;
 const COLLAPSE_S = 0.3;
 const STUBBLE_POP_S = 0.2;
 
+/** Intact slot of a crop that is no longer drawn by its tier's intact mesh (bitten or gone, for good). */
+const NO_SLOT = 0xffffffff;
+
 interface Tier {
   meshes: CropMeshes;
-  /** Every crop of the tier; bitten and dead ones are zero-scaled here. */
+  /**
+   * The tier's untouched crops, packed at the front (`count` of them): a crop that is bitten or destroyed never comes
+   * back (no regrowth), so its slot is released and zero-scaled, and the tier is repacked once enough holes pile up.
+   * Zero-scaled instances cost nothing on screen but still run the vertex shader (late in a farm most crops are gone).
+   */
   intact: THREE.InstancedMesh;
+  /** Released (zero-scaled) intact slots since the last pack. */
+  holes: number;
+  /** The whole intact buffer needs uploading (after a pack). */
+  full: boolean;
   /** Compact list of bitten crops, drawn with the bite shader. */
   bitten: THREE.InstancedMesh;
   bite: THREE.InstancedBufferAttribute;
@@ -146,6 +157,8 @@ export class FieldView {
       return {
         meshes,
         intact,
+        holes: 0,
+        full: false,
         bitten,
         bite,
         n: 0,
@@ -195,12 +208,25 @@ export class FieldView {
       this.writeCrop(i);
       this.writeStubble(i);
     }
-    for (const t of this.tiers) {
-      t.intact.instanceMatrix.needsUpdate = true;
-      t.intact.instanceColor!.needsUpdate = true;
-      this.clearDirty(t);
-    }
+    for (let t = 0; t < this.tiers.length; t++) this.pack(t);
     this.flush();
+  }
+
+  /** Packs tier t's untouched crops to the front of its intact buffer (keeping field order) and drops the rest. */
+  private pack(t: number): void {
+    const f = this.sim.field;
+    const tier = this.tiers[t];
+    let k = 0;
+    for (let i = 0; i < f.count; i++) {
+      if (f.tier[i] !== t) continue;
+      this.inst[i] = !f.dead[i] && this.bslot[i] < 0 && this.stage[i] === 0 ? k++ : NO_SLOT;
+    }
+    this.clearDirty(tier);
+    tier.intact.count = k;
+    tier.holes = 0;
+    tier.full = true;
+    for (let i = 0; i < f.count; i++) if (f.tier[i] === t && this.inst[i] !== NO_SLOT) this.writeCrop(i);
+    this.clearDirty(tier);
   }
 
   /** 0 untouched · 1 nibbled · 2 bitten (one chunk gone) · 3 stump (two gone). Dead crops count as a stump. */
@@ -269,9 +295,13 @@ export class FieldView {
     tier.crop[slot] = i;
     this.bslot[i] = slot;
     tier.bittenDirty = true;
-    // The untouched copy disappears in the same frame the bitten one appears.
-    tier.intact.setMatrixAt(this.inst[i], ZERO_SCALE);
-    this.markIntact(i);
+    // The untouched copy disappears in the same frame the bitten one appears, and gives up its slot.
+    if (this.inst[i] !== NO_SLOT) {
+      tier.intact.setMatrixAt(this.inst[i], ZERO_SCALE);
+      this.markIntact(i);
+      this.inst[i] = NO_SLOT;
+      tier.holes++;
+    }
   }
 
   /** Swap-remove crop i from its tier's bitten list (after it has collapsed). */
@@ -294,7 +324,7 @@ export class FieldView {
   private markIntact(i: number): void {
     const t = this.tiers[this.sim.field.tier[i]];
     const k = this.inst[i];
-    if (!t.dirtyMark[k]) {
+    if (k !== NO_SLOT && !t.dirtyMark[k]) {
       t.dirtyMark[k] = 1;
       t.dirtyList[t.dirtyN++] = k;
     }
@@ -347,6 +377,8 @@ export class FieldView {
     const now = this.now;
     const a = this.anims.get(i);
     const slot = this.bslot[i];
+    // Neither bitten nor holding an intact slot: gone (dead, collapse over).
+    if (slot < 0 && this.inst[i] === NO_SLOT) return;
     if (slot < 0) this.markIntact(i);
     else tier.bittenDirty = true;
     const mesh = slot >= 0 ? tier.bitten : tier.intact;
@@ -505,7 +537,19 @@ export class FieldView {
   }
 
   private flush(): void {
-    for (const t of this.tiers) {
+    for (let ti = 0; ti < this.tiers.length; ti++) {
+      const t = this.tiers[ti];
+      // Enough released slots: repack (rare — a full upload of a few hundred matrices).
+      if (t.holes > Math.max(16, t.intact.count * 0.15)) this.pack(ti);
+      if (t.full) {
+        t.full = false;
+        const mesh = t.intact;
+        mesh.instanceMatrix.clearUpdateRanges();
+        mesh.instanceColor!.clearUpdateRanges();
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.instanceColor!.needsUpdate = true;
+        this.clearDirty(t);
+      }
       const n = t.dirtyN;
       if (n > 0) {
         const mesh = t.intact;
