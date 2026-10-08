@@ -56,8 +56,15 @@ export class DepotView {
   }
 
   rebuild(): void {
-    for (const c of [...this.group.children]) this.group.remove(c);
-    this.staticGeo?.dispose();
+    // Free the previous farm's depot: every geometry and the materials made for it (the shared toon and glow stay).
+    for (const c of [...this.group.children]) {
+      this.group.remove(c);
+      c.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        o.geometry.dispose();
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m !== this.mat && m !== this.glowMat) m.dispose();
+      });
+    }
     this.staticGeo = null;
     const { farm, path } = this.sim;
     const [nx, nz] = farm.layout.depotNormal;

@@ -38,9 +38,18 @@ export function showWhen(el: HTMLElement, available: () => boolean): void {
     el.style.display = available() ? '' : 'none';
   };
   sync();
+  // Callers attach the element right after this call (a dialog's content is built before the dialog opens), so check
+  // once that is done: a dialog closed before the first poll must stop the polling too — it used to keep the timer,
+  // and with it the whole closed dialog, alive for good. An element that never shows up stops after 5 s.
+  let mounted = false;
+  queueMicrotask(() => {
+    mounted ||= el.isConnected;
+  });
+  let polls = 0;
   const id = setInterval(() => {
-    if (!el.isConnected && el.dataset.mounted) return clearInterval(id);
-    if (el.isConnected) el.dataset.mounted = '1';
+    polls++;
+    if (el.isConnected) mounted = true;
+    else if (mounted || polls >= 10) return clearInterval(id);
     sync();
   }, 500);
 }

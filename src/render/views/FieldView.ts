@@ -120,6 +120,8 @@ export class FieldView {
     }
     if (this.stubble) {
       this.group.remove(this.stubble);
+      // An InstancedMesh frees only its instance buffers: its geometry (built per farm) goes too.
+      this.stubble.geometry.dispose();
       this.stubble.dispose();
     }
     this.anims.clear();

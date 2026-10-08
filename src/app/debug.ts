@@ -71,6 +71,22 @@ export function installDebug(app: App): DebugApi {
     forceGift: () => sim.execute({ c: 'forceGift' }),
     forceGolden: (n) => sim.execute({ c: 'forceGolden', n }),
     perf: () => ({ fps, ...renderer.info, frames: loop.frames }),
+    /**
+     * Memory snapshot for long runs: three.js resources (geometries, textures, shader programs), JS heap (after a GC
+     * when the page was started with --js-flags=--expose-gc) and DOM size.
+     */
+    memory: () => {
+      (window as unknown as { gc?: () => void }).gc?.();
+      const r = renderer.renderer;
+      const heap = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize;
+      return {
+        geometries: r.info.memory.geometries,
+        textures: r.info.memory.textures,
+        programs: r.info.programs?.length ?? 0,
+        heapMB: heap ? Math.round((heap / 1048576) * 10) / 10 : -1,
+        dom: document.getElementsByTagName('*').length,
+      };
+    },
     /** Draw calls and triangles per view: renders the frame again with each view hidden in turn (budget work). */
     drawBreakdown: () => {
       const r = renderer.renderer;
