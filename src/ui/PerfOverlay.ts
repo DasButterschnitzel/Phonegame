@@ -7,7 +7,11 @@ interface Pct {
   worst: number;
 }
 
-/** What the overlay shows; gathered by the app from the loop and the renderer. */
+/**
+ * What the overlay shows; gathered by the app from the loop and the renderer. Local performance data only — the
+ * overlay can be opened in release builds, so it must never carry ad IDs, consent state, device identifiers, user
+ * data or environment secrets (PerfOverlay.test.ts holds the list).
+ */
 export interface PerfSnapshot {
   fps: number;
   cap: number;
@@ -49,20 +53,25 @@ export class PerfOverlay {
   }
 
   update(s: PerfSnapshot): void {
-    const f = (x: number) => x.toFixed(1);
-    const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
-    this.last = [
-      `${Math.round(s.fps)} fps (cap ${s.cap})  hitches>50ms: ${s.hitches}`,
-      `frame ${f(s.interval.median)}  p95 ${f(s.interval.p95)}  p99 ${f(s.interval.p99)}  max ${f(s.interval.worst)}`,
-      `main  ${f(s.work.median)}  p95 ${f(s.work.p95)}  p99 ${f(s.work.p99)}  max ${f(s.work.worst)}`,
-      `${s.bufferW}×${s.bufferH} @${s.pixelRatio.toFixed(2)} (max ${s.maxRatio.toFixed(2)})  tier ${s.tier}`,
-      `calls ${s.drawCalls}  tris ${k(s.triangles)}${s.heapMB ? `  heap ${s.heapMB.used}/${s.heapMB.limit} MB` : ''}`,
-      `GPU ${s.gpu}`,
-    ].join('\n');
+    this.last = perfText(s);
     this.text.textContent = performance.now() < this.copiedUntil ? `${this.last}\n✓ copied` : this.last;
   }
 
   remove(): void {
     this.el.remove();
   }
+}
+
+/** The overlay's text (also what a tap copies to the clipboard). */
+export function perfText(s: PerfSnapshot): string {
+  const f = (x: number) => x.toFixed(1);
+  const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
+  return [
+    `${Math.round(s.fps)} fps (cap ${s.cap})  hitches>50ms: ${s.hitches}`,
+    `frame ${f(s.interval.median)}  p95 ${f(s.interval.p95)}  p99 ${f(s.interval.p99)}  max ${f(s.interval.worst)}`,
+    `main  ${f(s.work.median)}  p95 ${f(s.work.p95)}  p99 ${f(s.work.p99)}  max ${f(s.work.worst)}`,
+    `${s.bufferW}×${s.bufferH} @${s.pixelRatio.toFixed(2)} (max ${s.maxRatio.toFixed(2)})  tier ${s.tier}`,
+    `calls ${s.drawCalls}  tris ${k(s.triangles)}${s.heapMB ? `  heap ${s.heapMB.used}/${s.heapMB.limit} MB` : ''}`,
+    `GPU ${s.gpu}`,
+  ].join('\n');
 }
