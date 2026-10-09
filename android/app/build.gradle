@@ -1,8 +1,23 @@
 apply plugin: 'com.android.application'
+// Ad configuration per build type (debug: always Google's demo units; release: validated).
+apply from: 'admob.gradle'
 
-// Release/CI values come from the environment; local debug builds work with the defaults.
-def admobAppId = System.getenv("ADMOB_APP_ID_ANDROID") ?: "ca-app-pub-3940256099942544~3347511713"
-def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+// Release/CI values come from the environment; local debug builds work with the defaults. Never printed.
+def env = { String k -> (System.getenv(k) ?: '').trim() }
+def SIGNING_VARS = ['ANDROID_KEYSTORE_PATH', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
+def signingSet = SIGNING_VARS.findAll { env(it) }
+def signed = signingSet.size() == SIGNING_VARS.size()
+def keystorePath = env('ANDROID_KEYSTORE_PATH')
+def versionCodeEnv = env('VERSION_CODE')
+if (versionCodeEnv && !(versionCodeEnv ==~ /^[1-9]\d{0,9}$/ && versionCodeEnv.toLong() <= 2100000000L)) {
+    throw new GradleException('VERSION_CODE must be a whole number from 1 to 2100000000')
+}
+def production = releaseAdMobMode == 'production'
+def releaseErrors = []
+if (signingSet && !signed) releaseErrors << "Release signing is incomplete. Missing: ${(SIGNING_VARS - signingSet).join(', ')}".toString()
+if (keystorePath && !file(keystorePath).isFile()) releaseErrors << 'ANDROID_KEYSTORE_PATH does not point to a keystore file'
+if (production && !signed) releaseErrors << 'Production builds must be signed: set ' + SIGNING_VARS.join(', ')
+if (production && !versionCodeEnv) releaseErrors << 'Production builds need VERSION_CODE (npm run version:code derives it from the version)'
 
 android {
     namespace = "com.butterweichmedia.cropcrawler"
@@ -11,9 +26,8 @@ android {
         applicationId "com.butterweichmedia.cropcrawler"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode((System.getenv("VERSION_CODE") ?: "1").toInteger())
-        versionName(System.getenv("VERSION_NAME") ?: "0.1.0")
-        resValue "string", "admob_app_id", admobAppId
+        versionCode((versionCodeEnv ?: '1').toInteger())
+        versionName(env('VERSION_NAME') ?: '0.1.0')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -26,23 +40,38 @@ android {
     }
     signingConfigs {
         release {
-            if (keystorePath) {
+            if (signed) {
                 storeFile file(keystorePath)
-                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                storePassword env('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias env('ANDROID_KEY_ALIAS')
+                keyPassword env('ANDROID_KEY_PASSWORD')
             }
         }
     }
     buildTypes {
         release {
-            if (keystorePath) {
+            if (signed) {
                 signingConfig signingConfigs.release
             }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+// Plain values only, so the task does not capture this script.
+def releaseProblems = releaseErrors.collect { it.toString() }
+def signingNote = signed ? 'Release signing: configured' : 'Release signing: none (unsigned release build)'
+tasks.register('checkReleaseSigning') {
+    group = 'verification'
+    description = 'Fails when release signing is requested but incomplete, or a production build would be unsigned.'
+    doLast {
+        if (releaseProblems) throw new GradleException('Release build refused:\n  - ' + releaseProblems.join('\n  - '))
+        logger.lifecycle(signingNote)
+    }
+}
+tasks.configureEach { t ->
+    if (t.name == 'preReleaseBuild') t.dependsOn('checkReleaseSigning')
 }
 
 repositories {
@@ -57,6 +86,8 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // AdConfigPlugin reads UMP's stored consent (same version the AdMob plugin uses, see variables.gradle).
+    implementation "com.google.android.ump:user-messaging-platform:$userMessagingPlatformVersion"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

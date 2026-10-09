@@ -25,7 +25,7 @@
 
         </activity>
 
-        <!-- AdMob app id comes from app/build.gradle (env ADMOB_APP_ID_ANDROID, Google test id by default). -->
+        <!-- AdMob app ID per build type from app/admob.gradle: debug always Google's demo app ID, release validated. -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="@string/admob_app_id" />

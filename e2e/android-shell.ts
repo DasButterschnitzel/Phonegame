@@ -37,6 +37,8 @@ const HEADERS: Record<string, [string, Rtype][]> = {
     ['setApplicationMuted', P],
     ['setApplicationVolume', P],
   ]),
+  // The app's own plugin (android/app/src/main/java/.../AdConfigPlugin.java).
+  AdConfig: withListeners([['get', P], ['consent', P]]),
 };
 
 export interface ShellOptions {
@@ -44,6 +46,8 @@ export interface ShellOptions {
   prefs?: Record<string, string>;
   /** Make every AdMob load fail (no fill / offline). */
   adsFail?: boolean;
+  /** What app/admob.gradle baked into this build (default: a release build in TEST mode with Google's demo units). */
+  adConfig?: Record<string, unknown>;
 }
 
 /** Runs in the page before any app script (Playwright addInitScript). */
@@ -53,9 +57,11 @@ function fakeAndroid(opts: ShellOptions): void {
   const store: Record<string, string> = persisted ? (JSON.parse(persisted) as Record<string, string>) : { ...(opts.prefs ?? {}) };
   const persist = () => sessionStorage.setItem('__prefs', JSON.stringify(store));
   const calls: string[] = [];
+  /** Options of the last call per plugin method (e.g. which ad unit was prepared). */
+  const args: Record<string, unknown> = {};
   const listeners: Record<string, string[]> = {};
   const w = window as unknown as Record<string, unknown> & { androidBridge: { postMessage(s: string): void; onmessage?: (e: { data: string }) => void } };
-  const native = { store, calls, splashHidden: false, exited: false, fire: (_p: string, _e: string, _d?: unknown) => {} };
+  const native = { store, calls, args, splashHidden: false, exited: false, fire: (_p: string, _e: string, _d?: unknown) => {} };
   w.__native = native;
   const send = (msg: Record<string, unknown>) =>
     setTimeout(() => w.androidBridge.onmessage?.({ data: JSON.stringify(msg) }), 4);
@@ -85,6 +91,22 @@ function fakeAndroid(opts: ShellOptions): void {
       getState: () => ({ isActive: true }),
       minimizeApp: () => ok,
       toggleBackButtonHandler: () => ok,
+    },
+    AdConfig: {
+      get: () => ({
+        debuggable: false,
+        mode: 'test',
+        appId: 'ca-app-pub-3940256099942544~3347511713',
+        rewarded: 'ca-app-pub-3940256099942544/5224354917',
+        rewardedBoost: '',
+        rewardedUpgrade: '',
+        rewardedBonus: '',
+        interstitial: 'ca-app-pub-3940256099942544/1033173712',
+        testDevices: '',
+        umpDebugGeography: '',
+        ...(opts.adConfig ?? {}),
+      }),
+      consent: () => ({ canRequestAds: true, privacyOptionsRequired: false }),
     },
     AdMob: {
       initialize: () => ok,
@@ -121,6 +143,7 @@ function fakeAndroid(opts: ShellOptions): void {
       const m = JSON.parse(json) as { type?: string; callbackId: string; pluginId: string; methodName: string; options?: Record<string, unknown> };
       if (m.type === 'js.error' || !m.pluginId) return;
       calls.push(`${m.pluginId}.${m.methodName}`);
+      args[`${m.pluginId}.${m.methodName}`] = m.options ?? {};
       const reply = (success: boolean, data: unknown, error?: { message: string }) =>
         send({ callbackId: m.callbackId, pluginId: m.pluginId, methodName: m.methodName, success, data, error });
       if (m.methodName === 'addListener') {

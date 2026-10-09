@@ -15,6 +15,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Local plugins register before the bridge starts.
+        registerPlugin(AdConfigPlugin.class);
         super.onCreate(savedInstanceState);
         // Draw behind system bars; the web layer reads safe-area insets (SystemBars insetsHandling: 'css').
         // Only after super.onCreate: EdgeToEdge touches the window decor, and creating the decor before

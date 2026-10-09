@@ -7,10 +7,13 @@ import { androidShell, type ShellOptions } from './android-shell.ts';
 
 const native = <T>(page: Page, expr: string) => page.evaluate(`(() => { const n = window.__native; return ${expr}; })()`) as Promise<T>;
 
+const logs: string[] = [];
+
 async function launch(page: Page, opts: ShellOptions = {}): Promise<string[]> {
   const errors: string[] = [];
+  logs.length = 0;
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  page.on('console', (m) => (m.type() === 'error' ? errors.push(m.text()) : logs.push(m.text())));
   await page.addInitScript({ content: androidShell(opts) });
   await page.goto('/');
   await page.waitForFunction(() => document.documentElement.dataset.ready === '1', null, { timeout: 20_000 });
@@ -77,6 +80,35 @@ test('rewarded ad through the AdMob plugin grants the boost', async ({ page }) =
 test('no ad fill: the game still starts and hides ad-only offers', async ({ page }) => {
   const errors = await launch(page, { adsFail: true });
   await expect(page.locator('.up-add')).toBeVisible();
+  await expect(page.locator('.chip-incomeX2')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+const DEMO_REWARDED = 'ca-app-pub-3940256099942544/5224354917';
+const REAL = { appId: 'ca-app-pub-1234567890123456~1111111111', rewarded: 'ca-app-pub-1234567890123456/2222222222', interstitial: 'ca-app-pub-1234567890123456/3333333333' };
+
+test('a release build in TEST mode says so and only loads Google demo units', async ({ page }) => {
+  await launch(page);
+  await expect.poll(() => native<string[]>(page, 'n.calls')).toContain('AdMob.prepareRewardVideoAd');
+  expect(logs).toContain('ADMOB MODE: TEST');
+  expect(await native<{ adId: string; isTesting: boolean }>(page, "n.args['AdMob.prepareRewardVideoAd']")).toEqual({ adId: DEMO_REWARDED, isTesting: false });
+});
+
+test('a production build loads its own units', async ({ page }) => {
+  await launch(page, { adConfig: { mode: 'production', ...REAL } });
+  await expect.poll(() => native<string[]>(page, 'n.calls')).toContain('AdMob.prepareRewardVideoAd');
+  expect(logs).toContain('ADMOB MODE: PRODUCTION');
+  expect(await native<{ adId: string }>(page, "n.args['AdMob.prepareRewardVideoAd'].adId")).toBe(REAL.rewarded);
+});
+
+test('debug safety: a debuggable build carrying production units requests no ads at all', async ({ page }) => {
+  const errors = await launch(page, { adConfig: { debuggable: true, mode: 'production', ...REAL } });
+  await expect(page.locator('.up-add')).toBeVisible();
+  await page.waitForTimeout(1500);
+  const calls = await native<string[]>(page, 'n.calls');
+  expect(calls.filter((c) => c.startsWith('AdMob.'))).toEqual([]);
+  expect(logs.some((l) => l.startsWith('ADMOB MODE: DISABLED'))).toBe(true);
+  expect(logs.join('\n')).not.toContain('ca-app-pub');
   await expect(page.locator('.chip-incomeX2')).toBeHidden();
   expect(errors).toEqual([]);
 });

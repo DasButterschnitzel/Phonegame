@@ -71,11 +71,10 @@ npm run android:debug                           # → android/app/build/outputs/
 
 - `minSdk 24`, `targetSdk 36` (Google Play requirement from 2026-08-31), portrait, edge-to-edge, WebGL 2 required.
 - **Testing on a phone:** `docs/DEVICE_TESTING.md` (performance overlay: Settings → tap the version 7×).
-- **Release:** set `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`,
-  `VERSION_CODE`, `VERSION_NAME` and run `cd android && ./gradlew bundleRelease`.
-- **AdMob:** Google's test IDs are used until you set real ones:
-  - app ID → env `ADMOB_APP_ID_ANDROID` (Gradle `resValue`, ends up in the manifest)
-  - ad units → `VITE_ADMOB_REAL=true`, `VITE_ADMOB_ANDROID_REWARDED`, `VITE_ADMOB_ANDROID_INTERSTITIAL` (see `.env.example`)
+- **Release:** see `docs/RELEASE_CHECKLIST.md` (signing secrets, versionCode, the manual production workflow).
+- **AdMob:** configured per build type by Gradle (`android/app/admob.gradle`, `docs/ADMOB_TESTING.md`). Debug APKs
+  always use Google's demo units; release builds use `ADMOB_MODE=test|production|disabled`, and production fails the
+  build unless every ID is present and well-formed. The web bundle never contains ad IDs.
 
 ## iOS (needs macOS + Xcode 26)
 
@@ -83,9 +82,10 @@ npm run android:debug                           # → android/app/build/outputs/
 npm run build:native && npx cap sync ios && npx cap open ios
 ```
 
-Before release: replace `GADApplicationIdentifier` in `ios/App/App/Info.plist` with your AdMob iOS app ID, set the
-iOS ad unit env vars, add the `InfoPlist.strings` (en/de) files to the target for a localised tracking prompt, and
-configure signing in Xcode.
+Ads are **off on iOS** (`ADMOB MODE: DISABLED`): ad IDs come only from a native build configuration, and the iOS
+counterpart of `AdConfigPlugin.java` still has to be written on a Mac. Before an iOS release: port that plugin (per
+build configuration, like `admob.gradle`), replace `GADApplicationIdentifier` in `ios/App/App/Info.plist`, add the
+`InfoPlist.strings` (en/de) files to the target for a localised tracking prompt, and configure signing in Xcode.
 
 ## Windows / desktop
 

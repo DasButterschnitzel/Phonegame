@@ -1,0 +1,160 @@
+// AdMob configuration per build type: the only place ad unit IDs enter the app (see docs/ADMOB_TESTING.md).
+//
+//   debug    Always Google's demo units ("ADMOB MODE: TEST"). ADMOB_MODE, ADMOB_REAL and real IDs in the environment
+//            are ignored, so a debug APK can never request live inventory.
+//   release  ADMOB_MODE = test (default) | production | disabled; ADMOB_REAL=true is the same as production.
+//            Production needs ADMOB_APP_ID_ANDROID, ADMOB_ANDROID_REWARDED and ADMOB_ANDROID_INTERSTITIAL, well-formed
+//            and from one publisher; ADMOB_ANDROID_REWARDED_{BOOST,UPGRADE,BONUS} are optional per-placement units.
+//            Anything missing, malformed or contradictory fails the release build: never a silent fallback to
+//            test IDs, never a mix of test and production units.
+//
+// ADMOB_TEST_DEVICE_IDS (optional, comma-separated hashed IDs from logcat) registers test devices.
+// ADMOB_UMP_DEBUG_GEOGRAPHY = eea | not_eea simulates a region for the consent form, in debug builds only.
+// Errors and logs name the variables, never their values.
+
+def DEMO_PUBLISHER = '3940256099942544'
+def DEMO_APP_ID = 'ca-app-pub-3940256099942544~3347511713'
+def DEMO_REWARDED = 'ca-app-pub-3940256099942544/5224354917'
+def DEMO_INTERSTITIAL = 'ca-app-pub-3940256099942544/1033173712'
+def APP_ID = ~/^ca-app-pub-(\d{16})~\d{10}$/
+def UNIT_ID = ~/^ca-app-pub-(\d{16})\/\d{10}$/
+def DEVICE_ID = ~/^[0-9A-Fa-f]{32}$/
+def ID_VARS = ['ADMOB_APP_ID_ANDROID', 'ADMOB_ANDROID_REWARDED', 'ADMOB_ANDROID_INTERSTITIAL',
+               'ADMOB_ANDROID_REWARDED_BOOST', 'ADMOB_ANDROID_REWARDED_UPGRADE', 'ADMOB_ANDROID_REWARDED_BONUS']
+
+def env = { String k -> (System.getenv(k) ?: '').trim() }
+
+def testDevices = { List errors ->
+    def ids = env('ADMOB_TEST_DEVICE_IDS').split(',').collect { it.trim() }.findAll { it }
+    def bad = ids.count { !(it ==~ DEVICE_ID) }
+    if (bad) errors << "ADMOB_TEST_DEVICE_IDS: ${bad} of ${ids.size()} entries are not 32-character hashed device IDs".toString()
+    return ids.findAll { it ==~ DEVICE_ID }.join(',')
+}
+
+def demoUnits = { Map cfg ->
+    cfg.appId = DEMO_APP_ID
+    cfg.rewarded = DEMO_REWARDED
+    cfg.boost = ''
+    cfg.upgrade = ''
+    cfg.bonus = ''
+    cfg.interstitial = DEMO_INTERSTITIAL
+    cfg.ignored = ID_VARS.findAll { env(it) }
+    return cfg
+}
+
+def resolveDebug = { ->
+    def warnings = []
+    def cfg = [mode: 'test', errors: [], warnings: warnings, devices: testDevices(warnings), geo: '']
+    def geo = env('ADMOB_UMP_DEBUG_GEOGRAPHY').toLowerCase()
+    if (geo in ['eea', 'not_eea']) cfg.geo = geo
+    else if (geo) warnings << 'ADMOB_UMP_DEBUG_GEOGRAPHY must be eea or not_eea (ignored)'
+    demoUnits(cfg)
+    cfg.ignored += ['ADMOB_MODE', 'ADMOB_REAL'].findAll { env(it) }
+    return cfg
+}
+
+def resolveRelease = { ->
+    def errors = []
+    def real = env('ADMOB_REAL').toLowerCase()
+    def mode = env('ADMOB_MODE').toLowerCase()
+    if (real && !(real in ['true', 'false'])) errors << 'ADMOB_REAL must be true or false'
+    if (mode && !(mode in ['test', 'production', 'disabled'])) errors << 'ADMOB_MODE must be test, production or disabled'
+    if (real == 'true') {
+        if (mode && mode != 'production') errors << "ADMOB_REAL=true contradicts ADMOB_MODE=${mode}".toString()
+        mode = 'production'
+    } else if (real == 'false' && mode == 'production') {
+        errors << 'ADMOB_REAL=false contradicts ADMOB_MODE=production'
+    }
+    if (!(mode in ['test', 'production', 'disabled'])) mode = 'test'
+    def cfg = [mode: mode, errors: errors, warnings: [], devices: testDevices(errors), geo: '', ignored: []]
+    if (env('ADMOB_UMP_DEBUG_GEOGRAPHY')) cfg.ignored << 'ADMOB_UMP_DEBUG_GEOGRAPHY'
+    if (mode != 'production') {
+        demoUnits(cfg)
+        return cfg
+    }
+    def publishers = [] as Set
+    def take = { String name, pattern, String what, boolean required ->
+        def v = env(name)
+        if (!v) {
+            if (required) errors << "${name} is missing".toString()
+            return ''
+        }
+        def m = v =~ pattern
+        if (!m.matches()) {
+            errors << "${name} is not ${what}".toString()
+            return ''
+        }
+        if (m.group(1) == DEMO_PUBLISHER) errors << "${name} is one of Google's demo IDs".toString()
+        publishers << m.group(1)
+        return v
+    }
+    def unit = 'an ad unit ID (ca-app-pub-<16 digits>/<10 digits>)'
+    cfg.appId = take('ADMOB_APP_ID_ANDROID', APP_ID, 'an AdMob app ID (ca-app-pub-<16 digits>~<10 digits>)', true)
+    cfg.rewarded = take('ADMOB_ANDROID_REWARDED', UNIT_ID, unit, true)
+    cfg.interstitial = take('ADMOB_ANDROID_INTERSTITIAL', UNIT_ID, unit, true)
+    // Empty: the placement group shares ADMOB_ANDROID_REWARDED.
+    cfg.boost = take('ADMOB_ANDROID_REWARDED_BOOST', UNIT_ID, unit, false)
+    cfg.upgrade = take('ADMOB_ANDROID_REWARDED_UPGRADE', UNIT_ID, unit, false)
+    cfg.bonus = take('ADMOB_ANDROID_REWARDED_BONUS', UNIT_ID, unit, false)
+    if (publishers.size() > 1) errors << 'the app ID and the ad units belong to different publishers'
+    return cfg
+}
+
+def debugAdMob = resolveDebug()
+def releaseAdMob = resolveRelease()
+ext.releaseAdMobMode = releaseAdMob.mode
+
+def applyAdMob = { buildType, Map cfg ->
+    buildType.resValue 'string', 'admob_app_id', cfg.appId ?: 'invalid'
+    buildType.resValue 'string', 'admob_mode', cfg.mode
+    buildType.resValue 'string', 'admob_rewarded', cfg.rewarded ?: ''
+    buildType.resValue 'string', 'admob_rewarded_boost', cfg.boost ?: ''
+    buildType.resValue 'string', 'admob_rewarded_upgrade', cfg.upgrade ?: ''
+    buildType.resValue 'string', 'admob_rewarded_bonus', cfg.bonus ?: ''
+    buildType.resValue 'string', 'admob_interstitial', cfg.interstitial ?: ''
+    buildType.resValue 'string', 'admob_test_devices', cfg.devices
+    buildType.resValue 'string', 'admob_ump_debug_geography', cfg.geo
+}
+
+android {
+    buildTypes {
+        debug { applyAdMob(delegate, debugAdMob) }
+        release { applyAdMob(delegate, releaseAdMob) }
+    }
+}
+
+// Plain values only, so the tasks do not capture this script.
+def summary = { Map cfg ->
+    def devices = cfg.devices ? cfg.devices.split(',').size() : 0
+    def lines = ["ADMOB MODE: ${cfg.mode.toUpperCase()}".toString()]
+    if (devices) lines << "AdMob: ${devices} test device(s) registered".toString()
+    if (cfg.geo) lines << "AdMob: consent form region simulated (${cfg.geo})".toString()
+    if (cfg.ignored) lines << "AdMob: ignored in this build: ${cfg.ignored.join(', ')}".toString()
+    return lines + cfg.warnings.collect { "AdMob warning: ${it}".toString() }
+}
+def debugLines = summary(debugAdMob)
+def releaseLines = summary(releaseAdMob)
+def releaseErrors = releaseAdMob.errors.collect { it.toString() }
+
+tasks.register('checkAdMobDebug') {
+    group = 'verification'
+    description = 'Reports the debug AdMob mode (always TEST: Google demo units).'
+    doLast { debugLines.each { logger.lifecycle(it) } }
+}
+
+tasks.register('checkAdMobRelease') {
+    group = 'verification'
+    description = 'Fails when the release AdMob configuration is missing, malformed or contradictory.'
+    doLast {
+        if (releaseErrors) {
+            throw new GradleException('AdMob release configuration is invalid:\n  - ' + releaseErrors.join('\n  - ') +
+                '\nNothing falls back to test IDs. See docs/ADMOB_TESTING.md.')
+        }
+        releaseLines.each { logger.lifecycle(it) }
+    }
+}
+
+tasks.configureEach { t ->
+    if (t.name == 'preDebugBuild') t.dependsOn('checkAdMobDebug')
+    if (t.name == 'preReleaseBuild') t.dependsOn('checkAdMobRelease')
+}

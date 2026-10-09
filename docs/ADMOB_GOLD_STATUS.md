@@ -80,4 +80,5 @@ Game flows already apply rewards only after a `true` result and charge nothing o
 
 | Step | Commit | Result |
 |---|---|---|
-| A1 | (this) | Audit written. |
+| A1 | 62b1cc8 | Audit written. |
+| A2 | (this) | `android/app/admob.gradle`: debug = demo units whatever the environment says; release `test`/`production`/`disabled`, production validated (format, demo publisher, one publisher, required IDs) and the build fails on anything else, naming variables only. Signing: incomplete secrets or an unsigned/unversioned production build fail `preReleaseBuild`. `AdConfigPlugin` hands the values to JS; `admob/config.ts` re-checks them (debuggable + production → off; test + real units → off). The web bundle carries no ad IDs (`bundle:check`). iOS: ads off until the plugin is ported. Verified: Gradle checks with good/partial/mixed/demo configs, debug APK resources (demo IDs, mode test), Android-shell e2e for TEST/PRODUCTION/debug-safety. |

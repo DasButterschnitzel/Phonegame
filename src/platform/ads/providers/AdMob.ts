@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
   AdMob,
   AdmobConsentDebugGeography,
@@ -7,7 +7,10 @@ import {
   RewardAdPluginEvents,
 } from '@capacitor-community/admob';
 import type { AdService, BreakKind, Placement } from '../AdService.ts';
-import { ADMOB_REAL, adUnits } from '../adIds.ts';
+import { modeLine, resolveAdMobConfig, type AdMobConfig, type NativeAdConfig } from '../admob/config.ts';
+
+/** This app's own native plugin (android/.../AdConfigPlugin.java): the build's ad configuration. */
+const AdConfig = registerPlugin<{ get(): Promise<NativeAdConfig> }>('AdConfig');
 
 const BACKOFF = [2, 4, 8, 16, 32, 60];
 
@@ -21,7 +24,7 @@ export class AdMobAds implements AdService {
   private canRequest = false;
   private rewardedLoaded = false;
   private interstitialLoaded = false;
-  private units = adUnits(Capacitor.getPlatform() === 'ios' ? 'ios' : 'android');
+  private cfg: AdMobConfig = resolveAdMobConfig('web', null);
   private rTry = 0;
   private iTry = 0;
   private onRewardDone: ((earned: boolean) => void) | null = null;
@@ -29,10 +32,18 @@ export class AdMobAds implements AdService {
   private onInterstitialDone: (() => void) | null = null;
 
   async init(): Promise<void> {
-    const q = new URLSearchParams(location.search);
+    const platform = Capacitor.getPlatform();
+    // Ad IDs come only from the native build: a debug APK always carries Google's demo units (app/admob.gradle).
+    const native = platform === 'android' ? await AdConfig.get().catch(() => null) : null;
+    this.cfg = resolveAdMobConfig(platform, native);
+    console.info(modeLine(this.cfg));
+    if (this.cfg.mode === 'disabled') return;
+    const geo = this.cfg.umpDebugGeography;
     try {
       const info = await AdMob.requestConsentInfo(
-        q.get('consentDebug') === 'eea' ? { debugGeography: AdmobConsentDebugGeography.EEA, testDeviceIdentifiers: (q.get('testDevice') ?? '').split(',').filter(Boolean) } : {},
+        geo
+          ? { debugGeography: geo === 'eea' ? AdmobConsentDebugGeography.EEA : AdmobConsentDebugGeography.NOT_EEA, testDeviceIdentifiers: this.cfg.testDevices }
+          : {},
       );
       let state = info;
       if (info.isConsentFormAvailable && info.status === AdmobConsentStatus.REQUIRED) state = await AdMob.showConsentForm();
@@ -53,7 +64,8 @@ export class AdMobAds implements AdService {
       }
     }
     // General audience, not child-directed (see STORE.md); personalised only after consent (handled by UMP).
-    await AdMob.initialize({ initializeForTesting: !ADMOB_REAL });
+    // Test devices are only registered when initializeForTesting is set (plugin source).
+    await AdMob.initialize({ initializeForTesting: this.cfg.testDevices.length > 0, testingDevices: this.cfg.testDevices });
     await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
       this.earned = true;
     });
@@ -84,7 +96,8 @@ export class AdMobAds implements AdService {
 
   private async loadRewarded(): Promise<void> {
     try {
-      await AdMob.prepareRewardVideoAd({ adId: this.units.rewarded, isTesting: !ADMOB_REAL });
+      // isTesting stays false: with it the plugin swaps in its own demo unit, and stores the ad under that ID.
+      await AdMob.prepareRewardVideoAd({ adId: this.cfg.rewarded, isTesting: false });
       this.rewardedLoaded = true;
       this.rTry = 0;
     } catch {
@@ -95,7 +108,7 @@ export class AdMobAds implements AdService {
 
   private async loadInterstitial(): Promise<void> {
     try {
-      await AdMob.prepareInterstitial({ adId: this.units.interstitial, isTesting: !ADMOB_REAL, immersiveMode: true });
+      await AdMob.prepareInterstitial({ adId: this.cfg.interstitial, isTesting: false, immersiveMode: true });
       this.interstitialLoaded = true;
       this.iTry = 0;
     } catch {
