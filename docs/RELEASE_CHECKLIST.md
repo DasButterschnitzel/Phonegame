@@ -89,6 +89,10 @@ one must be reset at once. Delete `upload.jks.base64` after pasting it.
 The workflow checks that every required secret is present (printing names only), fails if signing is incomplete and
 never echoes a value. No push workflow can read these secrets.
 
+Older setups used **repository variables** (`ADMOB_REAL`, `ADMOB_APP_ID_ANDROID`, `ADMOB_ANDROID_REWARDED`,
+`ADMOB_ANDROID_INTERSTITIAL`) and a repository secret for the keystore: nothing reads them any more — delete them
+(Settings → Secrets and variables → Actions), since variables are not secret.
+
 ## Every release
 
 1. **Version.** Bump `version` in `package.json` (semantic: `MAJOR.MINOR.PATCH`). The versionCode is derived:
