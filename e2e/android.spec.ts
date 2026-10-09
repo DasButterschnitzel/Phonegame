@@ -91,7 +91,7 @@ test('a release build in TEST mode says so and only loads Google demo units', as
   await launch(page);
   await expect.poll(() => native<string[]>(page, 'n.calls')).toContain('AdMob.prepareRewardVideoAd');
   expect(logs).toContain('ADMOB MODE: TEST');
-  expect(await native<{ adId: string; isTesting: boolean }>(page, "n.args['AdMob.prepareRewardVideoAd']")).toEqual({ adId: DEMO_REWARDED, isTesting: false });
+  expect(await native<{ adId: string; isTesting: boolean }>(page, "n.args['AdMob.prepareRewardVideoAd']")).toMatchObject({ adId: DEMO_REWARDED, isTesting: false });
 });
 
 test('a production build loads its own units', async ({ page }) => {
@@ -111,4 +111,52 @@ test('debug safety: a debuggable build carrying production units requests no ads
   expect(logs.join('\n')).not.toContain('ca-app-pub');
   await expect(page.locator('.chip-incomeX2')).toBeHidden();
   expect(errors).toEqual([]);
+});
+
+/** SDK start and ad requests (consent calls are not ad requests). */
+const adRequests = async (page: Page) =>
+  (await native<string[]>(page, 'n.calls')).filter((c) => /^AdMob\.(initialize|prepareRewardVideoAd|prepareInterstitial|showRewardVideoAd|showInterstitial)$/.test(c));
+
+test('first launch offline: the game runs, nothing asks for ads, ad-only offers stay hidden', async ({ page }) => {
+  const errors = await launch(page, { consent: { update: 'fail', stored: false } });
+  await expect(page.locator('.up-add')).toBeVisible();
+  await page.waitForTimeout(2500);
+  expect(await adRequests(page)).toEqual([]);
+  await expect(page.locator('.chip-incomeX2')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('offline with an earlier consent: the stored decision lets ads load', async ({ page }) => {
+  await launch(page, { consent: { update: 'fail', stored: true } });
+  await expect.poll(() => native<string[]>(page, 'n.calls')).toContain('AdMob.prepareRewardVideoAd');
+});
+
+test('consent required: the form comes before the SDK starts or any ad is requested', async ({ page }) => {
+  await launch(page, { consent: { status: 'REQUIRED', form: 'answer' } });
+  await expect.poll(() => native<string[]>(page, 'n.calls')).toContain('AdMob.prepareRewardVideoAd');
+  const calls = (await native<string[]>(page, 'n.calls')).filter((c) => c.startsWith('AdMob.') || c.startsWith('AdConfig.'));
+  const at = (c: string) => calls.indexOf(c);
+  expect(at('AdMob.requestConsentInfo')).toBeGreaterThan(at('AdConfig.get'));
+  expect(at('AdMob.showConsentForm')).toBeGreaterThan(at('AdMob.requestConsentInfo'));
+  expect(at('AdMob.initialize')).toBeGreaterThan(at('AdMob.showConsentForm'));
+  expect(at('AdMob.prepareRewardVideoAd')).toBeGreaterThan(at('AdMob.initialize'));
+});
+
+test('a consent form that fails to load: no ads, and the game is not stuck', async ({ page }) => {
+  const errors = await launch(page, { consent: { status: 'REQUIRED', form: 'fail' } });
+  await expect(page.locator('.up-add')).toBeVisible();
+  await page.waitForTimeout(2000);
+  expect(await adRequests(page)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('privacy options in Settings: withdrawing consent takes ad offers away without a restart', async ({ page }) => {
+  await launch(page, { consent: { status: 'REQUIRED', form: 'answer', privacyRequired: true, privacyForm: 'withdraw' } });
+  const chip = page.locator('.chip-incomeX2');
+  await expect(chip).toBeVisible({ timeout: 8000 });
+  await page.locator('.btn-settings').click();
+  await page.locator('.modal-settings button', { hasText: 'Privacy options' }).click();
+  await expect.poll(() => native<string[]>(page, 'n.calls')).toContain('AdMob.showPrivacyOptionsForm');
+  await page.locator('.modal-settings .close-x').click();
+  await expect(chip).toBeHidden({ timeout: 5000 });
 });

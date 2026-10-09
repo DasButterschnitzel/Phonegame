@@ -48,6 +48,19 @@ export interface ShellOptions {
   adsFail?: boolean;
   /** What app/admob.gradle baked into this build (default: a release build in TEST mode with Google's demo units). */
   adConfig?: Record<string, unknown>;
+  /** UMP behaviour (default: consent not required, update succeeds). */
+  consent?: {
+    /** The consent information update fails (offline, UMP error). */
+    update?: 'ok' | 'fail';
+    status?: 'REQUIRED' | 'NOT_REQUIRED';
+    /** canRequestAds() stored from an earlier launch. */
+    stored?: boolean;
+    privacyRequired?: boolean;
+    /** The player's answer to the consent form; 'fail' = the form cannot load. */
+    form?: 'answer' | 'dismiss' | 'fail';
+    /** What the privacy options form does to the stored decision. */
+    privacyForm?: 'keep' | 'withdraw';
+  };
 }
 
 /** Runs in the page before any app script (Playwright addInitScript). */
@@ -70,6 +83,14 @@ function fakeAndroid(opts: ShellOptions): void {
   };
   native.fire = fire;
   const ok = {};
+  const c = opts.consent ?? {};
+  const ump = { canRequestAds: c.stored ?? false, privacyOptionsRequired: c.privacyRequired ?? false };
+  const umpInfo = (status: string) => ({
+    status,
+    isConsentFormAvailable: true,
+    canRequestAds: ump.canRequestAds,
+    privacyOptionsRequirementStatus: ump.privacyOptionsRequired ? 'REQUIRED' : 'NOT_REQUIRED',
+  });
   const impl: Record<string, Record<string, (o: Record<string, unknown>) => unknown>> = {
     Preferences: {
       configure: () => ok,
@@ -106,13 +127,25 @@ function fakeAndroid(opts: ShellOptions): void {
         umpDebugGeography: '',
         ...(opts.adConfig ?? {}),
       }),
-      consent: () => ({ canRequestAds: true, privacyOptionsRequired: false }),
+      consent: () => ({ ...ump }),
     },
     AdMob: {
       initialize: () => ok,
-      requestConsentInfo: () => ({ status: 'NOT_REQUIRED', isConsentFormAvailable: false, canRequestAds: true, privacyOptionsRequirementStatus: 'NOT_REQUIRED' }),
-      showConsentForm: () => ({ status: 'OBTAINED', canRequestAds: true, privacyOptionsRequirementStatus: 'NOT_REQUIRED' }),
-      showPrivacyOptionsForm: () => ok,
+      requestConsentInfo: () => {
+        if (c.update === 'fail') throw new Error('Error making request.');
+        const status = c.status ?? 'NOT_REQUIRED';
+        if (status === 'NOT_REQUIRED') ump.canRequestAds = true;
+        return umpInfo(ump.canRequestAds && status === 'REQUIRED' ? 'OBTAINED' : status);
+      },
+      showConsentForm: () => {
+        if (c.form === 'fail') throw new Error('Error when show consent form');
+        if ((c.form ?? 'answer') === 'answer') ump.canRequestAds = true;
+        return umpInfo(ump.canRequestAds ? 'OBTAINED' : 'REQUIRED');
+      },
+      showPrivacyOptionsForm: () => {
+        if (c.privacyForm === 'withdraw') ump.canRequestAds = false;
+        return ok;
+      },
       resetConsentInfo: () => ok,
       prepareRewardVideoAd: (o) => {
         if (opts.adsFail) throw new Error('No fill');
@@ -131,6 +164,7 @@ function fakeAndroid(opts: ShellOptions): void {
         return { adUnitId: o.adId };
       },
       showInterstitial: () => {
+        fire('AdMob', 'interstitialAdShowed');
         setTimeout(() => fire('AdMob', 'interstitialAdDismissed'), 60);
         return ok;
       },

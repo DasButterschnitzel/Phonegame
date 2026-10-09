@@ -99,3 +99,15 @@ export const rewardedUnit = (c: AdMobConfig, p: Placement): string => c.groupUni
 
 /** The one log line per launch: ADMOB MODE: TEST | PRODUCTION | DISABLED (never with IDs). */
 export const modeLine = (c: AdMobConfig): string => `ADMOB MODE: ${c.mode.toUpperCase()}${c.note ? ` (${c.note})` : ''}`;
+
+/**
+ * Who the ads are for. The game is for a general 13+ audience (Play Console target audience 13+, not in the Families
+ * program): ads are capped at PG to suit its tone, and the child-directed / under-age-of-consent tags stay
+ * unspecified because the app is not directed at children and asks no ages. If the Play target audience ever
+ * includes children, that is not a flag flip — the Families policy applies (docs/PLAY_CONSOLE_CHECKLIST.md).
+ */
+export const AUDIENCE = {
+  maxAdContentRating: 'ParentalGuidance',
+  tagForChildDirectedTreatment: null,
+  tagForUnderAgeOfConsent: null,
+} as const;
