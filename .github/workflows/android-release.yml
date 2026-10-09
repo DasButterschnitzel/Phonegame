@@ -35,6 +35,8 @@ jobs:
           fetch-depth: 0 # play-* tags for the versionCode check
       - name: Every secret is present (names only)
         env:
+          TEST_DEVICES_WANTED: ${{ inputs.register_test_devices }}
+          ADMOB_TEST_DEVICE_IDS: ${{ secrets.ADMOB_TEST_DEVICE_IDS }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -48,6 +50,7 @@ jobs:
                    ADMOB_APP_ID_ANDROID ADMOB_ANDROID_REWARDED ADMOB_ANDROID_INTERSTITIAL; do
             [ -n "${!v}" ] || missing="$missing $v"
           done
+          if [ "$TEST_DEVICES_WANTED" = "true" ] && [ -z "$ADMOB_TEST_DEVICE_IDS" ]; then missing="$missing ADMOB_TEST_DEVICE_IDS"; fi
           if [ -n "$missing" ]; then
             echo "::error::Missing secrets in the production environment:$missing (docs/RELEASE_CHECKLIST.md)"
             exit 1
@@ -114,9 +117,16 @@ jobs:
             --mode production --signed --version-code "$VC" --version-name "$VN" $devices
       - uses: actions/upload-artifact@v4
         with:
-          name: crop-crawler-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.version_code }}-aab
+          name: crop-crawler-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.version_code }}${{ inputs.register_test_devices && '-TEST-DEVICES-internal-only' || '' }}-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
+      - name: Universal APK for the registered test devices (sideload; real units, test ads)
+        if: inputs.register_test_devices
+        uses: actions/upload-artifact@v4
+        with:
+          name: crop-crawler-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.version_code }}-TEST-DEVICES-internal-only-apk
+          path: android/app/build/outputs/apk_from_bundle/release/app-release-universal.apk
+          retention-days: 14
       - name: Mark the versionCode as used
         env:
           VC: ${{ steps.version.outputs.version_code }}
