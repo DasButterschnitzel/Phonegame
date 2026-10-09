@@ -65,8 +65,9 @@ export class AdManager {
     return this.provider.isRewardedReady(p) && canOfferRewarded(this.policy, DEFAULT_POLICY, this.hooks.now(), p);
   }
 
-  get rewardedAvailable(): boolean {
-    return this.provider.isRewardedReady();
+  /** A rewarded ad for this placement is loaded (no policy check: for offers that have no cooldown). */
+  ready(p: Placement): boolean {
+    return this.provider.isRewardedReady(p);
   }
 
   async rewarded(p: Placement): Promise<boolean> {

@@ -2,7 +2,8 @@ import type { AdService, BreakKind, Placement, RewardOutcome } from '../AdServic
 
 /**
  * Simulated ads for development, tests and the web demo: a full-screen countdown overlay.
- * Query params: ?ads=fail (never ready) | ?ads=noreward (closes without reward), ?adms=300 (duration).
+ * Query params: ?ads=fail (never ready) | ?ads=showfail (ready, but the ad never starts) | ?ads=noreward (closes
+ * without reward), ?adms=300 (duration).
  */
 export class DevStubAds implements AdService {
   readonly name = 'devstub';
@@ -27,13 +28,13 @@ export class DevStubAds implements AdService {
   }
 
   async showRewarded(p: Placement): Promise<RewardOutcome> {
-    if (this.mode === 'fail') return 'failed';
+    if (this.mode === 'fail' || this.mode === 'showfail') return 'failed';
     const completed = await this.overlay(`rewarded:${p}`, true);
     return completed && this.mode !== 'noreward' ? 'earned' : 'skipped';
   }
 
   async showInterstitial(kind: BreakKind): Promise<boolean> {
-    if (this.mode === 'fail') return false;
+    if (this.mode === 'fail' || this.mode === 'showfail') return false;
     await this.overlay(`interstitial:${kind}`, false);
     return true;
   }

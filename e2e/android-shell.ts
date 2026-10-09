@@ -74,7 +74,16 @@ function fakeAndroid(opts: ShellOptions): void {
   const args: Record<string, unknown> = {};
   const listeners: Record<string, string[]> = {};
   const w = window as unknown as Record<string, unknown> & { androidBridge: { postMessage(s: string): void; onmessage?: (e: { data: string }) => void } };
-  const native = { store, calls, args, splashHidden: false, exited: false, fire: (_p: string, _e: string, _d?: unknown) => {} };
+  const native = {
+    store,
+    calls,
+    args,
+    splashHidden: false,
+    exited: false,
+    fire: (_p: string, _e: string, _d?: unknown) => {},
+    /** What the next rewarded ad does: event names (showed, rewarded, dismissed, failedToShow) and pauses in ms. Tests may change it. */
+    rewardScript: ['showed', 60, 'rewarded', 'dismissed'] as (string | number)[],
+  };
   w.__native = native;
   const send = (msg: Record<string, unknown>) =>
     setTimeout(() => w.androidBridge.onmessage?.({ data: JSON.stringify(msg) }), 4);
@@ -152,11 +161,20 @@ function fakeAndroid(opts: ShellOptions): void {
         return { adUnitId: o.adId };
       },
       showRewardVideoAd: () => {
-        fire('AdMob', 'onRewardedVideoAdShowed');
-        setTimeout(() => {
-          fire('AdMob', 'onRewardedVideoAdReward', { type: 'coins', amount: 1 });
-          fire('AdMob', 'onRewardedVideoAdDismissed');
-        }, 60);
+        const names: Record<string, string> = {
+          showed: 'onRewardedVideoAdShowed',
+          rewarded: 'onRewardedVideoAdReward',
+          dismissed: 'onRewardedVideoAdDismissed',
+          failedToShow: 'onRewardedVideoAdFailedToShow',
+        };
+        const run = (steps: (string | number)[]) => {
+          const [step, ...rest] = steps;
+          if (step === undefined) return;
+          if (typeof step === 'number') return void setTimeout(() => run(rest), step);
+          fire('AdMob', names[step], step === 'rewarded' ? { type: 'coins', amount: 1 } : {});
+          run(rest);
+        };
+        run([...native.rewardScript]);
         return { type: 'coins', amount: 1 };
       },
       prepareInterstitial: (o) => {

@@ -69,6 +69,19 @@ test('free upgrade offer appears when stuck and grants the upgrade', async ({ pa
   expect(cls).toContain('up-');
 });
 
+test('an ad that cannot start: a short message, and nothing is used — not the free upgrade, not its cooldown', async ({ page }) => {
+  await ready(page, '&ads=showfail');
+  await g(page, '(g.state().coins = 0, g.app.game.offers.poorSince = performance.now() / 1000 - 60)');
+  await expect(page.locator('.free-badge:visible')).toHaveCount(1, { timeout: 3000 });
+  const levels = () => g<number>(page, '(s => s.progress.segments.length + s.progress.speedLevel + s.progress.capacityLevel)(g.state())');
+  const before = await levels();
+  await page.locator('.up-wrap:has(.free-badge:visible) .up').click();
+  await expect(page.locator('.toast', { hasText: 'Ad not available' })).toBeVisible();
+  expect(await levels()).toBe(before);
+  expect(await g<boolean>(page, "g.app.ads.canOffer('free_upgrade') && g.app.ads.policy.lastRewarded === -Infinity && g.app.ads.lastFailure === 'failed'")).toBe(true);
+  await expect(page.locator('.free-badge:visible')).toHaveCount(1);
+});
+
 test('ads failing to load hide ad-only offers gracefully; coins still work', async ({ page }) => {
   await ready(page, '&ads=fail');
   await page.locator('.tornado-btn').click(); // uses the free tornado

@@ -68,7 +68,7 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
       day: meta.daily.day,
       canClaim: canClaimDaily(meta.daily, clock.dateKey()),
       coinsFor: dailyCoins,
-      adAvailable: () => ads.rewardedAvailable,
+      adAvailable: () => ads.ready('daily_x2'),
       claim: async (mult) => {
         if (mult > 1 && !(await game.rewarded('daily_x2'))) return false;
         const idx = claimDaily(meta.daily, clock.dateKey());
@@ -96,7 +96,7 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
           close();
         }
       }, icon('ad'), t('gift.collectX3'));
-      showWhen(x3, () => ads.rewardedAvailable);
+      showWhen(x3, () => ads.ready('gift_x3'));
       const countEl = h('span', {}, fmt(0));
       countUp(countEl, amount, fmt, 700);
       return [
@@ -144,7 +144,7 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
           next,
           nextLabel,
           gift: true,
-          adAvailable: () => ads.rewardedAvailable,
+          adAvailable: () => ads.ready('farm_complete_x2'),
           double: async () => {
             if (!(await game.rewarded('farm_complete_x2'))) return false;
             sim.execute({ c: 'grantCoins', amount: e.reward, reason: 'farmComplete' });

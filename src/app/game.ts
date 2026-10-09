@@ -137,7 +137,7 @@ export class GameController {
   // ——— HUD actions ———
 
   async rewarded(p: Placement): Promise<boolean> {
-    if (!this.d.ads.rewardedAvailable) {
+    if (!this.d.ads.ready(p)) {
       this.toasts.show(t('ad.notReady'));
       return false;
     }
@@ -193,7 +193,7 @@ export class GameController {
         if (sim.state.tornadoes > 0) sim.execute({ c: 'useTornado' });
       },
       watchAd: async () => {
-        if (!adOk()) return this.nag(this.d.ads.rewardedAvailable ? 'ad.later' : 'ad.notReady');
+        if (!adOk()) return this.nag(this.d.ads.ready('free_tornado') ? 'ad.later' : 'ad.notReady');
         if (await this.rewarded('free_tornado')) {
           sim.execute({ c: 'grantTornado', n: 1 });
           sim.execute({ c: 'useTornado' });
@@ -221,7 +221,7 @@ export class GameController {
       return;
     }
     const placement = id === 'incomeX2' ? 'income_x2' : 'autopilot';
-    if (id === 'incomeX2' && !this.d.ads.rewardedAvailable) {
+    if (id === 'incomeX2' && !this.d.ads.ready(placement)) {
       this.hud.shake(id);
       this.nag('bonus.noAdX2');
       return;
@@ -230,7 +230,7 @@ export class GameController {
       kind: id,
       price: id === 'autopilot' ? sim.autopilotPrice : null,
       coins: () => sim.state.coins,
-      adAvailable: () => this.d.ads.rewardedAvailable,
+      adAvailable: () => this.d.ads.ready(placement),
       notEnough: (el) => this.notEnough(el),
       buy: () => sim.execute({ c: 'buyBoost', id: 'autopilot' }),
       watchAd: async () => {
@@ -474,7 +474,7 @@ export class GameController {
       const vm = buildHud(sim);
       const ads = this.d.ads;
       const free = this.offers.update(vm, now / 1000, ads.canOffer('free_upgrade'));
-      this.hud.adsAvailable = ads.rewardedAvailable;
+      this.hud.boostAd = ads.ready('income_x2');
       this.hud.tornadoAd = ads.canOffer('free_tornado');
       this.hud.update(vm, free, this.d.isDailyAvailable(), this.rec);
       this.hud.holdHint.classList.toggle('hide', input.totalHeld > 2.5 || sim.state.boosts.autopilot > 0 || this.toasts.hinting);

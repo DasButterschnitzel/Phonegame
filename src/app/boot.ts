@@ -364,7 +364,7 @@ export async function boot(): Promise<App | null> {
     if (r.coins <= 0 || game.modals.has('offline')) return;
     openOffline(game.modals, {
       ...r,
-      adAvailable: () => ads.rewardedAvailable,
+      adAvailable: () => ads.ready('offline_x3'),
       collect: async (mult) => {
         if (mult > 1 && !(await game.rewarded('offline_x3'))) return false;
         sim.execute({ c: 'grantCoins', amount: r.coins * mult, reason: 'offline' });

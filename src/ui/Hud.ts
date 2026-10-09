@@ -92,8 +92,9 @@ export class Hud {
   private rec: UpgradeId | null = null;
   /** Was this farm finished at the last update (null before the first): the COMPLETE pop plays on the change only. */
   private wasFinished: boolean | null = null;
-  adsAvailable = true;
-  /** Whether an empty tornado button may offer a rewarded ad right now (policy cooldown). */
+  /** Whether a rewarded ad for the boosts (income ×2, autopilot) is ready. */
+  boostAd = true;
+  /** Whether an empty tornado button may offer a rewarded ad right now (ad ready and its cooldown over). */
   tornadoAd = true;
   private coinCenter: { x: number; y: number } | null = null;
 
@@ -425,7 +426,7 @@ export class Hud {
     const tEmpty = vm.tornadoes === 0;
     setText(this.tornadoCount, tEmpty ? '' : String(vm.tornadoes));
     toggleClass(this.tornadoBtn, 'empty', tEmpty);
-    this.setTag(this.tornadoTag, this.tornadoTagText, tEmpty ? 'coin' : 'none', fmt(vm.tornadoPrice), tEmpty && this.adsAvailable && this.tornadoAd, vm.coins >= vm.tornadoPrice);
+    this.setTag(this.tornadoTag, this.tornadoTagText, tEmpty ? 'coin' : 'none', fmt(vm.tornadoPrice), tEmpty && this.tornadoAd, vm.coins >= vm.tornadoPrice);
     for (const id of ['incomeX2', 'autopilot'] as BoostId[]) {
       const c = this.chips[id];
       const left = id === 'incomeX2' ? vm.incomeX2 : vm.autopilot;
@@ -435,8 +436,8 @@ export class Hud {
       toggleClass(c.el, 'active', left > 0);
       // ×2 is paid by ad (or free); autopilot by coins or an ad.
       const mode = left > 0 ? 'none' : free ? 'free' : id === 'autopilot' ? 'coin' : 'none';
-      this.setTag(c.tag, c.tagText, mode, free ? t('bonus.free') : fmt(vm.autopilotPrice), left <= 0 && !free && this.adsAvailable, vm.coins >= vm.autopilotPrice);
-      setStyle(c.el, 'display', this.adsAvailable || left > 0 || free || id === 'autopilot' ? '' : 'none');
+      this.setTag(c.tag, c.tagText, mode, free ? t('bonus.free') : fmt(vm.autopilotPrice), left <= 0 && !free && this.boostAd, vm.coins >= vm.autopilotPrice);
+      setStyle(c.el, 'display', this.boostAd || left > 0 || free || id === 'autopilot' ? '' : 'none');
     }
     this.setDailyAvailable(dailyAvailable);
   }

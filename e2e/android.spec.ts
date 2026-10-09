@@ -160,3 +160,36 @@ test('privacy options in Settings: withdrawing consent takes ad offers away with
   await page.locator('.modal-settings .close-x').click();
   await expect(chip).toBeHidden({ timeout: 5000 });
 });
+
+// Hostile event orders through the real bridge and game flow: the ×2 boost must be granted exactly once, only after
+// the reward event, and a failed ad must cost nothing.
+const X2_SECONDS = 180;
+for (const [name, script, granted, toast] of [
+  ['reward, then dismiss', ['showed', 'rewarded', 'dismissed'], true, null],
+  ['dismiss, then a late reward', ['showed', 'dismissed', 300, 'rewarded'], true, null],
+  ['reward twice', ['showed', 'rewarded', 'rewarded', 'dismissed', 'rewarded'], true, null],
+  ['closed without reward', ['showed', 'dismissed', 1500, 'rewarded'], false, 'closed early'],
+  ['failed to show, then stray events', ['failedToShow', 'dismissed', 'rewarded'], false, 'Ad not available'],
+] as const) {
+  test(`rewarded order "${name}": ${granted ? 'one reward' : 'no reward, nothing used'}`, async ({ page }) => {
+    await launch(page);
+    await page.evaluate((sc) => ((window as unknown as { __native: { rewardScript: unknown } }).__native.rewardScript = sc), [...script]);
+    const chip = page.locator('.chip-incomeX2');
+    await expect(chip).toBeVisible({ timeout: 8000 });
+    await chip.click();
+    await page.locator('.modal-bonus .bonus-ad').click();
+    if (toast) await expect(page.locator('.toast', { hasText: toast })).toBeVisible({ timeout: 5000 });
+    else await expect(chip).toHaveClass(/active/, { timeout: 5000 });
+    await page.waitForTimeout(2500);
+    // Read the boost from the HUD timer: the game has no debug hooks in this flavor.
+    const timer = (await chip.locator('.timer').textContent()) ?? '';
+    const m = /(\d+):(\d\d)/.exec(timer);
+    const left = m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+    if (granted) {
+      expect(left).toBeGreaterThan(X2_SECONDS - 20);
+      expect(left).toBeLessThanOrEqual(X2_SECONDS);
+    } else {
+      await expect(chip).not.toHaveClass(/active/);
+    }
+  });
+}
