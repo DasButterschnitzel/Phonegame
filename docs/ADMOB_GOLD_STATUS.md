@@ -1,6 +1,12 @@
 # AdMob production hardening — Gold status
 
-STATUS: SILVER — every gate below has its evidence; waiting for CI on the final commit
+STATUS: GOLD
+
+Every gate below has its evidence, and CI is green on the final code (97487ce: CI #50 — typecheck, unit tests, all
+flavors, bundle checks, every e2e project including the Android shell, balance, long sessions; Android #44 — debug
+built with production-looking settings and audited demo-only, release test with the Gradle matrix, throwaway-key AAB
+and APK audited). GOLD covers the code, the build pipeline and the documents. It does **not** mean AdMob production is
+live or that Google Play approved anything: those need the HUMAN-ONLY steps in `docs/RELEASE_CHECKLIST.md`.
 
 Goal 06: make the ad stack, the consent flow and the release pipeline safe to ship on Google Play,
 without redesigning the game or adding ad pressure. This file is the loop log and the gate list.
@@ -92,9 +98,9 @@ Game flows already apply rewards only after a `true` result and charge nothing o
 | save format unchanged | no change under `src/game/save` |
 | typecheck green | local + CI |
 | unit tests green | 258 tests (36 files) |
-| e2e green | CI (all projects incl. the Android shell: 19 tests) |
+| e2e green | CI #50 on 97487ce (all projects incl. the Android shell: 19 tests); locally 105/105 on pixel7 |
 | balance green | `npm run balance -- --profile all --assert`: "Balance targets OK" |
-| Android debug green | CI *Android debug* |
+| Android debug green | CI Android #44 on 97487ce |
 | Android signed-release pipeline proven with dummy/test signing | CI *Android release test* (throwaway key, AAB + APK audited) on every push since 67ac258 |
 
 ## Test matrix (goal 06)
