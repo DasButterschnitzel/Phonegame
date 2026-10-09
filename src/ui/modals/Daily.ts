@@ -1,5 +1,5 @@
 import { DAILY_REWARDS, type DailyReward } from '../../game/daily.ts';
-import { button, h, showWhen } from '../dom.ts';
+import { button, exclusive, h, showWhen } from '../dom.ts';
 import { icon, type IconName } from '../icons.ts';
 import { fmt, t } from '../../platform/i18n/i18n.ts';
 import type { ModalStack } from './ModalStack.ts';
@@ -30,15 +30,16 @@ export function openDaily(modals: ModalStack, d: DailyInfo): void {
     });
     const row = h('div', { class: 'btn-row' });
     if (d.canClaim) {
-      const x2 = button('btn-big ad', async () => {
+      const one = exclusive();
+      const x2 = button('btn-big ad', one(async () => {
         if (await d.claim(2)) close();
-      }, icon('ad'), t('daily.claimX2'));
+      }), icon('ad'), t('daily.claimX2'));
       showWhen(x2, d.adAvailable);
       row.append(
-        button('btn-big soft', async () => {
+        button('btn-big soft', one(async () => {
           await d.claim(1);
           close();
-        }, t('common.claim')),
+        }), t('common.claim')),
         x2,
       );
     } else row.append(h('p', {}, t('daily.comeBack')));

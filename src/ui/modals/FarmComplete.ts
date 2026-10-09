@@ -1,5 +1,5 @@
 import type { TrailNode } from '../../game/world/trail.ts';
-import { button, countUp, h, showWhen } from '../dom.ts';
+import { button, countUp, exclusive, h, showWhen } from '../dom.ts';
 import { icon } from '../icons.ts';
 import { fmt, t } from '../../platform/i18n/i18n.ts';
 import type { ModalStack } from './ModalStack.ts';
@@ -37,13 +37,14 @@ export function openFarmComplete(modals: ModalStack, o: FarmCompleteInfo): void 
   const m = modals.push(
     'farmcomplete',
     (close) => {
-      const x2 = button('btn-big ad', async () => {
+      const one = exclusive();
+      const x2 = button('btn-big ad', one(async () => {
         if (await o.double()) {
           x2.disabled = true;
           amount.textContent = fmt(o.reward * 2);
           amount.parentElement?.animate([{ transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 400, easing: 'cubic-bezier(.3,1.6,.5,1)' });
         }
-      }, icon('ad'), t('farm.rewardX2'));
+      }), icon('ad'), t('farm.rewardX2'));
       showWhen(x2, () => o.adAvailable() && !x2.disabled);
       const amount = h('span', {}, fmt(0));
       countUp(amount, o.reward, fmt, 1200);
@@ -81,15 +82,15 @@ export function openFarmComplete(modals: ModalStack, o: FarmCompleteInfo): void 
           { class: 'btn-row' },
           // The ×2 offer takes the row's first line (when an ad is ready); the way on sits under it.
           x2,
-          button('btn-big soft btn-map', () => {
+          button('btn-big soft btn-map', one(() => {
             close();
             o.openMap();
-          }, icon('map'), t('map.title')),
+          }), icon('map'), t('map.title')),
           o.next
-            ? button('btn-big go btn-next', () => {
+            ? button('btn-big go btn-next', one(() => {
                 close();
                 o.goNext();
-              }, h('span', {}, o.worldOpens ? t('tour.start') : t('farm.goNext')), icon('arrow'))
+              }), h('span', {}, o.worldOpens ? t('tour.start') : t('farm.goNext')), icon('arrow'))
             : null,
         ),
       ];

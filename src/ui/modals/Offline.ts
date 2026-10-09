@@ -1,4 +1,4 @@
-import { button, countUp, h, showWhen } from '../dom.ts';
+import { button, countUp, exclusive, h, showWhen } from '../dom.ts';
 import { icon } from '../icons.ts';
 import { fmt, t } from '../../platform/i18n/i18n.ts';
 import { formatDuration } from '../../shared/format.ts';
@@ -8,9 +8,10 @@ export function openOffline(modals: ModalStack, o: { seconds: number; coins: num
   modals.push(
     'offline',
     (close) => {
-      const x3 = button('btn-big ad', async () => {
+      const one = exclusive();
+      const x3 = button('btn-big ad', one(async () => {
         if (await o.collect(3)) close();
-      }, icon('ad'), t('offline.collectX3'));
+      }), icon('ad'), t('offline.collectX3'));
       showWhen(x3, o.adAvailable);
       const amount = h('span', {}, fmt(0));
       countUp(amount, o.coins, fmt);
@@ -21,10 +22,10 @@ export function openOffline(modals: ModalStack, o: { seconds: number; coins: num
         h(
           'div',
           { class: 'btn-row' },
-          button('btn-big soft', async () => {
+          button('btn-big soft', one(async () => {
             await o.collect(1);
             close();
-          }, t('common.collect')),
+          }), t('common.collect')),
           x3,
         ),
       ];

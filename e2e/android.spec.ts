@@ -193,3 +193,25 @@ for (const [name, script, granted, toast] of [
     }
   });
 }
+
+test('process death during a rewarded ad: nothing is granted after the restart, even if the old ad reports a reward', async ({ page }) => {
+  await launch(page);
+  const chip = page.locator('.chip-incomeX2');
+  await expect(chip).toBeVisible({ timeout: 8000 });
+  // The ad appears and the process dies before it ends.
+  await page.evaluate(() => ((window as unknown as { __native: { rewardScript: unknown } }).__native.rewardScript = ['showed']));
+  await chip.click();
+  await page.locator('.modal-bonus .bonus-ad').click();
+  await expect.poll(() => native<string[]>(page, 'n.calls')).toContain('AdMob.showRewardVideoAd');
+  await page.reload();
+  await page.waitForFunction(() => document.documentElement.dataset.ready === '1', null, { timeout: 20_000 });
+  await expect(chip).toBeVisible({ timeout: 8000 });
+  // The SDK delivers the dead process's reward to the new one: nobody is waiting for it.
+  await page.evaluate(() => {
+    const n = (window as unknown as { __native: { fire(p: string, e: string, d?: unknown): void } }).__native;
+    n.fire('AdMob', 'onRewardedVideoAdReward', { type: 'coins', amount: 1 });
+    n.fire('AdMob', 'onRewardedVideoAdDismissed');
+  });
+  await page.waitForTimeout(2000);
+  await expect(chip).not.toHaveClass(/active/);
+});

@@ -368,11 +368,16 @@ export async function boot(): Promise<App | null> {
   const checkOffline = (elapsed: number) => {
     const r = offlineReward(sim.state, elapsed);
     if (r.coins <= 0 || game.modals.has('offline')) return;
+    // Paid out once, whichever button wins (the dialog also runs one action at a time).
+    let paid = false;
     openOffline(game.modals, {
       ...r,
       adAvailable: () => ads.ready('offline_x3'),
       collect: async (mult) => {
+        if (paid) return true;
         if (mult > 1 && !(await game.rewarded('offline_x3'))) return false;
+        if (paid) return true;
+        paid = true;
         sim.execute({ c: 'grantCoins', amount: r.coins * mult, reason: 'offline' });
         saves.saveSoon(200);
         return true;

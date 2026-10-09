@@ -11,7 +11,7 @@ import { openMap } from '../ui/modals/Map.ts';
 import { openFarmComplete } from '../ui/modals/FarmComplete.ts';
 import { openDaily } from '../ui/modals/Daily.ts';
 import { Gift } from '../ui/Gift.ts';
-import { button, countUp, h, showWhen } from '../ui/dom.ts';
+import { button, countUp, exclusive, h, showWhen } from '../ui/dom.ts';
 import { icon } from '../ui/icons.ts';
 import { fmt, t } from '../platform/i18n/i18n.ts';
 import { STARTER_FARMS, isStarterFarm } from '../game/types.ts';
@@ -90,12 +90,13 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
     const amount = giftReward(sim.state, sim.valueMult);
     const kind = sim.state.gift.kind;
     game.modals.push('gift', (close) => {
-      const x3 = button('btn-big ad', async () => {
+      const one = exclusive();
+      const x3 = button('btn-big ad', one(async () => {
         if (await game.rewarded('gift_x3')) {
           sim.execute({ c: 'claimGift', mult: 3 });
           close();
         }
-      }, icon('ad'), t('gift.collectX3'));
+      }), icon('ad'), t('gift.collectX3'));
       showWhen(x3, () => ads.ready('gift_x3'));
       const countEl = h('span', {}, fmt(0));
       countUp(countEl, amount, fmt, 700);
@@ -105,10 +106,10 @@ export function installMetaFlows(sim: Sim, game: GameController, meta: SaveMeta,
         h(
           'div',
           { class: 'btn-row' },
-          button('btn-big soft', () => {
+          button('btn-big soft', one(() => {
             sim.execute({ c: 'claimGift', mult: 1 });
             close();
-          }, t('common.collect')),
+          }), t('common.collect')),
           x3,
         ),
       ];

@@ -60,7 +60,7 @@ describe('AdMob configuration from the native build', () => {
       { interstitial: 'ca-app-pub-123/456' },
       { appId: REAL_R },
       { interstitial: DEMO_I },
-      { rewardedUpgrade: 'ca-app-pub-6543210987654321/2222222222' },
+      { rewardedUpgrade: 'ca-app-pub-6660000011112222/2222222222' },
       { appId: DEMO_APP, rewarded: DEMO_R, interstitial: DEMO_I },
       { appId: 'ca-app-pub-0000000000000000~0000000000', rewarded: 'ca-app-pub-0000000000000000/0000000000', interstitial: 'ca-app-pub-0000000000000000/0000000001' },
       { appId: 'ca-app-pub-1234567890123456~1111111111', rewarded: 'ca-app-pub-1234567890123456/2222222222', interstitial: 'ca-app-pub-1234567890123456/3333333333' },

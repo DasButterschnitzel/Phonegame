@@ -56,6 +56,22 @@ test('offline earnings dialog with x3 ad', async ({ page }) => {
   expect(after - before).toBeGreaterThanOrEqual(54000);
 });
 
+test('offline ×3: a second tap on Collect while the ad starts cannot pay out twice', async ({ page }) => {
+  await ready(page, '&adms=1500');
+  const before = await g<number>(page, 'g.state().coins');
+  await g(page, '(g.state().economy.ema = 10, g.simulateOffline(3600))');
+  await expect(page.locator('.modal-offline .reward-big')).toContainText('18.0K');
+  await page.locator('.modal-offline .btn-big.ad').click();
+  // A quick second tap that lands before the ad covers the screen.
+  await page.locator('.modal-offline .btn-big.soft').dispatchEvent('click');
+  await expect(page.locator('.modal-offline')).toBeHidden({ timeout: 6000 });
+  await expect(page.locator('.ad-overlay')).toHaveCount(0, { timeout: 6000 });
+  await page.waitForTimeout(300);
+  const gained = (await g<number>(page, 'g.state().coins')) - before;
+  expect(gained).toBeGreaterThanOrEqual(54000);
+  expect(gained).toBeLessThan(54000 + 18000);
+});
+
 test('offline earnings on reload after time away', async ({ page }) => {
   await ready(page);
   await g(page, '(g.state().economy.ema = 5, g.saveNow())');
