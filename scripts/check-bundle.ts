@@ -37,10 +37,12 @@ for (const flavor of Object.keys(ALLOWED)) {
   const leaks = present.filter((p) => !ALLOWED[flavor].includes(p));
   // AdMob IDs come only from the native build (android/app/admob.gradle): a shared web bundle must not carry any.
   const adIds = /ca-app-pub-\d/.test(text);
-  const ok = entryGz <= BUDGET_KB && leaks.length === 0 && !adIds;
+  // Templates (deploy/app-ads.txt.example) never ship inside a build.
+  const placeholder = /REPLACE_ME/.test(text);
+  const ok = entryGz <= BUDGET_KB && leaks.length === 0 && !adIds && !placeholder;
   if (!ok) failed = true;
   console.log(
-    `${ok ? '✓' : '✗'} ${flavor.padEnd(11)} initial JS ${entryGz.toFixed(0)} KB gz (budget ${BUDGET_KB})  providers: ${present.join(', ') || '—'}${leaks.length ? `  LEAK: ${leaks.join(', ')}` : ''}${adIds ? '  AD IDS IN BUNDLE' : ''}`,
+    `${ok ? '✓' : '✗'} ${flavor.padEnd(11)} initial JS ${entryGz.toFixed(0)} KB gz (budget ${BUDGET_KB})  providers: ${present.join(', ') || '—'}${leaks.length ? `  LEAK: ${leaks.join(', ')}` : ''}${adIds ? '  AD IDS IN BUNDLE' : ''}${placeholder ? '  REPLACE_ME IN BUNDLE' : ''}`,
   );
 }
 process.exit(failed ? 1 : 0);

@@ -51,4 +51,10 @@ describe('workflows', () => {
     expect(android).toMatch(/audit-android\.ts --apk "\$O\/apk_from_bundle\/release\/app-release-universal\.apk" --aab/);
     expect(workflows['android-release.yml']).toMatch(/audit-android\.ts --apk "\$O\/apk_from_bundle\/release\/app-release-universal\.apk" --aab/);
   });
+
+  it('the website never publishes placeholders (privacy policy, app-ads.txt template)', () => {
+    const pages = workflows['pages.yml'];
+    expect(pages).toContain(`grep -q 'class="todo"' dist/pages/privacy.html`);
+    expect(pages).toContain("grep -rqi 'REPLACE_ME' dist/pages");
+  });
 });

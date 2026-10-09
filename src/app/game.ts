@@ -29,6 +29,7 @@ import { fmt, onLangChange, setLang, t, type I18nKey } from '../platform/i18n/i1
 import type { Settings } from '../platform/settings.ts';
 import { bodyOffset } from '../game/caterpillar.ts';
 import { sampleAt } from '../game/path.ts';
+import { PRIVACY_URL } from '../platform/legal.ts';
 
 export interface GameDeps {
   sim: Sim;
@@ -254,7 +255,7 @@ export class GameController {
       },
       privacyOptionsAvailable: this.d.ads.provider.privacyOptionsAvailable,
       showPrivacyOptions: () => void this.d.ads.provider.showPrivacyOptions?.(),
-      privacyUrl: import.meta.env.VITE_FLAVOR === 'youtube' || import.meta.env.VITE_FLAVOR === 'crazygames' ? '' : 'https://dasbutterschnitzel.github.io/Phonegame/privacy.html',
+      privacyUrl: import.meta.env.VITE_FLAVOR === 'youtube' || import.meta.env.VITE_FLAVOR === 'crazygames' ? '' : PRIVACY_URL,
       resetProgress: () => this.d.resetProgress(),
       version: __APP_VERSION__,
       notify: (m) => this.toasts.show(m),

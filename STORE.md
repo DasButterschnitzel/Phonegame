@@ -19,7 +19,7 @@ meadow and your route grows into it, until the whole farm is yours.
 • Clear the land and watch your route grow across the farm
 • Merge segments and discover new levels
 • Upgrade speed and baskets, open fences to richer fields
-• 5 farms: Sunny Meadow, Pumpkin Patch, Sunflower Hills, Snowy Berry Farm and Cactus Ranch
+• Five starter farms, then an endless World Tour through 18 biomes
 • Finished farms keep earning — even while you're away
 • Tornadoes, golden crops, lucky ladybugs and daily rewards
 Free to play. Optional ads give bonuses.
@@ -32,7 +32,7 @@ Parzelle wird zur Wiese und deine Route wächst hinein, bis der ganze Hof dir ge
 • Räume das Land und sieh zu, wie deine Route über den Hof wächst
 • Segmente fusionieren und neue Stufen entdecken
 • Tempo und Körbe verbessern, Zäune zu reicheren Feldern öffnen
-• 5 Höfe: Sonnenwiese, Kürbisfeld, Sonnenblumenhügel, Schneebeerenhof und Kaktusranch
+• Fünf Start-Höfe, danach eine endlose Welttour durch 18 Biome
 • Abgeschlossene Höfe verdienen weiter – auch wenn du nicht spielst
 • Tornados, goldene Pflanzen, Glücks-Marienkäfer und tägliche Belohnungen
 Kostenlos spielbar. Optionale Werbung gibt Boni.
@@ -41,30 +41,11 @@ Kostenlos spielbar. Optionale Werbung gibt Boni.
 - App icon 512×512: `store/icon-512.png` · Feature graphic 1024×500: `store/feature-1024x500.png`
 - Phone screenshots: run `npm run e2e` and pick from `e2e-screens/` (or capture on a device).
 
-## Play Console answers (draft — verify before submitting)
-- **Target audience:** 13–15, 16–17, 18+ (not designed for children). Keep store art and copy aimed at a general
-  audience. If Google flags "may unintentionally appeal to children", answer honestly; fallback is a neutral age gate
-  + `tagForChildDirectedTreatment` for under-13 users.
-- **Ads:** contains ads (AdMob). Interstitials only at natural breaks; rewarded ads are opt-in.
-- **Data safety:** device or other IDs (advertising ID) and app interactions/diagnostics are **collected and shared**
-  with Google AdMob for advertising/analytics and fraud prevention; data is encrypted in transit; game progress stays
-  on the device; users can delete it via Settings → Reset progress or uninstall.
-- **Content rating (IARC):** cartoon violence: none (crops are "chomped"); no user interaction, no gambling,
-  no location sharing. Expected PEGI 3 / USK 0.
-- **Privacy policy URL:** `https://dasbutterschnitzel.github.io/Phonegame/privacy.html` (after enabling Pages) —
-  fill in the placeholders in `public/privacy.html` first.
-- **Impressum:** required for a German publisher (§ 5 DDG) — add it to the website / store listing.
+## Play Console, AdMob and release
 
-## AdMob setup
-1. Create the Android (and iOS) app in AdMob, plus one **rewarded** and one **interstitial** ad unit per platform.
-2. Privacy & messaging → create a **GDPR** message (and US state regulations message); for iOS also the IDFA explainer.
-3. Put the IDs into GitHub repo variables (`ADMOB_REAL=true`, `ADMOB_APP_ID_ANDROID`, `ADMOB_ANDROID_REWARDED`,
-   `ADMOB_ANDROID_INTERSTITIAL`) or the matching local env vars (see `.env.example`).
-4. `app-ads.txt` must be served from the root of the developer website domain listed in Play (needs your own domain).
-
-## Release checklist
-- [ ] Fill in `public/privacy.html` placeholders, publish via GitHub Pages
-- [ ] Real AdMob IDs configured; test on a real device with test devices registered
-- [ ] Upload keystore secrets; tag `v0.1.0` → signed AAB artifact
-- [ ] Internal testing track → closed testing (Google requires 12 testers for 14 days for new personal accounts)
-- [ ] Check performance on a mid-range phone (Graphics: Auto picks Low/Medium; dynamic resolution is on)
+- Declarations (ads, target audience, data safety, advertising ID, privacy policy, content rating, testing tracks,
+  production access): `docs/PLAY_CONSOLE_CHECKLIST.md`
+- Data collected by the SDKs: `docs/DATA_SAFETY_INVENTORY.md` · privacy policy: `public/privacy.html`
+- AdMob build modes, test devices, consent testing: `docs/ADMOB_TESTING.md`
+- Store artifacts, secrets, signing, versioning and the release procedure: `docs/RELEASE_CHECKLIST.md`
+- Website files for butterweich.media (app-ads.txt template, product page, support): `deploy/`

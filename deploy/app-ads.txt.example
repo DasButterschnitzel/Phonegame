@@ -1,0 +1,11 @@
+# app-ads.txt for https://butterweich.media/app-ads.txt — TEMPLATE, NOT VALID AS-IS.
+#
+# 1. Replace REPLACE_ME with the 16-digit number of your AdMob publisher ID
+#    (AdMob → Settings → Account information → Publisher ID "pub-…"). Copy it from AdMob; never guess it.
+# 2. Save the result as app-ads.txt (plain text, UTF-8) at the root of the developer website:
+#    https://butterweich.media/app-ads.txt — the same host as the "Website" in the Play Console store listing.
+# 3. Check it before and after uploading:
+#      node scripts/check-app-ads.ts path/to/app-ads.txt
+#      node scripts/check-app-ads.ts --url https://butterweich.media/app-ads.txt
+#    Both refuse this template (REPLACE_ME) and anything malformed.
+google.com, pub-REPLACE_ME, DIRECT, f08c47fec0942fa0
