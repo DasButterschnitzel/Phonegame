@@ -4,7 +4,7 @@ import { modeLine, resolveAdMobConfig, rewardedUnit, type NativeAdConfig } from 
 const DEMO_APP = 'ca-app-pub-3940256099942544~3347511713';
 const DEMO_R = 'ca-app-pub-3940256099942544/5224354917';
 const DEMO_I = 'ca-app-pub-3940256099942544/1033173712';
-const PUB = '1234567890123456';
+const PUB = '5550000011112222';
 const REAL_APP = `ca-app-pub-${PUB}~1111111111`;
 const REAL_R = `ca-app-pub-${PUB}/2222222222`;
 const REAL_I = `ca-app-pub-${PUB}/3333333333`;
@@ -62,6 +62,8 @@ describe('AdMob configuration from the native build', () => {
       { interstitial: DEMO_I },
       { rewardedUpgrade: 'ca-app-pub-6543210987654321/2222222222' },
       { appId: DEMO_APP, rewarded: DEMO_R, interstitial: DEMO_I },
+      { appId: 'ca-app-pub-0000000000000000~0000000000', rewarded: 'ca-app-pub-0000000000000000/0000000000', interstitial: 'ca-app-pub-0000000000000000/0000000001' },
+      { appId: 'ca-app-pub-1234567890123456~1111111111', rewarded: 'ca-app-pub-1234567890123456/2222222222', interstitial: 'ca-app-pub-1234567890123456/3333333333' },
     ];
     for (const o of cases) {
       const c = resolveAdMobConfig('android', productionBuild(o));

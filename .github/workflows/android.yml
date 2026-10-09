@@ -1,21 +1,30 @@
 name: Android
 
+# Every push: a debug APK and a release-test build. Both carry Google's demo ads only, and the release test is signed
+# with a throwaway key made in the job — no push ever touches production secrets, live ad units or the upload key.
+# Production releases: android-release.yml (manual, protected environment).
+
 on:
   push:
-    # With a tags filter, branches must be listed explicitly or branch pushes never match.
     branches: ['**']
-    tags: ['v*']
-    paths: ['android/**', 'capacitor.config.ts', 'src/**', 'package*.json', '.github/workflows/android.yml']
+    paths: ['android/**', 'capacitor.config.ts', 'src/**', 'scripts/**', 'package*.json', '.github/workflows/android.yml']
   pull_request:
-    paths: ['android/**', 'capacitor.config.ts', 'src/**', 'package*.json', '.github/workflows/android.yml']
+    paths: ['android/**', 'capacitor.config.ts', 'src/**', 'scripts/**', 'package*.json', '.github/workflows/android.yml']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  apk:
+  debug:
+    name: Android debug (demo ads)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
       VERSION_CODE: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
@@ -34,34 +43,113 @@ jobs:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0 build-tools;35.0.0'
       - run: npm ci
       - name: Build web assets (native flavor)
-        env:
-          VITE_ADMOB_REAL: ${{ vars.ADMOB_REAL || 'false' }}
-          VITE_ADMOB_ANDROID_REWARDED: ${{ vars.ADMOB_ANDROID_REWARDED }}
-          VITE_ADMOB_ANDROID_INTERSTITIAL: ${{ vars.ADMOB_ANDROID_INTERSTITIAL }}
         run: npm run build:native && npx cap sync android
       - name: Version name from package.json
         run: echo "VERSION_NAME=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
-      - name: Debug APK
+      - name: Debug APK, built with production-looking AdMob settings it must ignore
         working-directory: android
+        env:
+          # Fake but well-formed values: a debug build has to come out with Google's demo units anyway.
+          ADMOB_REAL: 'true'
+          ADMOB_MODE: production
+          ADMOB_APP_ID_ANDROID: ca-app-pub-5550000011112222~1111111111
+          ADMOB_ANDROID_REWARDED: ca-app-pub-5550000011112222/2222222222
+          ADMOB_ANDROID_INTERSTITIAL: ca-app-pub-5550000011112222/3333333333
         run: ./gradlew assembleDebug --no-daemon
+      - name: Audit the debug APK (demo ads only)
+        run: node scripts/audit-android.ts --apk android/app/build/outputs/apk/debug/app-debug.apk --mode test --debuggable --signed
       - uses: actions/upload-artifact@v4
         with:
           name: crop-crawler-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
-      - name: Signed release bundle (AAB)
-        if: env.HAS_KEYSTORE == 'true'
+
+  release-test:
+    name: Android release test (throwaway key, demo ads)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0 build-tools;35.0.0'
+      - run: npm ci
+      - name: Build web assets (native flavor)
+        run: npm run build:native && npx cap sync android
+      - name: versionCode from the version
+        id: version
+        run: node scripts/version.ts --github-output
+      - name: Broken release configurations are refused
+        working-directory: android
+        run: |
+          # Each case must fail, and fail on one of the release guards (not on something else).
+          refused() {
+            name="$1"; shift
+            if out="$(env "$@" ./gradlew -q --continue :app:checkAdMobRelease :app:checkReleaseSigning 2>&1)"; then
+              echo "::error::A release build accepted: $name"
+              exit 1
+            fi
+            if ! grep -q -e 'AdMob release configuration is invalid' -e 'Release build refused' <<< "$out"; then
+              echo "::error::Failed, but not on a release guard: $name"
+              grep -A3 'What went wrong' <<< "$out"
+              exit 1
+            fi
+            echo "refused, as it must be: $name"
+          }
+          P=5550000011112222
+          IDS="ADMOB_APP_ID_ANDROID=ca-app-pub-$P~1111111111 ADMOB_ANDROID_REWARDED=ca-app-pub-$P/2222222222 ADMOB_ANDROID_INTERSTITIAL=ca-app-pub-$P/3333333333"
+          refused "production without IDs" ADMOB_MODE=production
+          refused "ADMOB_REAL=true with only the app ID" ADMOB_REAL=true ADMOB_APP_ID_ANDROID=ca-app-pub-$P~1111111111
+          refused "a demo unit in production" ADMOB_MODE=production ADMOB_APP_ID_ANDROID=ca-app-pub-$P~1111111111 ADMOB_ANDROID_REWARDED=ca-app-pub-3940256099942544/5224354917 ADMOB_ANDROID_INTERSTITIAL=ca-app-pub-$P/3333333333
+          refused "a placeholder publisher" ADMOB_MODE=production ADMOB_APP_ID_ANDROID=ca-app-pub-0000000000000000~0000000000 ADMOB_ANDROID_REWARDED=ca-app-pub-0000000000000000/0000000000 ADMOB_ANDROID_INTERSTITIAL=ca-app-pub-0000000000000000/0000000001
+          refused "a malformed unit" ADMOB_MODE=production ADMOB_APP_ID_ANDROID=ca-app-pub-$P~1111111111 ADMOB_ANDROID_REWARDED=REPLACE_ME ADMOB_ANDROID_INTERSTITIAL=ca-app-pub-$P/3333333333
+          refused "contradictory switches" ADMOB_REAL=true ADMOB_MODE=test
+          # shellcheck disable=SC2086
+          refused "an unsigned production build" ADMOB_MODE=production VERSION_CODE=1 $IDS
+          refused "incomplete signing secrets" ANDROID_KEYSTORE_PATH=/nonexistent ANDROID_KEY_ALIAS=x
+      - name: Throwaway signing key (made here, deleted below, never a real key)
+        run: |
+          pass="$(openssl rand -hex 16)"
+          echo "::add-mask::$pass"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/release-test.jks" -storetype PKCS12 -alias releasetest \
+            -keyalg RSA -keysize 2048 -validity 2 -dname "CN=Crop Crawler Release Test, O=CI throwaway" \
+            -storepass "$pass" -keypass "$pass" > /dev/null 2>&1
+          {
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release-test.jks"
+            echo "ANDROID_KEYSTORE_PASSWORD=$pass"
+            echo "ANDROID_KEY_ALIAS=releasetest"
+            echo "ANDROID_KEY_PASSWORD=$pass"
+          } >> "$GITHUB_ENV"
+      - name: Release bundle and APK (test mode)
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ADMOB_APP_ID_ANDROID: ${{ vars.ADMOB_APP_ID_ANDROID }}
+          ADMOB_MODE: test
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+        run: ./gradlew bundleRelease assembleRelease packageReleaseUniversalApk --no-daemon
+      - name: Audit the bundle and the APK
+        env:
+          VC: ${{ steps.version.outputs.version_code }}
+          VN: ${{ steps.version.outputs.version_name }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
-          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.keystore"
-          ./gradlew bundleRelease --no-daemon
+          O=android/app/build/outputs
+          node scripts/audit-android.ts --apk "$O/apk_from_bundle/release/app-release-universal.apk" --aab "$O/bundle/release/app-release.aab" \
+            --mode test --signed --version-code "$VC" --version-name "$VN" --no-test-devices
+          node scripts/audit-android.ts --apk "$O/apk/release/app-release.apk" --mode test --signed --version-code "$VC" --version-name "$VN" --no-test-devices
+      - name: Delete the throwaway key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release-test.jks"
       - uses: actions/upload-artifact@v4
-        if: env.HAS_KEYSTORE == 'true'
         with:
-          name: crop-crawler-release-aab
-          path: android/app/build/outputs/bundle/release/app-release.aab
+          # A release build with Google's demo ads, signed with this run's throwaway key: for testing release behaviour.
+          name: crop-crawler-release-test-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 14

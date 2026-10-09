@@ -11,6 +11,8 @@ export const DEMO_PUBLISHER = '3940256099942544';
 const APP_ID = /^ca-app-pub-(\d{16})~\d{10}$/;
 const UNIT_ID = /^ca-app-pub-(\d{16})\/\d{10}$/;
 const DEVICE_ID = /^[0-9A-Fa-f]{32}$/;
+/** Copied from docs or typed as a stand-in, never a real publisher (also refused by admob.gradle). */
+export const PLACEHOLDER_PUBLISHER = /^(\d)\1{15}$|^1234567890123456$|^0123456789012345$/;
 
 export type AdMobMode = 'test' | 'production' | 'disabled';
 
@@ -81,6 +83,7 @@ export function resolveAdMobConfig(platform: string, n: NativeAdConfig | null): 
   const demo = publishers.has(DEMO_PUBLISHER);
   if (n.mode === 'test' && !demo) return disabled('test mode without demo units');
   if (n.mode === 'production' && demo) return disabled('production mode with demo units');
+  if (n.mode === 'production' && [...publishers].some((p) => PLACEHOLDER_PUBLISHER.test(p ?? ''))) return disabled('placeholder publisher');
   if (n.mode === 'production' && n.debuggable) return disabled('a debuggable build never uses production units');
   const geo = n.umpDebugGeography;
   return {

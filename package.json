@@ -32,7 +32,9 @@
     "worldgen": "node scripts/worldgen.ts",
     "journey": "node scripts/journey-bench.ts",
     "endless": "node scripts/endless.ts",
-    "sessions": "node scripts/sessions.ts"
+    "sessions": "node scripts/sessions.ts",
+    "version:code": "node scripts/version.ts",
+    "audit:android": "node scripts/audit-android.ts"
   },
   "dependencies": {
     "@capacitor-community/admob": "8.2.1",

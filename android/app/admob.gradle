@@ -19,6 +19,8 @@ def DEMO_INTERSTITIAL = 'ca-app-pub-3940256099942544/1033173712'
 def APP_ID = ~/^ca-app-pub-(\d{16})~\d{10}$/
 def UNIT_ID = ~/^ca-app-pub-(\d{16})\/\d{10}$/
 def DEVICE_ID = ~/^[0-9A-Fa-f]{32}$/
+// Copied from docs or typed as a stand-in, never a real publisher.
+def PLACEHOLDER_PUBLISHER = ~/^(\d)\1{15}$|^1234567890123456$|^0123456789012345$/
 def ID_VARS = ['ADMOB_APP_ID_ANDROID', 'ADMOB_ANDROID_REWARDED', 'ADMOB_ANDROID_INTERSTITIAL',
                'ADMOB_ANDROID_REWARDED_BOOST', 'ADMOB_ANDROID_REWARDED_UPGRADE', 'ADMOB_ANDROID_REWARDED_BONUS']
 
@@ -85,6 +87,7 @@ def resolveRelease = { ->
             return ''
         }
         if (m.group(1) == DEMO_PUBLISHER) errors << "${name} is one of Google's demo IDs".toString()
+        else if (m.group(1) ==~ PLACEHOLDER_PUBLISHER) errors << "${name} is a placeholder, not a real publisher ID".toString()
         publishers << m.group(1)
         return v
     }

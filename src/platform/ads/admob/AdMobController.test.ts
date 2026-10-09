@@ -6,7 +6,7 @@ import type { NativeAdConfig } from './config.ts';
 
 const DEMO_R = 'ca-app-pub-3940256099942544/5224354917';
 const DEMO_I = 'ca-app-pub-3940256099942544/1033173712';
-const PUB = '1234567890123456';
+const PUB = '5550000011112222';
 const R = `ca-app-pub-${PUB}/2222222222`;
 const R_BONUS = `ca-app-pub-${PUB}/4444444444`;
 const I = `ca-app-pub-${PUB}/3333333333`;

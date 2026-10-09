@@ -85,7 +85,7 @@ test('no ad fill: the game still starts and hides ad-only offers', async ({ page
 });
 
 const DEMO_REWARDED = 'ca-app-pub-3940256099942544/5224354917';
-const REAL = { appId: 'ca-app-pub-1234567890123456~1111111111', rewarded: 'ca-app-pub-1234567890123456/2222222222', interstitial: 'ca-app-pub-1234567890123456/3333333333' };
+const REAL = { appId: 'ca-app-pub-5550000011112222~1111111111', rewarded: 'ca-app-pub-5550000011112222/2222222222', interstitial: 'ca-app-pub-5550000011112222/3333333333' };
 
 test('a release build in TEST mode says so and only loads Google demo units', async ({ page }) => {
   await launch(page);
