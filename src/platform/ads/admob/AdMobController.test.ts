@@ -163,7 +163,7 @@ describe('AdMob consent gate', () => {
     f.bridge.requestConsentUpdate = (d) => new Promise((r) => (release = () => r(slow(d))));
     const c = controller(f);
     const init = c.init();
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(requests(f.calls)).toEqual([]);
     expect(c.isRewardedReady()).toBe(false);
     release();
@@ -187,6 +187,50 @@ describe('AdMob consent gate', () => {
   it('offline with an earlier decision: the stored canRequestAds() still allows ads', async () => {
     const { f } = await ready({ update: 'fail', stored: true });
     expect(f.calls.slice(0, 4)).toEqual(['config', 'update', 'consent', 'initialize']);
+  });
+
+  it('a consent update that hangs counts as failed after 15 s: the stored decision applies, and resume retries', async () => {
+    const f = fake({ stored: true });
+    const update = f.bridge.requestConsentUpdate;
+    let hang = true;
+    f.bridge.requestConsentUpdate = (d) => (hang ? new Promise(() => {}) : update(d));
+    const c = controller(f);
+    const init = c.init();
+    await vi.advanceTimersByTimeAsync(14_000);
+    expect(requests(f.calls)).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await init;
+    await settle();
+    expect(c.isRewardedReady()).toBe(true);
+    // Without a stored decision a hung update means no ads, and the next resume (a minute on) asks again.
+    const g = fake({ stored: false });
+    const gUpdate = g.bridge.requestConsentUpdate;
+    g.bridge.requestConsentUpdate = () => new Promise(() => {});
+    const d = controller(g);
+    const gInit = d.init();
+    await vi.advanceTimersByTimeAsync(15_000);
+    await gInit;
+    expect(requests(g.calls)).toEqual([]);
+    hang = false;
+    g.bridge.requestConsentUpdate = gUpdate;
+    now = 61_000;
+    d.foreground();
+    await settle();
+    expect(d.isRewardedReady()).toBe(true);
+  });
+
+  it('an SDK start that never answers does not block loading forever', async () => {
+    const f = fake();
+    f.bridge.initialize = () => new Promise(() => {});
+    const c = controller(f);
+    const init = c.init();
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(f.calls.some((x) => x.startsWith('prepare'))).toBe(false);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await init;
+    await settle();
+    expect(f.calls.some((x) => x.startsWith('prepare rewarded'))).toBe(true);
+    expect(c.isRewardedReady()).toBe(true);
   });
 
   it('a UMP error never means "allow": an earlier "not allowed" stays not allowed', async () => {

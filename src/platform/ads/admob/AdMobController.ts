@@ -10,6 +10,10 @@ const START_MS = 15_000;
 const REWARD_GRACE_MS = 1_000;
 /** A consent update that failed (offline) is retried on resume at most this often. */
 const CONSENT_RETRY_MS = 60_000;
+/** A consent update that hangs (captive portal, dead network) counts as failed after this long. */
+const UPDATE_TIMEOUT_MS = 15_000;
+/** SDK start: the plugin answers once MobileAds.initialize ran; if it never does, loads go ahead after this long. */
+const INIT_TIMEOUT_MS = 10_000;
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -39,6 +43,23 @@ export interface ControllerDeps {
   /** Monotonic milliseconds. */
   now: () => number;
   log: (msg: string) => void;
+}
+
+/** Rejects when `p` has not settled after `ms`. */
+function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(`${what} timed out`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(id);
+        resolve(v);
+      },
+      (e: unknown) => {
+        clearTimeout(id);
+        reject(e);
+      },
+    );
+  });
 }
 
 /** Error text for logs, with any ad ID masked (logs never carry publisher configuration). */
@@ -153,7 +174,7 @@ export class AdMobController implements AdService {
       let failed = false;
       try {
         const geo = this.cfg.umpDebugGeography;
-        const info = await this.bridge.requestConsentUpdate(geo ? { geography: geo, testDevices: this.cfg.testDevices } : null);
+        const info = await within(this.bridge.requestConsentUpdate(geo ? { geography: geo, testDevices: this.cfg.testDevices } : null), UPDATE_TIMEOUT_MS, 'consent update');
         if (info.status === 'REQUIRED' && info.formAvailable) {
           try {
             await this.bridge.showConsentForm();
@@ -184,7 +205,7 @@ export class AdMobController implements AdService {
     if (!this.sdkStarted) {
       await this.bridge.requestTracking().catch(() => undefined);
       try {
-        await this.bridge.initialize({ testDevices: this.cfg.testDevices, ...AUDIENCE });
+        await within(this.bridge.initialize({ testDevices: this.cfg.testDevices, ...AUDIENCE }), INIT_TIMEOUT_MS, 'initialize');
       } catch (e) {
         // The plugin can reject after MobileAds.initialize already ran (its banner-view check); loads tell the truth.
         this.deps.log(`initialize: ${why(e)}`);

@@ -74,6 +74,7 @@ requests an ad. Gameplay never waits for any of it.
 | form fails to load (network) | no ads; the update is retried on resume, at most once a minute |
 | form dismissed without an answer | no ads until the next launch (no nagging on every resume) |
 | first launch offline | no decision stored → no ads, game runs normally, retried on resume |
+| update hangs (captive portal, dead network) | counted as failed after 15 s: the stored decision applies, retried on resume |
 | offline with an earlier decision | UMP's stored decision applies: ads if it allowed them |
 | player changes privacy options (Settings → Privacy options, shown when UMP requires it) | ads loaded under the old choice are dropped; the new decision applies at once, no restart |
 

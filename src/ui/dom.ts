@@ -128,7 +128,6 @@ export function onTap(el: HTMLElement, fn: (e: Event) => void): void {
   });
 }
 
-/** Button helper: press feedback + tap handler (works as a second finger too); swallows game input. */
 /**
  * One action at a time for a dialog's buttons: while one runs (an ad playing for a ×3), taps on any of them are
  * ignored, so a quick second tap can never claim a reward twice.
@@ -146,6 +145,7 @@ export function exclusive(): (fn: () => unknown) => () => Promise<void> {
   };
 }
 
+/** Button helper: press feedback + tap handler (works as a second finger too); swallows game input. */
 export function button(cls: string, onClick: (e: Event) => void, ...children: Child[]): HTMLButtonElement {
   const b = h('button', { class: `btn ${cls}`, 'data-ui': true, type: 'button' }, ...children);
   onTap(b, onClick);
