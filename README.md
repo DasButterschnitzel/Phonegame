@@ -87,6 +87,14 @@ counterpart of `AdConfigPlugin.java` still has to be written on a Mac. Before an
 build configuration, like `admob.gradle`), replace `GADApplicationIdentifier` in `ios/App/App/Info.plist`, add the
 `InfoPlist.strings` (en/de) files to the target for a localised tracking prompt, and configure signing in Xcode.
 
+## Custom music
+
+The music is procedural (a tune per biome family). To use your own files instead: put them in `public/music/`
+(`.ogg`/`.m4a`/`.mp3`) and set `MUSIC.source` in `src/platform/audio/music.ts` — one `track` looped everywhere, or a
+`playlist` played in order, optionally with its own track per biome family (crossfaded on travel). Files are streamed,
+paused with ads and in the background, follow the music setting, and a file that fails falls back to the procedural
+tunes. Try files without rebuilding in a dev build: `?music={"kind":"track","file":"theme.ogg"}`.
+
 ## Windows / desktop
 
 Install the web build as a PWA from Edge or Chrome (`dist/web`, also deployed to GitHub Pages by `pages.yml`).

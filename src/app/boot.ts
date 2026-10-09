@@ -31,6 +31,7 @@ import { openOffline } from '../ui/modals/Offline.ts';
 import { button, h } from '../ui/dom.ts';
 import { openCollection, openNewLevel } from '../ui/modals/NewLevel.ts';
 import { AudioEngine } from '../platform/audio/AudioEngine.ts';
+import { parseMusicSource } from '../platform/audio/music.ts';
 import { Haptics } from '../platform/haptics.ts';
 import { Tutorial } from './tutorial.ts';
 import { juice, juiceFrame } from './juice.ts';
@@ -48,6 +49,7 @@ export interface App {
   saves: SaveManager;
   meta: SaveMeta;
   settings: Settings;
+  audio: AudioEngine;
   checkOffline: (elapsed: number) => void;
 }
 
@@ -145,6 +147,10 @@ export async function boot(): Promise<App | null> {
   // Sound, haptics, tutorial and juice.
   const audio = new AudioEngine();
   audio.setFlavour(sim.farm.biome);
+  // Dev/e2e builds can try out the owner's music files without a rebuild: ?music={"kind":"track","file":"x.ogg"}.
+  const musicParam = debug ? params.get('music') : null;
+  const musicOverride = musicParam ? parseMusicSource(musicParam) : null;
+  if (musicOverride) audio.useMusic(musicOverride);
   game.onArrive = (newBiome) => {
     audio.arrive(newBiome);
     haptics.fire(newBiome ? 'success' : 'light');
@@ -471,7 +477,7 @@ export async function boot(): Promise<App | null> {
   if (provider.name !== 'crazygames') void ads.init();
   saves.startAutosave();
 
-  const app: App = { sim, renderer, loop, pause, input, game, ads, saves, meta, settings, checkOffline };
+  const app: App = { sim, renderer, loop, pause, input, game, ads, saves, meta, settings, audio, checkOffline };
   if (debug) {
     const { installDebug } = await import('./debug.ts');
     installDebug(app);

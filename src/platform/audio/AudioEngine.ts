@@ -1,9 +1,12 @@
 import type { BiomeId } from '../../game/types.ts';
+import type { FileMusic, FileMusicState } from './FileMusic.ts';
 import { bassNote, flavourOf, type AmbienceKind, type MusicFlavour } from './flavours.ts';
+import { MUSIC, type MusicSource } from './music.ts';
 
 /**
  * Procedural WebAudio sound: no audio files. SFX pitch and motor/music tempo follow the caterpillar's speed; the
- * farm's biome family picks the music flavour and a quiet ambience.
+ * farm's biome family picks the music flavour and a quiet ambience. The music can come from the owner's own files
+ * instead (music.ts → FileMusic); everything else stays procedural.
  */
 type Ctx = BaseAudioContext;
 
@@ -70,6 +73,12 @@ export class AudioEngine {
   private flavour: MusicFlavour = flavourOf('meadow');
   /** Context time of the next ambience sound (-1: pick one shortly after the farm starts). */
   private nextAmb = -1;
+  /** Music source (music.ts). While `files` plays, the procedural tune rests; null = procedural. */
+  private source: MusicSource = MUSIC.source;
+  private files: FileMusic | null = null;
+  private biome: BiomeId = 'meadow';
+  /** 0..1 on top of the music on/off setting. */
+  private musicVolume = 1;
 
   /** Rendering into an OfflineAudioContext (audio QA): automation is allowed while not "running". */
   private offline = false;
@@ -144,8 +153,45 @@ export class AudioEngine {
       for (const o of [this.whine, this.whine2, vib]) o.start();
       tex.start();
       this.applyGain();
+      void this.startFiles();
     }
     this.syncRunning();
+  }
+
+  /** Switches the music source (music.ts); debug builds can override it with `?music=`. */
+  useMusic(source: MusicSource): void {
+    this.source = source;
+    this.files?.dispose();
+    this.files = null;
+    void this.startFiles();
+  }
+
+  /** What the music is doing (debug/tests). */
+  musicState(): { source: MusicSource['kind']; files: FileMusicState | null } {
+    return { source: this.source.kind, files: this.files?.state() ?? null };
+  }
+
+  /** The owner's files are streamed only when chosen: the module is not even loaded for procedural music. */
+  private async startFiles(): Promise<void> {
+    const src = this.source;
+    if (src.kind === 'procedural' || !this.ctx || this.offline) return;
+    const { FileMusic } = await import('./FileMusic.ts');
+    if (src !== this.source || this.files) return;
+    const fm = new FileMusic(this.ctx as AudioContext, this.musicBus, src, { gain: MUSIC.fileGain, crossfadeS: MUSIC.crossfadeS, base: MUSIC.base });
+    fm.onFail = (why) => {
+      console.warn(`music: ${why} — back to the procedural tunes`);
+      if (this.files !== fm) return;
+      fm.dispose();
+      this.files = null;
+    };
+    this.files = fm;
+    fm.setBiome(this.biome);
+    this.syncFiles();
+  }
+
+  /** Files pause with everything else that silences music: ads, background, portal pauses, the music setting. */
+  private syncFiles(): void {
+    this.files?.setPaused(this.muted || !this.musicOn || this.musicVolume <= 0);
   }
 
   /**
@@ -181,23 +227,34 @@ export class AudioEngine {
     this.musicOn = music;
     this.applyGain();
     this.syncRunning();
+    this.syncFiles();
+  }
+
+  /** Music loudness 0..1 under the on/off setting (procedural tunes and files alike). */
+  setMusicVolume(v: number): void {
+    this.musicVolume = Math.min(1, Math.max(0, v));
+    this.applyGain();
+    this.syncFiles();
   }
 
   /** Mute while ads play / app is backgrounded. */
   setMuted(m: boolean): void {
     this.muted = m;
     this.syncRunning();
+    this.syncFiles();
   }
 
   private applyGain(): void {
     if (!this.ctx) return;
     this.sfx.gain.value = this.soundOn ? 0.6 : 0;
-    this.musicBus.gain.value = this.musicOn ? 0.14 : 0;
+    this.musicBus.gain.value = this.musicOn ? 0.14 * this.musicVolume : 0;
     this.ambBus.gain.value = this.soundOn ? 0.6 : 0;
   }
 
   /** The farm's biome family picks the music flavour and the ambience; the tune starts again from its first bar. */
   setFlavour(biome: BiomeId): void {
+    this.biome = biome;
+    this.files?.setBiome(biome);
     const f = flavourOf(biome);
     if (f === this.flavour) return;
     this.flavour = f;
@@ -646,7 +703,7 @@ export class AudioEngine {
 
   /** Schedules the farm's tune `horizon` seconds ahead (8th-note grid: `beat` counts half beats, a bar is 8). */
   private scheduleMusic(horizon = 0.25): void {
-    if (!this.ctx || !this.musicOn || this.muted) return;
+    if (!this.ctx || !this.musicOn || this.muted || this.files) return;
     const ctx = this.ctx;
     const fl = this.flavour;
     const bpm = fl.bpm * (0.95 + 0.2 * this.speed);
