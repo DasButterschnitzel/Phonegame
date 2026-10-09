@@ -394,6 +394,7 @@ export async function boot(): Promise<App | null> {
         hiddenAt = 0;
         // A long break is a fresh session: the interstitial warm-up applies again.
         if (away > 300) ads.newSession();
+        ads.foreground();
         if (!ads.inAd && away > 0) checkOffline(away);
       },
       onBack: () => game.modals.back(),

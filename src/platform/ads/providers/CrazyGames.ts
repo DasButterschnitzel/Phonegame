@@ -1,4 +1,4 @@
-import type { AdService, BreakKind, Placement } from '../AdService.ts';
+import type { AdService, BreakKind, Placement, RewardOutcome } from '../AdService.ts';
 import type { PortalHooks } from '../../portal.ts';
 import type { KeyValueStore } from '../../storage/Storage.ts';
 
@@ -69,22 +69,26 @@ export class CrazyGamesAds implements AdService, PortalHooks {
     return this.ready && !this.adblock;
   }
 
-  private request(type: 'rewarded' | 'midgame'): Promise<boolean> {
+  /** 'finished' (a rewarded ad then grants its reward), 'error' after the ad started, or 'none' when it never did. */
+  private request(type: 'rewarded' | 'midgame'): Promise<'finished' | 'error' | 'none'> {
     return new Promise((resolve) => {
-      if (!this.ready) return resolve(false);
+      if (!this.ready) return resolve('none');
+      let started = false;
       sdk()!.ad.requestAd(type, {
-        adFinished: () => resolve(true),
-        adError: () => resolve(false),
+        adStarted: () => (started = true),
+        adFinished: () => resolve('finished'),
+        adError: () => resolve(started ? 'error' : 'none'),
       });
     });
   }
 
-  showRewarded(_p: Placement): Promise<boolean> {
-    return this.request('rewarded');
+  async showRewarded(_p: Placement): Promise<RewardOutcome> {
+    const r = await this.request('rewarded');
+    return r === 'finished' ? 'earned' : r === 'error' ? 'skipped' : 'failed';
   }
 
-  async showInterstitial(_k: BreakKind): Promise<void> {
-    await this.request('midgame');
+  async showInterstitial(_k: BreakKind): Promise<boolean> {
+    return (await this.request('midgame')) !== 'none';
   }
 
   firstFrame(): void {}

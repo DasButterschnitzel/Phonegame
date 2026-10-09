@@ -1,4 +1,4 @@
-import type { AdService } from '../AdService.ts';
+import type { AdService, RewardOutcome } from '../AdService.ts';
 
 /** No ad network (plain web / desktop builds): ad-gated offers are hidden. */
 export class NoAds implements AdService {
@@ -8,8 +8,10 @@ export class NoAds implements AdService {
   isRewardedReady(): boolean {
     return false;
   }
-  async showRewarded(): Promise<boolean> {
+  async showRewarded(): Promise<RewardOutcome> {
+    return 'failed';
+  }
+  async showInterstitial(): Promise<boolean> {
     return false;
   }
-  async showInterstitial(): Promise<void> {}
 }

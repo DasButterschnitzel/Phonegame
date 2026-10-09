@@ -1,4 +1,4 @@
-import type { AdService, BreakKind, Placement } from '../AdService.ts';
+import type { AdService, BreakKind, Placement, RewardOutcome } from '../AdService.ts';
 import type { PortalHooks } from '../../portal.ts';
 import type { KeyValueStore } from '../../storage/Storage.ts';
 
@@ -63,21 +63,24 @@ export class YouTubeAds implements AdService, PortalHooks {
     return this.available && !!yt();
   }
 
-  async showRewarded(p: Placement): Promise<boolean> {
+  async showRewarded(p: Placement): Promise<RewardOutcome> {
     try {
-      return Boolean(await yt()!.ads.requestRewardedAd(p));
+      // The SDK only says whether to grant the reward; a false is counted as an ad that ran (cooldowns apply).
+      return (await yt()!.ads.requestRewardedAd(p)) ? 'earned' : 'skipped';
     } catch {
       // Ads are not enabled for this game (or unavailable) — hide ad offers for the session.
       this.available = false;
-      return false;
+      return 'failed';
     }
   }
 
-  async showInterstitial(_k: BreakKind): Promise<void> {
+  async showInterstitial(_k: BreakKind): Promise<boolean> {
     try {
-      await yt()?.ads.requestInterstitialAd();
+      // The SDK does not say whether an ad ran: count it, so the policy never under-counts.
+      await yt()!.ads.requestInterstitialAd();
+      return true;
     } catch {
-      /* no ad */
+      return false;
     }
   }
 

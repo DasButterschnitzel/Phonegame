@@ -1,4 +1,4 @@
-import type { AdService, BreakKind, Placement } from '../AdService.ts';
+import type { AdService, BreakKind, Placement, RewardOutcome } from '../AdService.ts';
 
 /**
  * Simulated ads for development, tests and the web demo: a full-screen countdown overlay.
@@ -26,14 +26,16 @@ export class DevStubAds implements AdService {
     return this.mode !== 'fail';
   }
 
-  showRewarded(p: Placement): Promise<boolean> {
-    if (this.mode === 'fail') return Promise.resolve(false);
-    return this.overlay(`rewarded:${p}`, true).then((completed) => completed && this.mode !== 'noreward');
+  async showRewarded(p: Placement): Promise<RewardOutcome> {
+    if (this.mode === 'fail') return 'failed';
+    const completed = await this.overlay(`rewarded:${p}`, true);
+    return completed && this.mode !== 'noreward' ? 'earned' : 'skipped';
   }
 
-  async showInterstitial(kind: BreakKind): Promise<void> {
-    if (this.mode === 'fail') return;
+  async showInterstitial(kind: BreakKind): Promise<boolean> {
+    if (this.mode === 'fail') return false;
     await this.overlay(`interstitial:${kind}`, false);
+    return true;
   }
 
   private overlay(tag: string, closable: boolean): Promise<boolean> {

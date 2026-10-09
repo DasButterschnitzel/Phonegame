@@ -6,7 +6,7 @@ import {
   InterstitialAdPluginEvents,
   RewardAdPluginEvents,
 } from '@capacitor-community/admob';
-import type { AdService, BreakKind, Placement } from '../AdService.ts';
+import type { AdService, BreakKind, Placement, RewardOutcome } from '../AdService.ts';
 import { modeLine, resolveAdMobConfig, type AdMobConfig, type NativeAdConfig } from '../admob/config.ts';
 
 /** This app's own native plugin (android/.../AdConfigPlugin.java): the build's ad configuration. */
@@ -27,9 +27,9 @@ export class AdMobAds implements AdService {
   private cfg: AdMobConfig = resolveAdMobConfig('web', null);
   private rTry = 0;
   private iTry = 0;
-  private onRewardDone: ((earned: boolean) => void) | null = null;
+  private onRewardDone: ((o: RewardOutcome) => void) | null = null;
   private earned = false;
-  private onInterstitialDone: (() => void) | null = null;
+  private onInterstitialDone: ((shown: boolean) => void) | null = null;
 
   async init(): Promise<void> {
     const platform = Capacitor.getPlatform();
@@ -71,15 +71,15 @@ export class AdMobAds implements AdService {
     });
     await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
       // Rewarded and Dismissed can arrive in either order — give the reward event a short grace period.
-      setTimeout(() => this.finishReward(this.earned), 400);
+      setTimeout(() => this.finishReward(this.earned ? 'earned' : 'skipped'), 400);
     });
-    await AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => this.finishReward(false));
+    await AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => this.finishReward('failed'));
     await AdMob.addListener(RewardAdPluginEvents.FailedToLoad, () => {
       this.rewardedLoaded = false;
       this.retry('r');
     });
-    await AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => this.finishInterstitial());
-    await AdMob.addListener(InterstitialAdPluginEvents.FailedToShow, () => this.finishInterstitial());
+    await AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => this.finishInterstitial(true));
+    await AdMob.addListener(InterstitialAdPluginEvents.FailedToShow, () => this.finishInterstitial(false));
     await AdMob.addListener(InterstitialAdPluginEvents.FailedToLoad, () => {
       this.interstitialLoaded = false;
       this.retry('i');
@@ -121,41 +121,41 @@ export class AdMobAds implements AdService {
     return this.canRequest && this.rewardedLoaded;
   }
 
-  private finishReward(earned: boolean): void {
+  private finishReward(o: RewardOutcome): void {
     const cb = this.onRewardDone;
     this.onRewardDone = null;
-    cb?.(earned);
+    cb?.(o);
   }
 
-  private finishInterstitial(): void {
+  private finishInterstitial(shown: boolean): void {
     const cb = this.onInterstitialDone;
     this.onInterstitialDone = null;
-    cb?.();
+    cb?.(shown);
   }
 
-  showRewarded(_p: Placement): Promise<boolean> {
-    if (!this.isRewardedReady()) return Promise.resolve(false);
+  showRewarded(_p: Placement): Promise<RewardOutcome> {
+    if (!this.isRewardedReady()) return Promise.resolve('failed');
     this.earned = false;
     this.rewardedLoaded = false;
-    return new Promise<boolean>((resolve) => {
-      this.onRewardDone = (earned) => {
-        resolve(earned);
+    return new Promise<RewardOutcome>((resolve) => {
+      this.onRewardDone = (o) => {
+        resolve(o);
         void this.loadRewarded();
       };
       // Do not await: on early close this promise may never settle (see class comment).
-      AdMob.showRewardVideoAd().catch(() => this.finishReward(false));
+      AdMob.showRewardVideoAd().catch(() => this.finishReward('failed'));
     });
   }
 
-  showInterstitial(_k: BreakKind): Promise<void> {
-    if (!this.canRequest || !this.interstitialLoaded) return Promise.resolve();
+  showInterstitial(_k: BreakKind): Promise<boolean> {
+    if (!this.canRequest || !this.interstitialLoaded) return Promise.resolve(false);
     this.interstitialLoaded = false;
-    return new Promise<void>((resolve) => {
-      this.onInterstitialDone = () => {
-        resolve();
+    return new Promise<boolean>((resolve) => {
+      this.onInterstitialDone = (shown) => {
+        resolve(shown);
         void this.loadInterstitial();
       };
-      AdMob.showInterstitial().catch(() => this.finishInterstitial());
+      AdMob.showInterstitial().catch(() => this.finishInterstitial(false));
     });
   }
 
